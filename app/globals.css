@@ -1,0 +1,150 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../vendor/shadcn-tailwind-4.13.0.css";
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility scrollbar-gutter-stable {
+  scrollbar-gutter: stable;
+}
+
+:root {
+  --background: #faf9f6;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #fffdf9;
+  --popover-foreground: #0f172a;
+  --primary: #0f172a;
+  --primary-foreground: #ffffff;
+  --secondary: #f2e8dc;
+  --secondary-foreground: #4b3828;
+  --muted: #f3eee7;
+  --muted-foreground: #6b7280;
+  --accent: #f0e2cf;
+  --accent-foreground: #7b4b24;
+  --destructive: #e7000b;
+  --border: #e7ddd0;
+  --input: #dfd2c1;
+  --ring: #c18a51;
+  --chart-1: #d29a5a;
+  --chart-2: #ca795c;
+  --chart-3: #7f9d88;
+  --chart-4: #8b668d;
+  --chart-5: #31435d;
+  --radius: 0.9rem;
+  --sidebar: #f4ede3;
+  --sidebar-foreground: #172033;
+  --sidebar-primary: #0f172a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eadcc9;
+  --sidebar-accent-foreground: #51381f;
+  --sidebar-border: #e3d5c3;
+  --sidebar-ring: #c18a51;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1115;
+    --foreground: #f4f1ec;
+    --card: #17191e;
+    --card-foreground: #f4f1ec;
+    --popover: #1c1e24;
+    --popover-foreground: #f4f1ec;
+    --primary: #e7b779;
+    --primary-foreground: #0f172a;
+    --secondary: #2b2724;
+    --secondary-foreground: #f4f1ec;
+    --muted: #25272d;
+    --muted-foreground: #a8a29e;
+    --accent: #342b23;
+    --accent-foreground: #efc992;
+    --destructive: #ff6467;
+    --border: #ffffff1a;
+    --input: #ffffff22;
+    --ring: #d7a66d;
+    --chart-1: #e7b779;
+    --chart-2: #e28d6f;
+    --chart-3: #8fbd9c;
+    --chart-4: #c092c8;
+    --chart-5: #88a9d2;
+    --sidebar: #151515;
+    --sidebar-foreground: #f1eee8;
+    --sidebar-primary: #e7b779;
+    --sidebar-primary-foreground: #0f172a;
+    --sidebar-accent: #2b2724;
+    --sidebar-accent-foreground: #efc992;
+    --sidebar-border: #ffffff1a;
+    --sidebar-ring: #737373;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: #e7b779;
+  color: #0f172a;
+}
+
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+}
