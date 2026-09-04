@@ -7,7 +7,7 @@ create or replace function public.create_owner_workspace(
 )
 returns uuid
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
