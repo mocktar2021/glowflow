@@ -42,7 +42,7 @@ async function waitForServer() {
       throw new Error(`Next.js exited before startup:\n${serverOutput}`);
     }
     try {
-      const response = await fetch(`${origin}/fr/dashboard`, {
+      const response = await fetch(`${origin}/fr/login`, {
         signal: AbortSignal.timeout(1000),
       });
       if (response.status === 200) return;
@@ -54,13 +54,13 @@ async function waitForServer() {
   throw new Error(`Next.js did not start in time:\n${serverOutput}`);
 }
 
-test("renders localized dashboard and booking routes in production", { timeout: 30000 }, async () => {
+test("renders localized authentication and booking routes in production", { timeout: 30000 }, async () => {
   await waitForServer();
 
   for (const route of [
-    "/fr/dashboard",
-    "/en/dashboard",
-    "/es/dashboard",
+    "/fr/login",
+    "/en/register",
+    "/es/forgot-password",
     "/fr/book/atelier-belle",
   ]) {
     const response = await fetch(`${origin}${route}`, {
