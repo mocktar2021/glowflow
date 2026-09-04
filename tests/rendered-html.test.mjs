@@ -1,27 +1,74 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import test, { after } from "node:test";
+import { fileURLToPath } from "node:url";
 
-test("renders the French dashboard through the production worker", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+const root = fileURLToPath(new URL("..", import.meta.url));
+const port = 32000 + (process.pid % 1000);
+const origin = `http://127.0.0.1:${port}`;
+const server = spawn(
+  process.execPath,
+  [
+    path.join(root, "node_modules/next/dist/bin/next"),
+    "start",
+    "-H",
+    "127.0.0.1",
+    "-p",
+    String(port),
+  ],
+  {
+    cwd: root,
+    env: { ...process.env, HOSTNAME: "127.0.0.1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+);
 
-  const response = await worker.fetch(
-    new Request("http://localhost/fr/dashboard", {
+let serverOutput = "";
+server.stdout.on("data", (chunk) => {
+  serverOutput += chunk.toString();
+});
+server.stderr.on("data", (chunk) => {
+  serverOutput += chunk.toString();
+});
+
+after(() => {
+  server.kill("SIGTERM");
+});
+
+async function waitForServer() {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (server.exitCode !== null) {
+      throw new Error(`Next.js exited before startup:\n${serverOutput}`);
+    }
+    try {
+      const response = await fetch(`${origin}/fr/dashboard`, {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (response.status === 200) return;
+    } catch {
+      // The server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Next.js did not start in time:\n${serverOutput}`);
+}
+
+test("renders localized dashboard and booking routes in production", { timeout: 30000 }, async () => {
+  await waitForServer();
+
+  for (const route of [
+    "/fr/dashboard",
+    "/en/dashboard",
+    "/es/dashboard",
+    "/fr/book/atelier-belle",
+  ]) {
+    const response = await fetch(`${origin}${route}`, {
       headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  assert.match(await response.text(), /GlowFlow/);
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(response.status, 200, route);
+    assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+    assert.match(await response.text(), /GlowFlow/);
+  }
 });

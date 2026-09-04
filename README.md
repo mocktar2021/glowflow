@@ -33,6 +33,16 @@ Supported locales are `fr`, `en`, and `es`. The root route redirects to `/fr/das
 
 Use a Supabase publishable key in the browser and a Supabase secret key only on the server. Use a restricted Stripe key and keep the webhook signing secret server-side.
 
+## Deployment
+
+- Hosting target: Vercel
+- Database and authentication: a dedicated Supabase project in `us-east-1`
+- Production URL: `https://glowflow.mocktar.com`
+- Production branch: `master`
+- Pull requests must pass lint, build, and route tests before merge.
+
+Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` until Stripe Connect sandbox onboarding and signed webhooks pass end-to-end verification.
+
 ## Payment model
 
 GlowFlow uses Stripe Connect direct charges. Each salon stays the merchant of record. The Checkout endpoint reads service price and deposit values from Supabase, creates the payment on the connected account, and retains the configured platform fee. Webhook events must drive final payment state changes.
