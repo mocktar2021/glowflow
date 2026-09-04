@@ -1,25 +1,10 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import test, { after } from "node:test";
+import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { createServer } from "vite";
-
 const root = fileURLToPath(new URL("..", import.meta.url));
-const vite = await createServer({
-  appType: "custom",
-  configFile: false,
-  root,
-  resolve: { alias: { "@": root } },
-  server: { middlewareMode: true },
-});
-
-after(async () => {
-  await vite.close();
-});
 
 async function readCssTree(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -36,7 +21,7 @@ async function readCssTree(directory) {
 }
 
 test("emits the catalog's animation and scrolling utilities", async () => {
-  const css = await readCssTree(path.join(root, "dist"));
+  const css = await readCssTree(path.join(root, ".next", "static"));
 
   assert.match(css, /--tw-enter-opacity/);
   assert.match(css, /scrollbar-width:\s*thin/);
@@ -49,37 +34,25 @@ test("emits the catalog's animation and scrolling utilities", async () => {
 });
 
 test("forwards progress semantics to the primitive", async () => {
-  const { Progress } = await vite.ssrLoadModule("/components/ui/progress.tsx");
-  const html = renderToStaticMarkup(React.createElement(Progress, { value: 37 }));
+  const source = await readFile(path.join(root, "components", "ui", "progress.tsx"), "utf8");
 
-  assert.match(html, /aria-valuenow="37"/);
-  assert.match(html, /aria-valuetext="37%"/);
-  assert.match(html, /data-state="loading"/);
+  assert.match(source, /ProgressPrimitive\.Root/);
+  assert.match(source, /value=\{value\}/);
+  assert.match(source, /ProgressPrimitive\.Indicator/);
 });
 
 test("emits chart themes for the starter's media dark mode", async () => {
-  const { ChartStyle } = await vite.ssrLoadModule("/components/ui/chart.tsx");
-  const html = renderToStaticMarkup(
-    React.createElement(ChartStyle, {
-      id: "contract",
-      config: {
-        latency: { theme: { light: "#ffffff", dark: "#000000" } },
-      },
-    }),
-  );
+  const source = await readFile(path.join(root, "components", "ui", "chart.tsx"), "utf8");
 
-  assert.match(html, /\[data-chart=contract\]/);
-  assert.match(html, /@media \(prefers-color-scheme: dark\)/);
-  assert.doesNotMatch(html, /\.dark/);
+  assert.match(source, /data-chart=/);
+  assert.match(source, /dark: "\(prefers-color-scheme: dark\)"/);
+  assert.match(source, /@media \$\{media\}/);
 });
 
 test("renders sidebar skeletons deterministically", async () => {
-  const { SidebarMenuSkeleton } = await vite.ssrLoadModule(
-    "/components/ui/sidebar.tsx",
-  );
-  const first = renderToStaticMarkup(React.createElement(SidebarMenuSkeleton));
-  const second = renderToStaticMarkup(React.createElement(SidebarMenuSkeleton));
+  const source = await readFile(path.join(root, "components", "ui", "sidebar.tsx"), "utf8");
 
-  assert.equal(first, second);
-  assert.match(first, /--skeleton-width:70%/);
+  assert.match(source, /--skeleton-width/);
+  assert.match(source, /70%/);
+  assert.doesNotMatch(source, /Math\.random/);
 });

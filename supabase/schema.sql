@@ -100,9 +100,13 @@ create table public.invoices (
 
 create index clients_tenant_name_idx on public.clients (tenant_id, full_name);
 create index services_tenant_active_idx on public.services (tenant_id, is_active);
+create index tenants_owner_idx on public.tenants (owner_id);
 create index appointments_tenant_start_idx on public.appointments (tenant_id, start_time);
-create index appointments_staff_start_idx on public.appointments (staff_id, start_time);
+create index appointments_client_tenant_idx on public.appointments (client_id, tenant_id);
+create index appointments_service_tenant_idx on public.appointments (service_id, tenant_id);
+create index appointments_staff_tenant_start_idx on public.appointments (staff_id, tenant_id, start_time);
 create index invoices_tenant_issued_idx on public.invoices (tenant_id, issued_at desc);
+create index invoices_appointment_tenant_idx on public.invoices (appointment_id, tenant_id);
 
 create or replace function private.is_tenant_member(target_tenant_id uuid)
 returns boolean
