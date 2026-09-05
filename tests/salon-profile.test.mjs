@@ -10,6 +10,7 @@ const publicPage = await readFile(path.join(root, "app/[locale]/salons/[slug]/pa
 const ownerPage = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/actions.ts"), "utf8");
 const directUploadForm = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/direct-upload-form.tsx"), "utf8");
+const photoRemovalControl = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/photo-removal-control.tsx"), "utf8");
 
 test("adds complete public profile fields with bounded JSON and gallery data", () => {
   assert.match(migration, /add column opening_hours jsonb/);
@@ -72,4 +73,17 @@ test("keeps successful uploads when the profile action completes", () => {
   assert.doesNotMatch(actions, /public-profile\?saved=1/);
   assert.match(directUploadForm, /const result = await action\(formData\)/);
   assert.match(directUploadForm, /window\.location\.assign/);
+});
+
+test("shows explicit, reversible photo removal actions", () => {
+  assert.match(ownerPage, /PhotoRemovalControl/);
+  assert.match(ownerPage, /removalPending/);
+  assert.match(ownerPage, /Cette photo sera supprimée/);
+  assert.match(ownerPage, /This photo will be removed/);
+  assert.match(ownerPage, /Esta foto se eliminará/);
+  assert.match(photoRemovalControl, /type="button"/);
+  assert.match(photoRemovalControl, /aria-pressed={marked}/);
+  assert.match(photoRemovalControl, /setMarked/);
+  assert.match(photoRemovalControl, /name={inputName}/);
+  assert.match(photoRemovalControl, /checked={marked}/);
 });
