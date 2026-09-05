@@ -33,7 +33,12 @@ export async function ensureOwnerWorkspace() {
     requested_slug: metadata.salon_slug ?? "my-salon",
     owner_full_name: metadata.full_name ?? authData.user.email ?? "Salon owner",
     owner_locale: metadata.locale ?? "fr",
-    workspace_currency: metadata.currency ?? "EUR",
+    salon_country_code: metadata.country_code ?? "FR",
+    salon_time_zone: metadata.time_zone ?? "Europe/Paris",
+    salon_address_line1: metadata.address_line1 ?? "",
+    salon_city: metadata.city ?? "",
+    salon_postal_code: metadata.postal_code ?? "",
+    salon_administrative_area: metadata.administrative_area ?? "",
   });
 
   return { error: error?.message ?? null };

@@ -56,12 +56,15 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import type { Locale } from "@/lib/i18n";
+import { formatMoney } from "@/lib/markets";
 
 type DashboardOwner = {
   fullName: string;
   salonName: string;
   salonSlug: string;
   currency: string;
+  countryCode: string;
+  timeZone: string;
 };
 
 type Appointment = {
@@ -152,7 +155,7 @@ export function DashboardShell({
   const firstName = owner.fullName.split(/\s+/).filter(Boolean)[0] ?? owner.fullName;
   const greeting =
     locale === "fr" ? `Bonjour, ${firstName}` : locale === "es" ? `Hola, ${firstName}` : `Hi, ${firstName}`;
-  const currencySymbol = owner.currency === "USD" ? "$" : "€";
+  const money = (amount: number) => formatMoney(amount, owner.currency, locale);
 
   const navItems: Array<{
     key: "overview" | "calendar" | "walkIns" | "clients" | "services" | "checkout";
@@ -230,7 +233,7 @@ export function DashboardShell({
                 <span className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="font-semibold">{owner.salonName}</span>
                   <span className="text-xs text-slate-500 dark:text-stone-400">
-                    {owner.currency} · @{owner.salonSlug}
+                    {owner.countryCode} · {owner.currency} · @{owner.salonSlug}
                   </span>
                 </span>
                 <MoreHorizontal className="group-data-[collapsible=icon]:hidden" />
@@ -284,8 +287,8 @@ export function DashboardShell({
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Key metrics">
             <MetricCard icon={CalendarDays} label={t("dashboard.appointments")} value="8" detail="6 · 2" tone="slate" />
-            <MetricCard icon={CircleDollarSign} label={t("dashboard.revenue")} value={`1 248 ${currencySymbol}`} detail={t("dashboard.versus")} tone="gold" />
-            <MetricCard icon={ShieldCheck} label={t("dashboard.deposits")} value={`312 ${currencySymbol}`} detail={`100 % ${t("dashboard.paid")}`} tone="rose" />
+            <MetricCard icon={CircleDollarSign} label={t("dashboard.revenue")} value={money(1248)} detail={t("dashboard.versus")} tone="gold" />
+            <MetricCard icon={ShieldCheck} label={t("dashboard.deposits")} value={money(312)} detail={`100 % ${t("dashboard.paid")}`} tone="rose" />
             <MetricCard icon={HeartHandshake} label={t("dashboard.noShows")} value="3" detail={t("dashboard.protected")} tone="plum" />
           </section>
 
@@ -331,7 +334,7 @@ export function DashboardShell({
                           </span>
                         </span>
                         <span className="hidden text-right sm:block">
-                          <span className="block font-semibold tabular-nums">{appointment.price} {currencySymbol}</span>
+                          <span className="block font-semibold tabular-nums">{money(appointment.price)}</span>
                           <span className="text-xs text-slate-500 dark:text-stone-400">{t("dashboard.paid")}</span>
                         </span>
                         <ChevronRight className="size-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#a56d37] dark:text-stone-600" />
