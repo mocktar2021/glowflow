@@ -33,9 +33,9 @@ test("keeps publication owner-controlled and validates image uploads", () => {
   assert.match(actions, /owner\.role !== "owner"/);
   assert.match(actions, /formData\.get\("is_published"\) === "on"/);
   assert.match(actions, /published_at: publish/);
-  assert.match(actions, /allowedImageTypes/);
-  assert.match(actions, /maximumImageBytes/);
-  assert.match(actions, /galleryUrls\.length \+ gallery\.length > 8/);
+  assert.match(directUploadForm, /allowedImageTypes/);
+  assert.match(directUploadForm, /maximumImageBytes/);
+  assert.match(actions, /galleryUrls\.length > 8/);
   assert.match(actions, /remove_gallery_urls/);
   assert.match(actions, /salon-public-media"\)\.remove/);
 });
