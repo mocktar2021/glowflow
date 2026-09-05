@@ -9,6 +9,7 @@ const migration = await readFile(path.join(root, "supabase/migrations/2026090502
 const publicPage = await readFile(path.join(root, "app/[locale]/salons/[slug]/page.tsx"), "utf8");
 const ownerPage = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/actions.ts"), "utf8");
+const nextConfig = await readFile(path.join(root, "next.config.ts"), "utf8");
 
 test("adds complete public profile fields with bounded JSON and gallery data", () => {
   assert.match(migration, /add column opening_hours jsonb/);
@@ -52,4 +53,12 @@ test("owner editor exposes multilingual content and cash payment settings", () =
   assert.match(ownerPage, /\["cash", labels\.cash\]/);
   assert.match(ownerPage, /gallery_photos/);
   assert.match(ownerPage, /opening hours|Horaires|Horarios/i);
+});
+
+test("keeps photo saves below the hosting request boundary", () => {
+  assert.match(nextConfig, /bodySizeLimit: "4mb"/);
+  assert.match(actions, /maximumImagesPerSaveBytes = 3 \* 1024 \* 1024/);
+  assert.match(actions, /selectedImageBytes > maximumImagesPerSaveBytes/);
+  assert.match(ownerPage, /image_batch_too_large/);
+  assert.match(ownerPage, /3 MB per save/);
 });
