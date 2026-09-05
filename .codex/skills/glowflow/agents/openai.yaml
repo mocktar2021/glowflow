@@ -1,0 +1,7 @@
+interface:
+  display_name: "GlowFlow"
+  short_description: "Deliver the GlowFlow salon platform safely"
+  brand_color: "#E0A96D"
+  default_prompt: "Use $glowflow to plan and deliver the next GlowFlow work item."
+policy:
+  allow_implicit_invocation: true
