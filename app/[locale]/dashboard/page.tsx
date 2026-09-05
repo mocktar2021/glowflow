@@ -1,4 +1,4 @@
-import { CalendarClock, ExternalLink, LogOut, Scissors } from "lucide-react";
+import { CalendarClock, CalendarDays, ExternalLink, LogOut, Scissors } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -48,6 +48,7 @@ export default async function DashboardPage({
     countryCode: tenant.country_code,
     timeZone: tenant.time_zone,
   };
+  const calendarLabel = locale === "fr" ? "Calendrier" : locale === "es" ? "Calendario" : "Calendar";
   const serviceLabel = locale === "fr" ? "Prestations" : locale === "es" ? "Servicios" : "Service catalog";
   const profileLabel = locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile";
   const availabilityLabel = locale === "fr" ? "Disponibilités" : locale === "es" ? "Disponibilidad" : "Availability";
@@ -57,8 +58,15 @@ export default async function DashboardPage({
       <DashboardShell locale={locale} owner={owner} />
       <nav className="fixed bottom-24 left-4 z-40 flex items-center gap-2 md:bottom-5 md:left-72" aria-label="Salon settings">
         <Link
-          href={`/${locale}/dashboard/services`}
+          href={`/${locale}/dashboard/calendar`}
           className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-semibold text-white shadow-lg dark:bg-[#e8bb82] dark:text-slate-950"
+        >
+          <CalendarDays className="size-4" />
+          {calendarLabel}
+        </Link>
+        <Link
+          href={`/${locale}/dashboard/services`}
+          className="hidden h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
         >
           <Scissors className="size-4" />
           {serviceLabel}
