@@ -19,7 +19,7 @@ test("public booking rechecks availability and stores client locale", () => {
   assert.match(migration, /public_time_unavailable/);
   assert.match(migration, /preferred_locale/);
   assert.match(migration, /booking_locale/);
-  assert.match(migration, /insert into public\\.appointments/);
+  assert.match(migration, /insert into public\.appointments/);
 });
 
 test("public booking functions expose only controlled entry points", () => {
