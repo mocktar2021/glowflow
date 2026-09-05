@@ -44,13 +44,13 @@ test("supports multilingual services and operational timing", () => {
 });
 
 test("archives services without deleting historical records", () => {
-  assert.match(actions, /setServiceActive/);
-  assert.match(actions, /is_active: active/);
-  assert.doesNotMatch(actions, /from\("services"\)\.delete\(\)[\s\S]*setServiceActive/);
+  const archiveAction = actions.slice(actions.indexOf("export async function setServiceActive"));
+  assert.match(archiveAction, /is_active: active/);
+  assert.doesNotMatch(archiveAction, /\.delete\(\)/);
   assert.match(page, /labels\.archived/);
 });
 
 test("links the dashboard to the service catalog", () => {
   assert.match(dashboard, /dashboard\/services/);
-  assert.match(dashboard, /Service catalog|Catalogue|Catálogo/);
+  assert.match(dashboard, /Service catalog|Prestations|Servicios/);
 });
