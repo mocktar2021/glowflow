@@ -6,9 +6,6 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import type { Locale } from "@/lib/i18n";
 
-const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
-const maximumImageBytes = 1024 * 1024;
-const maximumImagesPerSaveBytes = 3 * 1024 * 1024;
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 function field(formData: FormData, name: string) {
@@ -23,41 +20,22 @@ function fail(locale: Locale, code: string): never {
   redirect(`/${locale}/dashboard/public-profile?error=${encodeURIComponent(code)}`);
 }
 
-function extension(file: File) {
-  const byType: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/avif": "avif",
-  };
-  return byType[file.type] ?? "bin";
-}
-
 function storagePath(url: string) {
   const marker = "/storage/v1/object/public/salon-public-media/";
   const index = url.indexOf(marker);
   return index < 0 ? null : decodeURIComponent(url.slice(index + marker.length));
 }
 
-async function uploadImage(
-  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
-  tenantId: string,
-  file: File,
-) {
-  if (!allowedImageTypes.has(file.type) || file.size > maximumImageBytes) {
-    throw new Error("invalid_image");
+
+function ownedStoragePath(url: string, tenantId: string) {
+  const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const path = storagePath(url);
+  if (!projectUrl || !path || !path.startsWith(`${tenantId}/`)) return null;
+  try {
+    return new URL(url).origin === new URL(projectUrl).origin ? path : null;
+  } catch {
+    return null;
   }
-
-  const path = `${tenantId}/${crypto.randomUUID()}.${extension(file)}`;
-  const { error } = await supabase.storage.from("salon-public-media").upload(path, file, {
-    cacheControl: "31536000",
-    contentType: file.type,
-    upsert: false,
-  });
-  if (error) throw new Error("upload_failed");
-
-  const { data } = supabase.storage.from("salon-public-media").getPublicUrl(path);
-  return { path, url: data.publicUrl };
 }
 
 export async function savePublicSalonProfile(locale: Locale, formData: FormData) {
@@ -116,34 +94,26 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   const previousCoverUrl = existing?.image_url ?? null;
   const previousGalleryUrls = Array.isArray(existing?.gallery_urls) ? existing.gallery_urls : [];
   const removedGalleryUrls = new Set(list(formData, "remove_gallery_urls"));
-  let coverUrl = formData.get("remove_cover") === "on" ? null : previousCoverUrl;
+  const uploadedCoverUrl = field(formData, "uploaded_cover_url") || null;
+  const uploadedGalleryUrls = list(formData, "uploaded_gallery_urls");
+  const uploadedUrls = [...(uploadedCoverUrl ? [uploadedCoverUrl] : []), ...uploadedGalleryUrls];
+  const uploadedPaths = uploadedUrls.map((url) => ownedStoragePath(url, owner.tenant_id));
+
+  if (uploadedPaths.some((path) => !path)) fail(locale, "invalid_image_url");
+
+  const coverUrl = formData.get("remove_cover") === "on" ? null : uploadedCoverUrl ?? previousCoverUrl;
   let galleryUrls = previousGalleryUrls.filter((url: string) => !removedGalleryUrls.has(url));
-  const uploadedPaths: string[] = [];
-  const cover = formData.get("cover_photo");
-  const gallery = formData.getAll("gallery_photos").filter((item): item is File => item instanceof File && item.size > 0);
-  const selectedImageBytes = (cover instanceof File ? cover.size : 0)
-    + gallery.reduce((total, photo) => total + photo.size, 0);
-  if (selectedImageBytes > maximumImagesPerSaveBytes) fail(locale, "image_batch_too_large");
+  galleryUrls = [...galleryUrls, ...uploadedGalleryUrls];
 
-  try {
-    if (cover instanceof File && cover.size > 0) {
-      const uploaded = await uploadImage(supabase, owner.tenant_id, cover);
-      uploadedPaths.push(uploaded.path);
-      coverUrl = uploaded.url;
-    }
-
-    if (galleryUrls.length + gallery.length > 8) throw new Error("gallery_limit");
-    for (const photo of gallery) {
-      const uploaded = await uploadImage(supabase, owner.tenant_id, photo);
-      uploadedPaths.push(uploaded.path);
-      galleryUrls = [...galleryUrls, uploaded.url];
-    }
-  } catch (error) {
-    if (uploadedPaths.length) await supabase.storage.from("salon-public-media").remove(uploadedPaths);
-    fail(locale, error instanceof Error ? error.message : "upload_failed");
+  if (galleryUrls.length > 8) {
+    if (uploadedPaths.length) await supabase.storage.from("salon-public-media").remove(uploadedPaths.filter((path): path is string => Boolean(path)));
+    fail(locale, "gallery_limit");
   }
 
-  if (publish && !coverUrl) fail(locale, "cover_required");
+  if (publish && !coverUrl) {
+    if (uploadedPaths.length) await supabase.storage.from("salon-public-media").remove(uploadedPaths.filter((path): path is string => Boolean(path)));
+    fail(locale, "cover_required");
+  }
 
   const { error } = await supabase.from("salon_public_profiles").upsert({
     tenant_id: owner.tenant_id,
@@ -169,7 +139,10 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
     updated_at: new Date().toISOString(),
   }, { onConflict: "tenant_id" });
 
-  if (error) fail(locale, "save_failed");
+  if (error) {
+    if (uploadedPaths.length) await supabase.storage.from("salon-public-media").remove(uploadedPaths.filter((path): path is string => Boolean(path)));
+    fail(locale, "save_failed");
+  }
 
   const obsoleteUrls = [
     ...previousGalleryUrls.filter((url: string) => !galleryUrls.includes(url)),
