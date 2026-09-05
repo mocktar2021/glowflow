@@ -162,7 +162,6 @@ using (
   )
 );
 
-revoke all on function public.create_owner_workspace(text, text, text, text, text) from public, anon, authenticated;
 drop function if exists public.create_owner_workspace(text, text, text, text, text);
 
 create function public.create_owner_workspace(
