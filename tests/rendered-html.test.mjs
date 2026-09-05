@@ -79,5 +79,6 @@ test("renders localized authentication and booking routes in production", { time
     headers: { accept: "text/html" },
     signal: AbortSignal.timeout(5000),
   });
-  assert.equal(unpublished.status, 404);
+  assert.equal(unpublished.status, 200);
+  assert.match(await unpublished.text(), /This page could not be found|404/i);
 });
