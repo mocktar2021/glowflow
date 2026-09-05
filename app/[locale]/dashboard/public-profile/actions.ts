@@ -8,6 +8,7 @@ import type { Locale } from "@/lib/i18n";
 
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
 const maximumImageBytes = 1024 * 1024;
+const maximumImagesPerSaveBytes = 3 * 1024 * 1024;
 const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 function field(formData: FormData, name: string) {
@@ -118,16 +119,19 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   let coverUrl = formData.get("remove_cover") === "on" ? null : previousCoverUrl;
   let galleryUrls = previousGalleryUrls.filter((url: string) => !removedGalleryUrls.has(url));
   const uploadedPaths: string[] = [];
+  const cover = formData.get("cover_photo");
+  const gallery = formData.getAll("gallery_photos").filter((item): item is File => item instanceof File && item.size > 0);
+  const selectedImageBytes = (cover instanceof File ? cover.size : 0)
+    + gallery.reduce((total, photo) => total + photo.size, 0);
+  if (selectedImageBytes > maximumImagesPerSaveBytes) fail(locale, "image_batch_too_large");
 
   try {
-    const cover = formData.get("cover_photo");
     if (cover instanceof File && cover.size > 0) {
       const uploaded = await uploadImage(supabase, owner.tenant_id, cover);
       uploadedPaths.push(uploaded.path);
       coverUrl = uploaded.url;
     }
 
-    const gallery = formData.getAll("gallery_photos").filter((item): item is File => item instanceof File && item.size > 0);
     if (galleryUrls.length + gallery.length > 8) throw new Error("gallery_limit");
     for (const photo of gallery) {
       const uploaded = await uploadImage(supabase, owner.tenant_id, photo);
