@@ -14,14 +14,23 @@ export default async function RegisterPage({ params, searchParams }: { params: P
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const notices = await searchParams;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("markets")
-    .select("country_code, name_json, supported_locales, default_locale, currency, default_time_zone, supported_time_zones, address_format, tax_config, payment_methods, status")
-    .eq("status", "active")
-    .order("country_code");
+  let markets = fallbackMarkets;
 
-  const markets = data?.length ? (data as Market[]) : fallbackMarkets;
+  if (
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  ) {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("markets")
+      .select("country_code, name_json, supported_locales, default_locale, currency, default_time_zone, supported_time_zones, address_format, tax_config, payment_methods, status")
+      .eq("status", "active")
+      .order("country_code");
+
+    if (data?.length) {
+      markets = data as Market[];
+    }
+  }
 
   return (
     <AuthShell locale={locale} title="Create your salon" subtitle="Start with one secure owner account and a private GlowFlow workspace.">
