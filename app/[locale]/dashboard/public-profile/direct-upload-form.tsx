@@ -8,7 +8,7 @@ const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "ima
 const maximumImageBytes = 1024 * 1024;
 
 type Props = {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<{ saved: true }>;
   children: ReactNode;
   tenantId: string;
   messages: {
@@ -90,7 +90,10 @@ export function DirectUploadProfileForm({ action, children, tenantId, messages }
           formData.append("uploaded_gallery_urls", await upload(photo));
         }
 
-        await action(formData);
+        const result = await action(formData);
+        if (result.saved) {
+          window.location.assign(`${window.location.pathname}?saved=1`);
+        }
       } catch {
         if (uploadedPaths.length) {
           await supabase.storage.from("salon-public-media").remove(uploadedPaths);
