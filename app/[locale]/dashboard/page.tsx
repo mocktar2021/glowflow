@@ -1,4 +1,4 @@
-import { ExternalLink, LogOut, Scissors } from "lucide-react";
+import { CalendarClock, ExternalLink, LogOut, Scissors } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -50,6 +50,7 @@ export default async function DashboardPage({
   };
   const serviceLabel = locale === "fr" ? "Prestations" : locale === "es" ? "Servicios" : "Service catalog";
   const profileLabel = locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile";
+  const availabilityLabel = locale === "fr" ? "Disponibilités" : locale === "es" ? "Disponibilidad" : "Availability";
 
   return (
     <>
@@ -61,6 +62,13 @@ export default async function DashboardPage({
         >
           <Scissors className="size-4" />
           {serviceLabel}
+        </Link>
+        <Link
+          href={`/${locale}/dashboard/availability`}
+          className="hidden h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
+        >
+          <CalendarClock className="size-4" />
+          {availabilityLabel}
         </Link>
         <Link
           href={`/${locale}/dashboard/public-profile`}
