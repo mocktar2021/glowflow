@@ -8,6 +8,10 @@ const migration = await readFile(
   path.join(root, "supabase/migrations/20260905231500_add_public_availability_booking.sql"),
   "utf8",
 );
+const rpcPermissions = await readFile(
+  path.join(root, "supabase/migrations/20260905234500_restrict_public_booking_rpcs.sql"),
+  "utf8",
+);
 const route = await readFile(path.join(root, "app/api/public-booking/route.ts"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/book/[slug]/page.tsx"), "utf8");
 const flow = await readFile(path.join(root, "components/glowflow/live-booking-flow.tsx"), "utf8");
@@ -42,4 +46,10 @@ test("booking page and flow show confirmation from stored appointment data", () 
   assert.match(flow, /\/api\/public-booking/);
   assert.match(flow, /confirmation\.appointment_id/);
   assert.match(flow, /fr:[\s\S]*en:[\s\S]*es:/);
+});
+
+test("keeps public booking RPCs behind the server boundary", () => {
+  assert.match(rpcPermissions, /from public, anon, authenticated/);
+  assert.match(rpcPermissions, /to service_role/g);
+  assert.doesNotMatch(rpcPermissions, /to anon/);
 });
