@@ -62,6 +62,9 @@ test("renders localized authentication and booking routes in production", { time
     "/en/register",
     "/es/forgot-password",
     "/fr/book/atelier-belle",
+    "/fr/salons",
+    "/en/salons?q=braids&country=US",
+    "/es/salons?category=nails",
   ]) {
     const response = await fetch(`${origin}${route}`, {
       headers: { accept: "text/html" },
