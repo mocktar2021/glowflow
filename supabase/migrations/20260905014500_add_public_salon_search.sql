@@ -18,22 +18,41 @@ create table public.salon_public_profiles (
   published_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  search_vector tsvector generated always as (
-    to_tsvector(
-      'simple',
-      coalesce(business_name, '') || ' ' ||
-      coalesce(description_json::text, '') || ' ' ||
-      coalesce(city, '') || ' ' ||
-      coalesce(postal_code, '') || ' ' ||
-      coalesce(array_to_string(categories, ' '), '') || ' ' ||
-      coalesce(array_to_string(product_keywords, ' '), '')
-    )
-  ) stored,
+  search_vector tsvector not null default ''::tsvector,
   check (
     (is_published = false)
     or (published_at is not null and cardinality(categories) > 0)
   )
 );
+
+create schema if not exists private;
+
+create function private.set_salon_public_profile_search_vector()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $
+begin
+  new.search_vector := to_tsvector(
+    'simple',
+    coalesce(new.business_name, '') || ' ' ||
+    coalesce(new.description_json::text, '') || ' ' ||
+    coalesce(new.city, '') || ' ' ||
+    coalesce(new.postal_code, '') || ' ' ||
+    coalesce(array_to_string(new.categories, ' '), '') || ' ' ||
+    coalesce(array_to_string(new.product_keywords, ' '), '')
+  );
+  return new;
+end;
+$;
+
+revoke all on function private.set_salon_public_profile_search_vector() from public;
+
+create trigger salon_public_profiles_search_vector_trigger
+before insert or update of business_name, description_json, city, postal_code, categories, product_keywords
+on public.salon_public_profiles
+for each row execute function private.set_salon_public_profile_search_vector();
 
 create index salon_public_profiles_search_idx
   on public.salon_public_profiles using gin (search_vector);
