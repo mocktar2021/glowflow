@@ -233,7 +233,7 @@ export default async function SalonSearchPage({
               <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.marketplace}</span>
             </span>
           </Link>
-          <LanguageSwitcher locale={locale} compact />
+          <LanguageSwitcher locale={locale} />
         </div>
       </header>
 
