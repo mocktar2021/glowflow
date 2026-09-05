@@ -46,9 +46,7 @@ test("public route requires a published profile and localizes sharing metadata",
 });
 
 test("owner editor exposes multilingual content and cash payment settings", () => {
-  assert.match(ownerPage, /description_fr/);
-  assert.match(ownerPage, /description_en/);
-  assert.match(ownerPage, /description_es/);
+  assert.match(ownerPage, /name={`description_\$\{language\}`}/);
   assert.match(ownerPage, /\["cash", labels\.cash\]/);
   assert.match(ownerPage, /gallery_photos/);
   assert.match(ownerPage, /opening hours|Horaires|Horarios/i);
