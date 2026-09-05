@@ -10,6 +10,11 @@ const migration = await readFile(
   "utf8",
 );
 const messages = await readFile(path.join(root, "lib/bookings/conflicts.ts"), "utf8");
+const extensionMigration = await readFile(
+  path.join(root, "supabase/migrations/20260905193000_move_btree_gist_to_extensions.sql"),
+  "utf8",
+);
+
 
 test("derives appointment timing from the selected service", () => {
   assert.match(migration, /set_appointment_service_timing/);
@@ -40,4 +45,9 @@ test("maps database conflicts to every supported locale", () => {
   assert.match(messages, /fr:/);
   assert.match(messages, /en:/);
   assert.match(messages, /es:/);
+});
+
+test("keeps btree_gist outside the exposed public schema", () => {
+  assert.match(extensionMigration, /create schema if not exists extensions/);
+  assert.match(extensionMigration, /alter extension btree_gist set schema extensions/);
 });
