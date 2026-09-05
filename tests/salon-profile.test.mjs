@@ -11,6 +11,7 @@ const ownerPage = await readFile(path.join(root, "app/[locale]/dashboard/public-
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/actions.ts"), "utf8");
 const directUploadForm = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/direct-upload-form.tsx"), "utf8");
 const photoRemovalControl = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/photo-removal-control.tsx"), "utf8");
+const photoUploadControls = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/photo-upload-controls.tsx"), "utf8");
 
 test("adds complete public profile fields with bounded JSON and gallery data", () => {
   assert.match(migration, /add column opening_hours jsonb/);
@@ -86,4 +87,19 @@ test("shows explicit, reversible photo removal actions", () => {
   assert.match(photoRemovalControl, /setMarked/);
   assert.match(photoRemovalControl, /name={inputName}/);
   assert.match(photoRemovalControl, /checked={marked}/);
+});
+
+
+test("places clear localized photo upload controls beside existing salon photos", () => {
+  assert.match(ownerPage, /PhotoUploadControls/);
+  assert.match(ownerPage, /galleryCount={galleryCount}/);
+  assert.match(ownerPage, /Ajouter des photos/);
+  assert.match(ownerPage, /Add photos/);
+  assert.match(ownerPage, /Añadir fotos/);
+  assert.match(photoUploadControls, /name="cover_photo"/);
+  assert.match(photoUploadControls, /name="gallery_photos"/);
+  assert.match(photoUploadControls, /multiple/);
+  assert.match(photoUploadControls, /galleryCount}\/8/);
+  assert.match(photoUploadControls, /files\.map/);
+  assert.match(photoUploadControls, /files\.length > remaining/);
 });
