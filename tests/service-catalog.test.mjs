@@ -42,52 +42,6 @@ test("validates trusted service pricing and deposits", () => {
   assert.match(actions, /currency: tenant\.currency/);
   assert.match(checkout, /\.eq\("is_active", true\)/);
 });
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import test from "node:test";
-import { fileURLToPath } from "node:url";
-
-const root = fileURLToPath(new URL("..", import.meta.url));
-const migration = await readFile(path.join(root, "supabase/migrations/20260905170000_add_service_catalog_management.sql"), "utf8");
-const indexMigration = await readFile(path.join(root, "supabase/migrations/20260905175500_add_service_staff_foreign_key_indexes.sql"), "utf8");
-const page = await readFile(path.join(root, "app/[locale]/dashboard/services/page.tsx"), "utf8");
-const actions = await readFile(path.join(root, "app/[locale]/dashboard/services/actions.ts"), "utf8");
-const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
-const checkout = await readFile(path.join(root, "app/api/checkout/route.ts"), "utf8");
-
-test("stores service currency and tenant-scoped eligible staff", () => {
-  assert.match(migration, /add column if not exists currency text/);
-  assert.match(migration, /create table if not exists public\.service_staff/);
-  assert.match(migration, /foreign key \(service_id, tenant_id\)/);
-  assert.match(migration, /foreign key \(staff_id, tenant_id\)/);
-  assert.match(indexMigration, /\(service_id, tenant_id\)/);
-  assert.match(indexMigration, /\(staff_id, tenant_id\)/);
-});
-
-test("limits service catalog writes to tenant owners", () => {
-  assert.match(migration, /services_owner_insert/);
-  assert.match(migration, /services_owner_update/);
-  assert.match(migration, /services_owner_delete/);
-  assert.match(migration, /private\.is_tenant_owner/);
-  assert.match(page, /owner\.role !== "owner"/);
-  assert.match(actions, /owner\.role !== "owner"/);
-});
-
-test("validates trusted service pricing and deposits", () => {
-  assert.match(actions, /moneyToMinor/);
-  assert.match(actions, /currency === "USD" \? "\\$" : currency === "EUR" \? "€"/);
-  assert.match(actions, /normalized\.startsWith\(token\)/);
-  assert.match(actions, /normalized\.endsWith\(token\)/);
-  assert.match(actions, /\\d\+\(\?:\[\.,\]\\d\{1,2\}\)\?/);
-  assert.match(actions, /depositAmount > price/);
-  assert.doesNotMatch(page, /name="price"[^>]+pattern=/);
-  assert.doesNotMatch(page, /name="deposit"[^>]+pattern=/);
-  assert.match(page, /"\\$50\.00"/);
-  assert.match(page, /"50,00 €"/);
-  assert.match(actions, /currency: tenant\.currency/);
-  assert.match(checkout, /\.eq\("is_active", true\)/);
-});
 
 test("supports multilingual services and operational timing", () => {
   assert.match(page, /name="title_fr"/);
