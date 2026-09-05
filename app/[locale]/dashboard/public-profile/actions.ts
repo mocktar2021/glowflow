@@ -144,7 +144,7 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
     administrative_area: field(formData, "administrative_area"),
     public_phone: field(formData, "public_phone") || null,
     categories,
-    product_keywords: list(formData, "product_keywords"),
+    product_keywords: field(formData, "product_keywords").split(",").map((item) => item.trim()).filter(Boolean).slice(0, 30),
     image_url: coverUrl,
     gallery_urls: galleryUrls,
     opening_hours: openingHours,
