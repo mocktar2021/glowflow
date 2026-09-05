@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { BookingFlow } from "@/components/glowflow/booking-flow";
 import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { isLocale } from "@/lib/i18n";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,6 +23,10 @@ export default async function BookingPage({
 }) {
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
+    return <BookingFlow locale={locale} salonSlug={slug} />;
+  }
 
   const supabase = createAdminClient();
   const { data: tenant } = await supabase
