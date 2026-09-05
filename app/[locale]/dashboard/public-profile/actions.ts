@@ -154,5 +154,5 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   revalidatePath(`/${locale}/dashboard/public-profile`);
   revalidatePath(`/${locale}/salons/${tenant.slug}`);
   revalidatePath(`/${locale}/salons`);
-  redirect(`/${locale}/dashboard/public-profile?saved=1`);
+  return { saved: true as const };
 }
