@@ -407,6 +407,7 @@ export function DashboardShell({
         appointment={selectedClient}
         onOpenChange={(open) => !open && setSelectedClient(null)}
         locale={locale}
+        owner={owner}
       />
     </SidebarProvider>
   );
@@ -472,10 +473,12 @@ function ClientProfileDrawer({
   appointment,
   onOpenChange,
   locale,
+  owner,
 }: {
   appointment: Appointment | null;
   onOpenChange: (open: boolean) => void;
   locale: Locale;
+  owner: DashboardOwner;
 }) {
   const t = useTranslations();
 
