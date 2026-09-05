@@ -121,6 +121,17 @@ alter table public.tenants
 
 create index tenants_country_city_idx on public.tenants (country_code, city);
 
+revoke update (currency, time_zone) on public.tenants from authenticated;
+
+grant select (
+  country_code,
+  address_line1,
+  address_line2,
+  city,
+  administrative_area,
+  postal_code
+) on public.tenants to anon;
+
 grant update (
   name,
   primary_language,
