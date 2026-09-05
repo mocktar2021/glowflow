@@ -35,6 +35,8 @@ test("keeps publication owner-controlled and validates image uploads", () => {
   assert.match(actions, /allowedImageTypes/);
   assert.match(actions, /maximumImageBytes/);
   assert.match(actions, /galleryUrls\.length \+ gallery\.length > 8/);
+  assert.match(actions, /remove_gallery_urls/);
+  assert.match(actions, /salon-public-media"\)\.remove/);
 });
 
 test("public route requires a published profile and localizes sharing metadata", () => {
