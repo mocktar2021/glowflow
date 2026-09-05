@@ -20,6 +20,8 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 - `/{locale}/dashboard`
 - `/{locale}/book/{salon-slug}`
 - `/{locale}/salons`
+- `/{locale}/salons/{salon-slug}`
+- `/{locale}/dashboard/public-profile`
 - `/api/checkout`
 - `/api/preferences/locale`
 - `/api/stripe/webhook`
@@ -51,3 +53,8 @@ Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` until Stripe Connect sandbox onboardin
 GlowFlow uses Stripe Connect direct charges. Each salon stays the merchant of record. The Checkout endpoint reads service price and deposit values from Supabase, creates the payment on the connected account, and retains the configured platform fee. Webhook events must drive final payment state changes.
 
 Before enabling tax calculation, confirm the liable entity and active Stripe Tax registrations with a qualified tax adviser. The invoice schema stores TVA amounts but does not assume a legal rate.
+
+
+## Public salon media
+
+The `salon-public-media` Supabase Storage bucket accepts owner uploads under `{tenant_id}/...`. Public profiles only render owner-selected URLs after the profile is published.

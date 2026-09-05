@@ -359,7 +359,7 @@ export default async function SalonSearchPage({
                         </strong>
                       </span>
                     </div>
-                    <Link href={`/${locale}/book/${salon.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950">
+                    <Link href={`/${locale}/salons/${salon.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950">
                       {labels.book}
                     </Link>
                   </div>

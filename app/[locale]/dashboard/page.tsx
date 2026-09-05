@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import { ExternalLink, LogOut } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DashboardShell } from "@/components/glowflow/dashboard-shell";
@@ -51,6 +52,13 @@ export default async function DashboardPage({
   return (
     <>
       <DashboardShell locale={locale} owner={owner} />
+      <Link
+        href={`/${locale}/dashboard/public-profile`}
+        className="fixed bottom-24 left-4 z-40 inline-flex h-11 items-center gap-2 rounded-full bg-[#e8bb82] px-4 text-sm font-semibold text-slate-950 shadow-lg md:bottom-5 md:left-72"
+      >
+        ${locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile"}
+        <ExternalLink className="size-4" />
+      </Link>
       <form action={signOut.bind(null, locale)} className="fixed bottom-24 right-4 z-50 md:bottom-5">
         <button
           type="submit"
