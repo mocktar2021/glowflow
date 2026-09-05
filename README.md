@@ -27,7 +27,7 @@ Supported locales are `fr`, `en`, and `es`. Language preferences stay separate f
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and add your sandbox values.
-2. Run `supabase/schema.sql` in a fresh Supabase project, then apply newer files in `supabase/migrations` in timestamp order.
+2. For a fresh project, run `supabase/schema.sql`. For an existing project, apply pending files in `supabase/migrations` in timestamp order.
 3. Set each salon's Stripe connected account ID in `tenants.stripe_account_id` from trusted server code.
 4. Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` for the interactive deposit preview. Change it to `true` after the Supabase and Stripe sandbox setup works.
 5. Run `npm run dev`.
