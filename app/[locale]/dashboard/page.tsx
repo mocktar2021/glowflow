@@ -1,4 +1,4 @@
-import { ExternalLink, LogOut } from "lucide-react";
+import { ExternalLink, LogOut, Scissors } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -48,17 +48,28 @@ export default async function DashboardPage({
     countryCode: tenant.country_code,
     timeZone: tenant.time_zone,
   };
+  const serviceLabel = locale === "fr" ? "Prestations" : locale === "es" ? "Servicios" : "Service catalog";
+  const profileLabel = locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile";
 
   return (
     <>
       <DashboardShell locale={locale} owner={owner} />
-      <Link
-        href={`/${locale}/dashboard/public-profile`}
-        className="fixed bottom-24 left-4 z-40 inline-flex h-11 items-center gap-2 rounded-full bg-[#e8bb82] px-4 text-sm font-semibold text-slate-950 shadow-lg md:bottom-5 md:left-72"
-      >
-        ${locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile"}
-        <ExternalLink className="size-4" />
-      </Link>
+      <nav className="fixed bottom-24 left-4 z-40 flex items-center gap-2 md:bottom-5 md:left-72" aria-label="Salon settings">
+        <Link
+          href={`/${locale}/dashboard/services`}
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-semibold text-white shadow-lg dark:bg-[#e8bb82] dark:text-slate-950"
+        >
+          <Scissors className="size-4" />
+          {serviceLabel}
+        </Link>
+        <Link
+          href={`/${locale}/dashboard/public-profile`}
+          className="hidden h-11 items-center gap-2 rounded-full bg-[#e8bb82] px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex"
+        >
+          {profileLabel}
+          <ExternalLink className="size-4" />
+        </Link>
+      </nav>
       <form action={signOut.bind(null, locale)} className="fixed bottom-24 right-4 z-50 md:bottom-5">
         <button
           type="submit"
