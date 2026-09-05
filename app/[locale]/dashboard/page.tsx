@@ -19,11 +19,36 @@ export default async function DashboardPage({
     notFound();
   }
 
-  await requireUser(locale);
+  const { supabase, userId } = await requireUser(locale);
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("full_name, tenant_id")
+    .eq("id", userId)
+    .single();
+
+  const { data: tenant } = profile?.tenant_id
+    ? await supabase
+        .from("tenants")
+        .select("name, slug, currency")
+        .eq("id", profile.tenant_id)
+        .single()
+    : { data: null };
+
+  if (!profile || !tenant) {
+    throw new Error("Authenticated owner workspace is missing");
+  }
+
+  const owner = {
+    fullName: profile.full_name,
+    salonName: tenant.name,
+    salonSlug: tenant.slug,
+    currency: tenant.currency,
+  };
 
   return (
     <>
-      <DashboardShell locale={locale} />
+      <DashboardShell locale={locale} owner={owner} />
       <form action={signOut.bind(null, locale)} className="fixed bottom-24 right-4 z-50 md:bottom-5">
         <button
           type="submit"
