@@ -43,7 +43,7 @@ async function memberContext(locale: Locale, formData: FormData) {
     destination(locale, nav.date, nav.view, "error=member_required");
   }
 
-  return { supabase, nav };
+  return { supabase, nav, tenantId: member.tenant_id };
 }
 
 export async function createAppointment(locale: Locale, formData: FormData) {
@@ -136,16 +136,10 @@ export async function createQuickClient(locale: Locale, formData: FormData) {
   const nav = navigation(formData);
   if (!values.success) destination(locale, nav.date, nav.view, "error=invalid_client");
 
-  const { supabase } = await memberContext(locale, formData);
-  const { data: membership } = await supabase
-    .from("users")
-    .select("tenant_id")
-    .single();
-
-  if (!membership?.tenant_id) destination(locale, nav.date, nav.view, "error=member_required");
+  const { supabase, tenantId } = await memberContext(locale, formData);
 
   const { error } = await supabase.from("clients").insert({
-    tenant_id: membership.tenant_id,
+    tenant_id: tenantId,
     full_name: values.data.fullName,
     phone: values.data.phone || null,
     email: values.data.email || null,
