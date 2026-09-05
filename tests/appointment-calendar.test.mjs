@@ -11,6 +11,7 @@ const migration = await readFile(
 );
 const page = await readFile(path.join(root, "app/[locale]/dashboard/calendar/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/calendar/actions.ts"), "utf8");
+const dateTimeFields = await readFile(path.join(root, "app/[locale]/dashboard/calendar/date-time-fields.tsx"), "utf8");
 const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 
 test("creates appointments idempotently in the salon time zone", () => {
@@ -43,7 +44,13 @@ test("renders daily and weekly touch friendly calendar controls in three languag
   assert.match(page, /Calendar/);
   assert.match(page, /Calendario/);
   assert.match(page, /\["day", "week"\]/);
-  assert.match(page, /type="datetime-local"/);
+  assert.match(page, /CalendarDateTimeFields/);
+  assert.match(page, /labels\.selectDate/);
+  assert.match(dateTimeFields, /type="date"/);
+  assert.match(dateTimeFields, /type="time"/);
+  assert.match(dateTimeFields, /name="local_start"/);
+  assert.match(dateTimeFields, /\$\{date\}T\$\{time\}/);
+  assert.doesNotMatch(page, /type="datetime-local"/);
   assert.match(page, /deposit_paid/);
   assert.match(page, /createQuickClient/);
   assert.match(dashboard, /dashboard\/calendar/);
