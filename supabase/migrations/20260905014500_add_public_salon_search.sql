@@ -32,7 +32,7 @@ returns trigger
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 begin
   new.search_vector := to_tsvector(
     'simple',
@@ -45,7 +45,7 @@ begin
   );
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.set_salon_public_profile_search_vector() from public;
 
