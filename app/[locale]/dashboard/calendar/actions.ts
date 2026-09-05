@@ -121,3 +121,38 @@ export async function cancelAppointment(locale: Locale, formData: FormData) {
   revalidatePath(`/${locale}/dashboard/calendar`);
   destination(locale, nav.date, nav.view, "saved=canceled");
 }
+
+
+export async function createQuickClient(locale: Locale, formData: FormData) {
+  const values = z.object({
+    fullName: z.string().trim().min(2).max(120),
+    phone: z.string().trim().max(40),
+    email: z.union([z.literal(""), z.string().trim().email().max(160)]),
+  }).safeParse({
+    fullName: text(formData, "full_name"),
+    phone: text(formData, "phone"),
+    email: text(formData, "email"),
+  });
+  const nav = navigation(formData);
+  if (!values.success) destination(locale, nav.date, nav.view, "error=invalid_client");
+
+  const { supabase } = await memberContext(locale, formData);
+  const { data: membership } = await supabase
+    .from("users")
+    .select("tenant_id")
+    .single();
+
+  if (!membership?.tenant_id) destination(locale, nav.date, nav.view, "error=member_required");
+
+  const { error } = await supabase.from("clients").insert({
+    tenant_id: membership.tenant_id,
+    full_name: values.data.fullName,
+    phone: values.data.phone || null,
+    email: values.data.email || null,
+    preferred_locale: locale,
+  });
+
+  if (error) destination(locale, nav.date, nav.view, "error=client_failed");
+  revalidatePath(`/${locale}/dashboard/calendar`);
+  destination(locale, nav.date, nav.view, "saved=client");
+}
