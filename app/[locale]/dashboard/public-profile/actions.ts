@@ -101,7 +101,7 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
 
   if (uploadedPaths.some((path) => !path)) fail(locale, "invalid_image_url");
 
-  let coverUrl = formData.get("remove_cover") === "on" ? null : uploadedCoverUrl ?? previousCoverUrl;
+  const coverUrl = formData.get("remove_cover") === "on" ? null : uploadedCoverUrl ?? previousCoverUrl;
   let galleryUrls = previousGalleryUrls.filter((url: string) => !removedGalleryUrls.has(url));
   galleryUrls = [...galleryUrls, ...uploadedGalleryUrls];
 
