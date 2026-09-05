@@ -1799,7 +1799,7 @@ grant select (id, tenant_id, title_json, duration_minutes, sanitation_buffer_min
 
 create table public.salon_public_profiles (
   tenant_id uuid primary key references public.tenants(id) on delete cascade,
-  slug text not null unique check (slug ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'),
+  slug text not null unique check (slug ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*),
   business_name text not null check (char_length(business_name) between 2 and 120),
   description_json jsonb not null default '{}'::jsonb check (jsonb_typeof(description_json) = 'object'),
   country_code text not null references public.markets(country_code) on update cascade on delete restrict,
@@ -1815,22 +1815,41 @@ create table public.salon_public_profiles (
   published_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  search_vector tsvector generated always as (
-    to_tsvector(
-      'simple',
-      coalesce(business_name, '') || ' ' ||
-      coalesce(description_json::text, '') || ' ' ||
-      coalesce(city, '') || ' ' ||
-      coalesce(postal_code, '') || ' ' ||
-      coalesce(array_to_string(categories, ' '), '') || ' ' ||
-      coalesce(array_to_string(product_keywords, ' '), '')
-    )
-  ) stored,
+  search_vector tsvector not null default ''::tsvector,
   check (
     (is_published = false)
     or (published_at is not null and cardinality(categories) > 0)
   )
 );
+
+create schema if not exists private;
+
+create function private.set_salon_public_profile_search_vector()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $
+begin
+  new.search_vector := to_tsvector(
+    'simple',
+    coalesce(new.business_name, '') || ' ' ||
+    coalesce(new.description_json::text, '') || ' ' ||
+    coalesce(new.city, '') || ' ' ||
+    coalesce(new.postal_code, '') || ' ' ||
+    coalesce(array_to_string(new.categories, ' '), '') || ' ' ||
+    coalesce(array_to_string(new.product_keywords, ' '), '')
+  );
+  return new;
+end;
+$;
+
+revoke all on function private.set_salon_public_profile_search_vector() from public;
+
+create trigger salon_public_profiles_search_vector_trigger
+before insert or update of business_name, description_json, city, postal_code, categories, product_keywords
+on public.salon_public_profiles
+for each row execute function private.set_salon_public_profile_search_vector();
 
 create index salon_public_profiles_search_idx
   on public.salon_public_profiles using gin (search_vector);
@@ -1950,7 +1969,7 @@ language sql
 stable
 security invoker
 set search_path = ''
-as $$
+as $
   with matching as (
     select
       profile.slug,
@@ -2022,7 +2041,7 @@ as $$
   order by matching.relevance desc, matching.next_available_at asc nulls last, matching.business_name
   limit least(greatest(page_size, 1), 48)
   offset greatest(page_offset, 0);
-$$;
+$;
 
 revoke all on function public.search_public_salons(text, text, text, text, text, integer, timestamptz, integer, integer)
 from public;
