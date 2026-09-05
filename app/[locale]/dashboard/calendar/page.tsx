@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
 import { formatMoney } from "@/lib/markets";
+import { CalendarDateTimeFields } from "./date-time-fields";
 import {
   cancelAppointment,
   createAppointment,
@@ -52,7 +53,7 @@ const copy = {
   fr: {
     title: "Calendrier", subtitle: "Gérez les rendez-vous de l’équipe en vue quotidienne ou hebdomadaire.", back: "Tableau de bord",
     day: "Jour", week: "Semaine", today: "Aujourd’hui", previous: "Précédent", next: "Suivant", timeZone: "Fuseau horaire",
-    newAppointment: "Nouveau rendez-vous", client: "Client", service: "Prestation", staff: "Membre", start: "Date et heure", create: "Créer",
+    newAppointment: "Nouveau rendez-vous", client: "Client", service: "Prestation", staff: "Membre", start: "Date et heure", date: "Date", time: "Heure", selectDate: "Choisir cette date", create: "Créer",
     quickClient: "Ajouter rapidement un client", fullName: "Nom complet", phone: "Téléphone", email: "E-mail", addClient: "Ajouter le client",
     noClients: "Ajoutez un client avant de créer un rendez-vous.", noServices: "Ajoutez une prestation active avant de créer un rendez-vous.",
     empty: "Aucun rendez-vous pour cette période.", confirmed: "Confirmé", completed: "Terminé", canceled: "Annulé", no_show: "Absent",
@@ -63,7 +64,7 @@ const copy = {
   en: {
     title: "Calendar", subtitle: "Manage team appointments in daily or weekly view.", back: "Dashboard",
     day: "Day", week: "Week", today: "Today", previous: "Previous", next: "Next", timeZone: "Time zone",
-    newAppointment: "New appointment", client: "Client", service: "Service", staff: "Team member", start: "Date and time", create: "Create",
+    newAppointment: "New appointment", client: "Client", service: "Service", staff: "Team member", start: "Date and time", date: "Date", time: "Time", selectDate: "Select this date", create: "Create",
     quickClient: "Quick add client", fullName: "Full name", phone: "Phone", email: "Email", addClient: "Add client",
     noClients: "Add a client before creating an appointment.", noServices: "Add an active service before creating an appointment.",
     empty: "No appointments in this period.", confirmed: "Confirmed", completed: "Completed", canceled: "Canceled", no_show: "No-show",
@@ -74,7 +75,7 @@ const copy = {
   es: {
     title: "Calendario", subtitle: "Gestiona las citas del equipo en vista diaria o semanal.", back: "Panel",
     day: "Día", week: "Semana", today: "Hoy", previous: "Anterior", next: "Siguiente", timeZone: "Zona horaria",
-    newAppointment: "Nueva cita", client: "Cliente", service: "Servicio", staff: "Miembro", start: "Fecha y hora", create: "Crear",
+    newAppointment: "Nueva cita", client: "Cliente", service: "Servicio", staff: "Miembro", start: "Fecha y hora", date: "Fecha", time: "Hora", selectDate: "Elegir esta fecha", create: "Crear",
     quickClient: "Añadir cliente rápido", fullName: "Nombre completo", phone: "Teléfono", email: "Correo", addClient: "Añadir cliente",
     noClients: "Añade un cliente antes de crear una cita.", noServices: "Añade un servicio activo antes de crear una cita.",
     empty: "No hay citas en este período.", confirmed: "Confirmada", completed: "Completada", canceled: "Cancelada", no_show: "Ausente",
@@ -220,7 +221,12 @@ export default async function CalendarPage({
             {days.map((day) => {
               const dayAppointments = visibleAppointments.filter((item) => dateKey(new Date(item.start_time), tenant.time_zone) === day);
               return <article key={day} className={cardClass}>
-                <h2 className="capitalize text-lg font-semibold">{dayFormatter.format(new Date(`${day}T12:00:00Z`))}</h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="capitalize text-lg font-semibold">{dayFormatter.format(new Date(`${day}T12:00:00Z`))}</h2>
+                  <Link href={`/${locale}/dashboard/calendar?date=${day}&view=day`} className="rounded-full border border-[#d9c7b2] px-3 py-2 text-xs font-semibold text-[#8b572a]">
+                    {labels.selectDate}
+                  </Link>
+                </div>
                 <div className="mt-4 grid gap-3">
                   {dayAppointments.length ? dayAppointments.map((appointment) => {
                     const service = serviceById.get(appointment.service_id);
@@ -239,7 +245,12 @@ export default async function CalendarPage({
                       {appointment.status === "confirmed" ? <div className="mt-4 grid gap-3 border-t border-[#eadfce] pt-4 sm:grid-cols-[1fr_auto] dark:border-white/10">
                         <form action={rescheduleAppointment.bind(null, locale)} className="flex flex-col gap-2 sm:flex-row">
                           <input type="hidden" name="appointment_id" value={appointment.id} /><input type="hidden" name="calendar_date" value={selected} /><input type="hidden" name="calendar_view" value={view} />
-                          <input required aria-label={labels.start} name="local_start" type="datetime-local" defaultValue={localDateTimeValue(new Date(appointment.start_time), tenant.time_zone)} className={inputClass.replace("mt-2 ", "")} />
+                          <CalendarDateTimeFields
+                            initialDate={localDateTimeValue(new Date(appointment.start_time), tenant.time_zone).slice(0, 10)}
+                            initialTime={localDateTimeValue(new Date(appointment.start_time), tenant.time_zone).slice(11, 16)}
+                            dateLabel={labels.date}
+                            timeLabel={labels.time}
+                          />
                           <button type="submit" className="h-11 rounded-full border border-[#c99a66] px-4 text-sm font-semibold text-[#8b572a]">{labels.reschedule}</button>
                         </form>
                         <form action={cancelAppointment.bind(null, locale)}>
@@ -264,7 +275,7 @@ export default async function CalendarPage({
                 <label className="text-sm font-medium">{labels.client}<select required name="client_id" className={inputClass}>{clients.map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></label>
                 <label className="text-sm font-medium">{labels.service}<select required name="service_id" className={inputClass}>{services.map((item) => <option key={item.id} value={item.id}>{item.title_json[locale] ?? item.title_json.fr}</option>)}</select></label>
                 <label className="text-sm font-medium">{labels.staff}<select required name="staff_id" className={inputClass}>{staff.map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></label>
-                <label className="text-sm font-medium">{labels.start}<input required name="local_start" type="datetime-local" defaultValue={`${selected}T09:00`} className={inputClass} /></label>
+                <CalendarDateTimeFields initialDate={selected} initialTime="09:00" dateLabel={labels.date} timeLabel={labels.time} />
                 <button disabled={!clients.length || !services.length || !staff.length} type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#e8bb82] dark:text-slate-950"><Plus className="size-4" />{labels.create}</button>
               </form>
             </section>
