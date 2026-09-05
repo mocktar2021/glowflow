@@ -15,14 +15,12 @@ export function CountryFields({ locale, markets }: { locale: Locale; markets: Ma
 
   if (!selectedMarket) return null;
 
-  const regionLabel =
-    selectedMarket.country_code === "US"
-      ? "State"
-      : locale === "fr"
-        ? "Région"
-        : locale === "es"
-          ? "Región"
-          : "Region";
+  const labels = {
+    fr: { country: "Pays", timeZone: "Fuseau horaire", address: "Adresse du salon", city: "Ville", region: "Région", state: "État", postal: "Code postal" },
+    en: { country: "Country", timeZone: "Time zone", address: "Salon address", city: "City", region: "Region", state: "State", postal: "Postal code" },
+    es: { country: "País", timeZone: "Zona horaria", address: "Dirección del salón", city: "Ciudad", region: "Región", state: "Estado", postal: "Código postal" },
+  }[locale];
+  const regionLabel = selectedMarket.country_code === "US" ? labels.state : labels.region;
 
   return (
     <>
@@ -65,7 +63,7 @@ export function CountryFields({ locale, markets }: { locale: Locale; markets: Ma
         </label>
       </div>
       <label className="block text-sm font-medium">
-        {selectedMarket.address_format.postal_code_label ?? "Postal code"}
+        {selectedMarket.address_format.postal_code_label ?? labels.postal}
         <input
           className={`${inputClass} mt-2`}
           name="postal_code"
