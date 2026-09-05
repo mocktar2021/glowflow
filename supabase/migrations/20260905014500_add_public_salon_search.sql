@@ -199,7 +199,6 @@ as $$
       select min(service.price)::integer as starting_price
       from public.services as service
       where service.tenant_id = profile.tenant_id
-        and service.is_active = true
         and (filter_category is null or service.category = filter_category)
         and (maximum_price is null or service.price <= maximum_price)
     ) as service_summary on true
@@ -220,7 +219,6 @@ as $$
           select 1
           from public.services as matching_service
           where matching_service.tenant_id = profile.tenant_id
-            and matching_service.is_active = true
             and to_tsvector('simple', matching_service.title_json::text)
                 @@ websearch_to_tsquery('simple', trim(search_text))
         )
