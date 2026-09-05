@@ -1799,7 +1799,7 @@ grant select (id, tenant_id, title_json, duration_minutes, sanitation_buffer_min
 
 create table public.salon_public_profiles (
   tenant_id uuid primary key references public.tenants(id) on delete cascade,
-  slug text not null unique check (slug ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*),
+  slug text not null unique check (slug ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'),
   business_name text not null check (char_length(business_name) between 2 and 120),
   description_json jsonb not null default '{}'::jsonb check (jsonb_typeof(description_json) = 'object'),
   country_code text not null references public.markets(country_code) on update cascade on delete restrict,
@@ -1829,7 +1829,7 @@ returns trigger
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $$
 begin
   new.search_vector := to_tsvector(
     'simple',
@@ -1842,7 +1842,7 @@ begin
   );
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.set_salon_public_profile_search_vector() from public;
 
@@ -1969,7 +1969,7 @@ language sql
 stable
 security invoker
 set search_path = ''
-as $
+as $$
   with matching as (
     select
       profile.slug,
@@ -2041,7 +2041,7 @@ as $
   order by matching.relevance desc, matching.next_available_at asc nulls last, matching.business_name
   limit least(greatest(page_size, 1), 48)
   offset greatest(page_offset, 0);
-$;
+$$;
 
 revoke all on function public.search_public_salons(text, text, text, text, text, integer, timestamptz, integer, integer)
 from public;
