@@ -36,7 +36,7 @@ test("booking route validates requests and reports slot conflicts", () => {
   assert.match(route, /cache-control.*private, no-store/);
 });
 
-test("booking page and flow use persisted salon services and confirmation", () => {
+test("booking page and flow show confirmation from stored appointment data", () => {
   assert.match(page, /LiveBookingFlow/);
   assert.match(page, /\.eq\("is_active", true\)/);
   assert.match(flow, /\/api\/public-booking/);
