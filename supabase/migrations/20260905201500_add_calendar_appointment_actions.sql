@@ -104,6 +104,10 @@ declare
   target_time_zone text;
   previous_status text;
   requested_start timestamptz;
+  requested_end timestamptz;
+  target_staff_id uuid;
+  target_station text;
+  target_duration integer;
 begin
   select membership.tenant_id, tenant.time_zone
   into target_tenant_id, target_time_zone
@@ -120,13 +124,21 @@ begin
   where id = target_appointment_id
     and tenant_id = target_tenant_id
     and status = 'confirmed'
-  returning status into previous_status;
+  returning status, staff_id, station_name, service_duration_minutes
+  into previous_status, target_staff_id, target_station, target_duration;
 
   if previous_status is null then
     raise exception using errcode = '22023', message = 'appointment_not_reschedulable';
   end if;
 
   requested_start := local_start at time zone target_time_zone;
+  requested_end := requested_start + make_interval(mins => target_duration);
+
+  if not public.is_resource_available(
+    target_tenant_id, target_staff_id, target_station, requested_start, requested_end
+  ) then
+    raise exception using errcode = '23P01', message = 'calendar_time_unavailable';
+  end if;
 
   update public.appointments
   set start_time = requested_start, status = 'confirmed'
