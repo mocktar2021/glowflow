@@ -74,4 +74,10 @@ test("renders localized authentication and booking routes in production", { time
     assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
     assert.match(await response.text(), /GlowFlow/);
   }
+
+  const unpublished = await fetch(`${origin}/fr/salons/unpublished-profile`, {
+    headers: { accept: "text/html" },
+    signal: AbortSignal.timeout(5000),
+  });
+  assert.equal(unpublished.status, 404);
 });
