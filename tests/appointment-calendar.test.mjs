@@ -9,6 +9,10 @@ const migration = await readFile(
   path.join(root, "supabase/migrations/20260905201500_add_calendar_appointment_actions.sql"),
   "utf8",
 );
+const stationHoursMigration = await readFile(
+  path.join(root, "supabase/migrations/20260905210500_fix_station_hours_fallback.sql"),
+  "utf8",
+);
 const page = await readFile(path.join(root, "app/[locale]/dashboard/calendar/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/calendar/actions.ts"), "utf8");
 const dateTimeFields = await readFile(path.join(root, "app/[locale]/dashboard/calendar/date-time-fields.tsx"), "utf8");
@@ -28,6 +32,14 @@ test("enforces schedules and authoritative overlap protection", () => {
   assert.match(migration, /status = 'canceled'/);
   assert.match(migration, /set start_time = requested_start, status = 'confirmed'/);
   assert.match(actions, /isAppointmentConflict/);
+});
+
+test("falls back to staff hours until station hours are configured", () => {
+  assert.match(stationHoursMigration, /configured_hours/);
+  assert.match(stationHoursMigration, /and exists \([\s\S]*station_working_hours as configured_hours/);
+  assert.match(stationHoursMigration, /and not exists \([\s\S]*station_working_hours as hours/);
+  assert.match(stationHoursMigration, /security invoker/);
+  assert.match(stationHoursMigration, /to authenticated/);
 });
 
 test("keeps calendar mutations tenant scoped and authenticated", () => {
