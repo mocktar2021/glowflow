@@ -39,7 +39,12 @@ export async function signUp(localeValue: string, formData: FormData) {
   const salonName = value(formData, "salon_name");
   const email = value(formData, "email");
   const password = value(formData, "password");
-  const currency = value(formData, "currency") === "USD" ? "USD" : "EUR";
+  const countryCode = value(formData, "country_code").toUpperCase();
+  const timeZone = value(formData, "time_zone");
+  const addressLine1 = value(formData, "address_line1");
+  const city = value(formData, "city");
+  const postalCode = value(formData, "postal_code");
+  const administrativeArea = value(formData, "administrative_area");
   const salonSlug = salonName
     .toLowerCase()
     .normalize("NFD")
@@ -47,7 +52,16 @@ export async function signUp(localeValue: string, formData: FormData) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-  if (fullName.length < 2 || salonName.length < 2 || password.length < 8) {
+  if (
+    fullName.length < 2 ||
+    salonName.length < 2 ||
+    password.length < 8 ||
+    countryCode.length !== 2 ||
+    !timeZone ||
+    addressLine1.length < 3 ||
+    city.length < 2 ||
+    !postalCode
+  ) {
     redirect(authUrl(locale, "register", "error", "Complete every field. Passwords need 8 characters."));
   }
 
@@ -63,7 +77,12 @@ export async function signUp(localeValue: string, formData: FormData) {
         salon_name: salonName,
         salon_slug: salonSlug,
         locale,
-        currency,
+        country_code: countryCode,
+        time_zone: timeZone,
+        address_line1: addressLine1,
+        city,
+        postal_code: postalCode,
+        administrative_area: administrativeArea,
       },
     },
   });
