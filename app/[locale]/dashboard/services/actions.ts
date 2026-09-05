@@ -15,8 +15,8 @@ const serviceSchema = z.object({
   category: z.enum(["hair", "nails", "other"]),
   durationMinutes: z.coerce.number().int().min(5).max(720),
   sanitationBufferMinutes: z.coerce.number().int().min(0).max(120),
-  price: z.string().regex(/^\d+(?:[.,]\d{1,2})?$/),
-  deposit: z.string().regex(/^\d+(?:[.,]\d{1,2})?$/),
+  price: z.string().trim().min(1).max(32),
+  deposit: z.string().trim().min(1).max(32),
   stationName: z.string().trim().max(120),
 });
 
@@ -26,14 +26,14 @@ function text(formData: FormData, name: string) {
 
 function moneyToMinor(value: string, currency: string) {
   const symbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : "";
-  let normalized = value.trim().replace(/\\s/g, "");
+  let normalized = value.trim().replace(/\s/g, "");
 
   for (const token of [symbol, currency].filter(Boolean)) {
     if (normalized.startsWith(token)) normalized = normalized.slice(token.length);
     if (normalized.endsWith(token)) normalized = normalized.slice(0, -token.length);
   }
 
-  if (!/^\\d+(?:[.,]\\d{1,2})?$/.test(normalized)) return null;
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(normalized)) return null;
   const [whole, decimals = ""] = normalized.replace(",", ".").split(".");
   const minor = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
   return Number.isSafeInteger(minor) ? minor : null;
