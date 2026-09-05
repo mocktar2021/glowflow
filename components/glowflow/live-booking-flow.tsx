@@ -135,10 +135,6 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoadingSlots(true);
-    setSlot(null);
-    setError("");
-
     const query = new URLSearchParams({ salonSlug: salon.slug, serviceId, date });
     fetch(`/api/public-booking?${query}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
@@ -240,12 +236,22 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
         </aside>
         <form onSubmit={submit} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
-            <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
+            <select value={serviceId} onChange={(event) => {
+                setLoadingSlots(true);
+                setSlot(null);
+                setError("");
+                setServiceId(event.target.value);
+              }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
               {services.map((item) => <option key={item.id} value={item.id}>{item.title_json[locale] ?? item.title_json.fr}</option>)}
             </select>
           </label>
           <label className="block font-semibold">{labels.date}
-            <input type="date" min={today} value={date} onChange={(event) => setDate(event.target.value)} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" />
+            <input type="date" min={today} value={date} onChange={(event) => {
+              setLoadingSlots(true);
+              setSlot(null);
+              setError("");
+              setDate(event.target.value);
+            }} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" />
           </label>
           <section>
             <h2 className="flex items-center gap-2 font-semibold"><CalendarDays className="size-5 text-[#9a622f]" />{labels.time}</h2>
