@@ -32,6 +32,12 @@ function extension(file: File) {
   return byType[file.type] ?? "bin";
 }
 
+function storagePath(url: string) {
+  const marker = "/storage/v1/object/public/salon-public-media/";
+  const index = url.indexOf(marker);
+  return index < 0 ? null : decodeURIComponent(url.slice(index + marker.length));
+}
+
 async function uploadImage(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   tenantId: string,
@@ -106,8 +112,11 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
     .eq("tenant_id", owner.tenant_id)
     .maybeSingle();
 
-  let coverUrl = existing?.image_url ?? null;
-  let galleryUrls = Array.isArray(existing?.gallery_urls) ? existing.gallery_urls : [];
+  const previousCoverUrl = existing?.image_url ?? null;
+  const previousGalleryUrls = Array.isArray(existing?.gallery_urls) ? existing.gallery_urls : [];
+  const removedGalleryUrls = new Set(list(formData, "remove_gallery_urls"));
+  let coverUrl = formData.get("remove_cover") === "on" ? null : previousCoverUrl;
+  let galleryUrls = previousGalleryUrls.filter((url: string) => !removedGalleryUrls.has(url));
   const uploadedPaths: string[] = [];
 
   try {
@@ -157,6 +166,13 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   }, { onConflict: "tenant_id" });
 
   if (error) fail(locale, "save_failed");
+
+  const obsoleteUrls = [
+    ...previousGalleryUrls.filter((url: string) => !galleryUrls.includes(url)),
+    ...(previousCoverUrl && previousCoverUrl !== coverUrl ? [previousCoverUrl] : []),
+  ];
+  const obsoletePaths = obsoleteUrls.map(storagePath).filter((path): path is string => Boolean(path));
+  if (obsoletePaths.length) await supabase.storage.from("salon-public-media").remove(obsoletePaths);
 
   revalidatePath(`/${locale}/dashboard/public-profile`);
   revalidatePath(`/${locale}/salons/${tenant.slug}`);
