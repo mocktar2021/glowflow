@@ -10,6 +10,7 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 - Mobile-first public booking flow with a deposit summary
 - Supabase browser, server, and session-refresh clients
 - PostgreSQL schema with tenant-scoped RLS policies
+- Multi-country market registry for France, the United States, and Spain
 - Stripe Connect direct-charge Checkout endpoint and signed webhook endpoint
 - Light and dark color systems
 
@@ -21,12 +22,12 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 - `/api/preferences/locale`
 - `/api/stripe/webhook`
 
-Supported locales are `fr`, `en`, and `es`. The root route redirects to `/fr/dashboard`.
+Supported locales are `fr`, `en`, and `es`. Language preferences stay separate from salon operating countries. Active launch markets are configured in `public.markets`. The root route redirects to `/fr/dashboard`.
 
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and add your sandbox values.
-2. Run `supabase/schema.sql` in a fresh Supabase project.
+2. Run `supabase/schema.sql` in a fresh Supabase project, then apply newer files in `supabase/migrations` in timestamp order.
 3. Set each salon's Stripe connected account ID in `tenants.stripe_account_id` from trusted server code.
 4. Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` for the interactive deposit preview. Change it to `true` after the Supabase and Stripe sandbox setup works.
 5. Run `npm run dev`.
