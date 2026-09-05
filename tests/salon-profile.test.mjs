@@ -103,3 +103,18 @@ test("places clear localized photo upload controls beside existing salon photos"
   assert.match(photoUploadControls, /files\.map/);
   assert.match(photoUploadControls, /files\.length > remaining/);
 });
+
+
+test("accumulates repeated gallery selections and keeps the file input synchronized", () => {
+  assert.match(photoUploadControls, /useRef<HTMLInputElement>/);
+  assert.match(photoUploadControls, /new DataTransfer\(\)/);
+  assert.match(photoUploadControls, /const next = \[\.\.\.galleryFiles,/);
+  assert.match(photoUploadControls, /incoming\.filter/);
+  assert.match(photoUploadControls, /galleryInput\.current\.files = transfer\.files/);
+  assert.match(photoUploadControls, /removeGalleryFile/);
+  assert.match(photoUploadControls, /galleryCount \+ galleryFiles\.length/);
+  assert.match(photoUploadControls, /next\.length > availableSlots/);
+  assert.match(ownerPage, /Retirer de la sélection/);
+  assert.match(ownerPage, /Remove from selection/);
+  assert.match(ownerPage, /Quitar de la selección/);
+});
