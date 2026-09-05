@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarDays, ExternalLink, LogOut, Scissors } from "lucide-react";
+import { CalendarClock, CalendarDays, ExternalLink, LogOut, Scissors, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -49,6 +49,7 @@ export default async function DashboardPage({
     timeZone: tenant.time_zone,
   };
   const calendarLabel = locale === "fr" ? "Calendrier" : locale === "es" ? "Calendario" : "Calendar";
+  const walkInLabel = locale === "fr" ? "Sans rendez-vous" : locale === "es" ? "Sin cita" : "Walk-ins";
   const serviceLabel = locale === "fr" ? "Prestations" : locale === "es" ? "Servicios" : "Service catalog";
   const profileLabel = locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile";
   const availabilityLabel = locale === "fr" ? "Disponibilités" : locale === "es" ? "Disponibilidad" : "Availability";
@@ -63,6 +64,13 @@ export default async function DashboardPage({
         >
           <CalendarDays className="size-4" />
           {calendarLabel}
+        </Link>
+        <Link
+          href={`/${locale}/dashboard/walk-ins`}
+          className="inline-flex h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
+        >
+          <UsersRound className="size-4" />
+          {walkInLabel}
         </Link>
         <Link
           href={`/${locale}/dashboard/services`}
