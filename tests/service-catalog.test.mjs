@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(path.join(root, "supabase/migrations/20260905170000_add_service_catalog_management.sql"), "utf8");
+const indexMigration = await readFile(path.join(root, "supabase/migrations/20260905175500_add_service_staff_foreign_key_indexes.sql"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/dashboard/services/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/services/actions.ts"), "utf8");
 const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
@@ -16,6 +17,8 @@ test("stores service currency and tenant-scoped eligible staff", () => {
   assert.match(migration, /create table if not exists public\.service_staff/);
   assert.match(migration, /foreign key \(service_id, tenant_id\)/);
   assert.match(migration, /foreign key \(staff_id, tenant_id\)/);
+  assert.match(indexMigration, /\(service_id, tenant_id\)/);
+  assert.match(indexMigration, /\(staff_id, tenant_id\)/);
 });
 
 test("limits service catalog writes to tenant owners", () => {
