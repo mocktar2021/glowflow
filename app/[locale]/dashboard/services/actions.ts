@@ -15,8 +15,8 @@ const serviceSchema = z.object({
   category: z.enum(["hair", "nails", "other"]),
   durationMinutes: z.coerce.number().int().min(5).max(720),
   sanitationBufferMinutes: z.coerce.number().int().min(0).max(120),
-  price: z.string().regex(/^\d+(?:[.,]\d{1,2})?$/),
-  deposit: z.string().regex(/^\d+(?:[.,]\d{1,2})?$/),
+  price: z.string().trim().min(1).max(32),
+  deposit: z.string().trim().min(1).max(32),
   stationName: z.string().trim().max(120),
 });
 
@@ -24,10 +24,19 @@ function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
 }
 
-function moneyToMinor(value: string) {
-  const normalized = value.replace(",", ".");
-  const [whole, decimals = ""] = normalized.split(".");
-  return Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
+function moneyToMinor(value: string, currency: string) {
+  const symbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : "";
+  let normalized = value.trim().replace(/\s/g, "");
+
+  for (const token of [symbol, currency].filter(Boolean)) {
+    if (normalized.startsWith(token)) normalized = normalized.slice(token.length);
+    if (normalized.endsWith(token)) normalized = normalized.slice(0, -token.length);
+  }
+
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(normalized)) return null;
+  const [whole, decimals = ""] = normalized.replace(",", ".").split(".");
+  const minor = Number(whole) * 100 + Number(decimals.padEnd(2, "0"));
+  return Number.isSafeInteger(minor) ? minor : null;
 }
 
 function destination(locale: Locale, result: string): never {
@@ -56,7 +65,7 @@ async function ownerContext(locale: Locale) {
   return { supabase, tenantId: owner.tenant_id, currency: tenant.currency };
 }
 
-function parseService(formData: FormData) {
+function parseService(formData: FormData, currency: string) {
   const parsed = serviceSchema.safeParse({
     titleFr: text(formData, "title_fr"),
     titleEn: text(formData, "title_en"),
@@ -70,9 +79,9 @@ function parseService(formData: FormData) {
   });
 
   if (!parsed.success) return null;
-  const price = moneyToMinor(parsed.data.price);
-  const depositAmount = moneyToMinor(parsed.data.deposit);
-  if (depositAmount > price) return null;
+  const price = moneyToMinor(parsed.data.price, currency);
+  const depositAmount = moneyToMinor(parsed.data.deposit, currency);
+  if (price === null || depositAmount === null || depositAmount > price) return null;
 
   return {
     title_json: { fr: parsed.data.titleFr, en: parsed.data.titleEn, es: parsed.data.titleEs },
@@ -110,10 +119,9 @@ async function replaceEligibleStaff(
 }
 
 export async function createService(locale: Locale, formData: FormData) {
-  const values = parseService(formData);
-  if (!values) destination(locale, "error=invalid_service");
-
   const { supabase, tenantId, currency } = await ownerContext(locale);
+  const values = parseService(formData, currency);
+  if (!values) destination(locale, "error=invalid_service");
   const { data: service, error } = await supabase
     .from("services")
     .insert({ ...values, tenant_id: tenantId, currency, is_active: true })
@@ -133,10 +141,9 @@ export async function createService(locale: Locale, formData: FormData) {
 
 export async function updateService(locale: Locale, formData: FormData) {
   const serviceId = text(formData, "service_id");
-  const values = parseService(formData);
-  if (!uuid.safeParse(serviceId).success || !values) destination(locale, "error=invalid_service");
-
   const { supabase, tenantId, currency } = await ownerContext(locale);
+  const values = parseService(formData, currency);
+  if (!uuid.safeParse(serviceId).success || !values) destination(locale, "error=invalid_service");
   const { error } = await supabase
     .from("services")
     .update({ ...values, currency, updated_at: new Date().toISOString() })
