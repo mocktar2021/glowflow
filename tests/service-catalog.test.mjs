@@ -32,7 +32,15 @@ test("limits service catalog writes to tenant owners", () => {
 
 test("validates trusted service pricing and deposits", () => {
   assert.match(actions, /moneyToMinor/);
+  assert.match(actions, /currency === "USD" \? "\\$" : currency === "EUR" \? "€"/);
+  assert.match(actions, /normalized\.startsWith\(token\)/);
+  assert.match(actions, /normalized\.endsWith\(token\)/);
+  assert.match(actions, /\\d\+\(\?:\[\.,\]\\d\{1,2\}\)\?/);
   assert.match(actions, /depositAmount > price/);
+  assert.doesNotMatch(page, /name="price"[^>]+pattern=/);
+  assert.doesNotMatch(page, /name="deposit"[^>]+pattern=/);
+  assert.match(page, /"\\$50\.00"/);
+  assert.match(page, /"50,00 €"/);
   assert.match(actions, /currency: tenant\.currency/);
   assert.match(checkout, /\.eq\("is_active", true\)/);
 });
