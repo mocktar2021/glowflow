@@ -99,7 +99,7 @@ test("places clear localized photo upload controls beside existing salon photos"
   assert.match(photoUploadControls, /name="cover_photo"/);
   assert.match(photoUploadControls, /name="gallery_photos"/);
   assert.match(photoUploadControls, /multiple/);
-  assert.match(photoUploadControls, /galleryCount}\/8/);
+  assert.match(photoUploadControls, /galleryCount \+ galleryFiles\.length}\/8/);
   assert.match(photoUploadControls, /files\.map/);
   assert.match(photoUploadControls, /files\.length > remaining/);
 });
