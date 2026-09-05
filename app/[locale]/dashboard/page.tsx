@@ -30,7 +30,7 @@ export default async function DashboardPage({
   const { data: tenant } = profile?.tenant_id
     ? await supabase
         .from("tenants")
-        .select("name, slug, currency")
+        .select("name, slug, currency, country_code, time_zone")
         .eq("id", profile.tenant_id)
         .single()
     : { data: null };
@@ -44,6 +44,8 @@ export default async function DashboardPage({
     salonName: tenant.name,
     salonSlug: tenant.slug,
     currency: tenant.currency,
+    countryCode: tenant.country_code,
+    timeZone: tenant.time_zone,
   };
 
   return (
