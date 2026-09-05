@@ -11,6 +11,7 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 - Supabase browser, server, and session-refresh clients
 - PostgreSQL schema with tenant-scoped RLS policies
 - Multi-country market registry for France, the United States, and Spain
+- Public salon discovery with owner-controlled listings and indexed search
 - Stripe Connect direct-charge Checkout endpoint and signed webhook endpoint
 - Light and dark color systems
 
@@ -18,6 +19,7 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 
 - `/{locale}/dashboard`
 - `/{locale}/book/{salon-slug}`
+- `/{locale}/salons`
 - `/api/checkout`
 - `/api/preferences/locale`
 - `/api/stripe/webhook`
