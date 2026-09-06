@@ -50,10 +50,16 @@ Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` until Stripe Connect sandbox onboardin
 
 ## Payment model
 
-GlowFlow uses Stripe Connect direct charges. Each salon stays the merchant of record. The Checkout endpoint reads service price and deposit values from Supabase, creates the payment on the connected account, and retains the configured platform fee. Webhook events must drive final payment state changes.
+GlowFlow uses Stripe Connect direct charges. Each salon stays the merchant of record. The Checkout endpoint reads service price and deposit values from Supabase, creates the payment on the connected account, without a GlowFlow application fee. Salons pay Stripe processing fees separately. Webhook events must drive final payment state changes.
 
 Before enabling tax calculation, confirm the liable entity and active Stripe Tax registrations with a qualified tax adviser. The invoice schema stores TVA amounts but does not assume a legal rate.
 
+
+## Launch revenue model
+
+The approved model is a monthly subscription per salon, with tiers based on team size and defined messaging allowances. No GlowFlow commission applies to bookings or deposits. The legacy GLOWFLOW_PLATFORM_FEE_BPS variable is ignored and may be removed from deployment settings.
+
+Subscription billing and exact country-specific prices are not implemented or activated by this change. GLOW-53 tracks pricing validation, entitlements, and messaging usage. GLOW-23 continues to track Connect onboarding and verified deposit collection.
 
 ## Public salon media
 
