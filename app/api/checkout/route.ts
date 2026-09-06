@@ -56,11 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
     }
 
-    const feeBps = Number(process.env.GLOWFLOW_PLATFORM_FEE_BPS ?? "300");
-    const applicationFee = Math.max(
-      1,
-      Math.round(service.deposit_amount * Math.min(Math.max(feeBps, 0), 10000) / 10000),
-    );
+    // Launch pricing uses salon subscriptions, with no booking commission.
     const serviceName =
       service.title_json[parsed.data.locale] ?? service.title_json.fr ?? "GlowFlow service";
     const session = await stripe.checkout.sessions.create(
@@ -78,7 +74,6 @@ export async function POST(request: Request) {
           },
         ],
         payment_intent_data: {
-          application_fee_amount: applicationFee,
           metadata: {
             salon_slug: parsed.data.salonSlug,
             service_id: service.id,
