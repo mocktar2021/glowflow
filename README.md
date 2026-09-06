@@ -61,6 +61,43 @@ The approved model is a monthly subscription per salon, with tiers based on team
 
 Subscription billing and exact country-specific prices are not implemented or activated by this change. GLOW-53 tracks pricing validation, entitlements, and messaging usage. GLOW-23 continues to track Connect onboarding and verified deposit collection.
 
+## Sandbox salon onboarding (GLOW-23)
+
+Owners open `/{locale}/dashboard/payments` from the dashboard Payments link.
+The first delivery uses Stripe-hosted Accounts v2 onboarding with full dashboard access,
+Stripe fee collection, and Stripe negative-balance responsibility. A fresh capability
+read determines readiness. Returning from onboarding never marks the account ready.
+
+Apply `20260906161330_add_stripe_sandbox_connections.sql` before enabling this flow,
+including on a fresh installation. The table stores test mappings separately from
+`tenants.stripe_account_id`, with owner-only reads and server-only writes.
+No existing payment destinations are modified or backfilled.
+
+For the selected test deployment, configure sensitive `STRIPE_RESTRICTED_KEY` with a
+restricted key from GlowFlow sandbox. Set `STRIPE_SANDBOX_ACCOUNT_ID` to
+`acct_1UCiSZDNDjGEQe6f`, `GLOWFLOW_APP_URL` to that deployment's HTTPS origin, and
+`GLOWFLOW_STRIPE_SANDBOX_ONBOARDING=true`. The server rejects live or unrestricted keys
+and verifies the actual platform account before creating or reading Stripe accounts.
+Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false`.
+
+Required key operations: retrieve the current platform account, create/retrieve Accounts v2
+and create Accounts v2 account links. Validate these permissions in the sandbox before activation.
+The key belongs only in the deployment's sensitive environment variables, never in a PR or chat.
+
+Creation retries reuse one idempotency key per tenant. Pending mappings older than 23 hours
+require operator reconciliation: locate the account by tenant metadata in the dedicated sandbox
+and restore its mapping through trusted server access. Do not blindly retry creation or delete
+the mapping after Stripe's idempotency retention window.
+
+Verification before removing draft status: apply the migration, configure the test deployment,
+sign in as an owner, complete hosted onboarding with test data, return and confirm the capability
+status, retry an expired link, and verify staff/cross-tenant denial. No live account activation
+or customer charges are part of this delivery. Embedded notification banners and account management,
+deposit reservation/checkout correlation, and idempotent payment webhooks remain GLOW-23 follow-up work.
+
+Rollback: disable `GLOWFLOW_STRIPE_SANDBOX_ONBOARDING`. Preserve account mappings once any
+onboarding has occurred. Dropping the table is safe only before accounts have been created.
+
 ## Public salon media
 
 The `salon-public-media` Supabase Storage bucket accepts owner uploads under `{tenant_id}/...`. Public profiles only render owner-selected URLs after the profile is published.
