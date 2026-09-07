@@ -220,9 +220,11 @@ export function DashboardShell({
         <SidebarFooter className="p-3">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={t("nav.settings")} className="h-11 rounded-xl px-3">
-                <Settings2 />
-                <span>{t("nav.settings")}</span>
+              <SidebarMenuButton asChild tooltip={t("nav.settings")} className="h-11 rounded-xl px-3">
+                <Link href={`/${locale}/dashboard/payments`}>
+                  <Settings2 />
+                  <span>{locale === "fr" ? "Paiements" : locale === "es" ? "Pagos" : "Payments"}</span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
