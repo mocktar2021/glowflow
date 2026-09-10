@@ -43,3 +43,5 @@ next-env.d.ts
 /supabase/.temp/
 /outputs/
 /work/
+/.npm-cache/
+/.sandbox-pg/
