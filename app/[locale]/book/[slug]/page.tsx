@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 
 import { BookingFlow } from "@/components/glowflow/booking-flow";
 import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
+import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { isLocale } from "@/lib/i18n";
+import { sandboxOwner } from "@/lib/stripe-sandbox";
+import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +21,24 @@ type Service = {
 
 export default async function BookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<{ sandbox?: string; sandboxReservation?: string }>;
 }) {
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
+  const query = await searchParams;
+  const sandbox = query.sandbox === "1" || typeof query.sandboxReservation === "string";
+  let sandboxTenantId: string | null = null;
+  if (sandbox) {
+    if (!sandboxDepositConfiguration(process.env)) notFound();
+    const owner = await sandboxOwner();
+    if (!owner) notFound();
+    const { data: ownedSalon } = await owner.supabase.from("tenants").select("slug").eq("id", owner.tenant.id).single();
+    if (!ownedSalon || ownedSalon.slug !== slug) notFound();
+    sandboxTenantId = owner.tenant.id;
+  }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
     return <BookingFlow locale={locale} salonSlug={slug} />;
@@ -37,6 +53,11 @@ export default async function BookingPage({
     .single();
 
   if (!tenant) notFound();
+  if (sandbox && tenant.id !== sandboxTenantId) notFound();
+  if (sandbox && query.sandboxReservation) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.sandboxReservation)) notFound();
+    return <SandboxPaymentStatusPanel locale={locale} salonSlug={slug} reservationId={query.sandboxReservation} />;
+  }
 
   const { data: rawServices } = await supabase
     .from("services")
@@ -51,6 +72,7 @@ export default async function BookingPage({
   return (
     <LiveBookingFlow
       locale={locale}
+      sandbox={sandbox}
       salon={{
         name: tenant.name,
         slug: tenant.slug,

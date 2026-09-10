@@ -2,10 +2,11 @@
 
 import { CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import type { Locale } from "@/lib/i18n";
+import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 
 type Service = {
   id: string;
@@ -31,6 +32,7 @@ type Props = {
   locale: Locale;
   salon: { name: string; slug: string; city: string | null; currency: string; timeZone: string };
   services: Service[];
+  sandbox?: boolean;
 };
 
 const copy = {
@@ -120,8 +122,10 @@ function money(amount: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount / 100);
 }
 
-export function LiveBookingFlow({ locale, salon, services }: Props) {
+export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Props) {
   const labels = copy[locale];
+  const paymentLabels = sandboxPaymentCopy[locale];
+  const retry = useRef<{ payload: string; key: string } | null>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   const [serviceId, setServiceId] = useState(services[0].id);
   const [date, setDate] = useState(today);
@@ -168,7 +172,11 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
 
     setSubmitting(true);
     setError("");
-    const response = await fetch("/api/public-booking", {
+    const payload = { salonSlug: salon.slug, serviceId, staffId: slot.staff_id, startTime: slot.slot_start, fullName, phone, email, locale };
+    const fingerprint = JSON.stringify(payload);
+    if (!retry.current || retry.current.payload !== fingerprint) retry.current = { payload: fingerprint, key: crypto.randomUUID() };
+    try {
+    const response = await fetch(sandbox ? "/api/checkout" : "/api/public-booking", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -180,11 +188,26 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
         phone,
         email,
         locale,
-        requestKey: crypto.randomUUID(),
+        requestKey: retry.current.key,
       }),
     });
-    const result = await response.json() as { confirmation?: Confirmation; error?: string };
+    const result = await response.json() as { confirmation?: Confirmation; error?: string; url?: string; reservationId?: string };
     setSubmitting(false);
+
+    if (sandbox) {
+      if (!response.ok || !result.reservationId) {
+        setError(result.error === "slot_unavailable" ? labels.conflict : paymentLabels.unavailable);
+        return;
+      }
+      if (result.url) {
+        const destination = new URL(result.url);
+        if (destination.protocol !== "https:" || destination.hostname !== "checkout.stripe.com") throw new Error("invalid_checkout_url");
+        window.location.assign(destination.href);
+      } else {
+        window.location.assign(`/${locale}/book/${salon.slug}?sandboxReservation=${encodeURIComponent(result.reservationId)}`);
+      }
+      return;
+    }
 
     if (!response.ok || !result.confirmation) {
       setError(result.error === "slot_unavailable" ? labels.conflict : labels.error);
@@ -193,6 +216,12 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
       return;
     }
     setConfirmation(result.confirmation);
+    retry.current = null;
+    } catch {
+      setError(sandbox ? paymentLabels.unavailable : labels.error);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const formatter = new Intl.DateTimeFormat(locale, {
@@ -224,7 +253,8 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
       <div className="grid lg:grid-cols-[0.75fr_1.25fr]">
         <aside className="bg-[#eadbc9] p-6 dark:bg-white/5 sm:p-9">
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#9a622f]">{salon.name}</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">{labels.title}</h1>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">{sandbox ? paymentLabels.title : labels.title}</h1>
+          {sandbox ? <p role="note" className="mt-4 rounded-xl bg-white/70 p-4 text-sm dark:bg-black/15">{paymentLabels.notice}</p> : null}
           <p className="mt-3 leading-7 text-slate-600 dark:text-stone-300">{labels.subtitle}</p>
           {salon.city ? <p className="mt-6 flex items-center gap-2 text-sm"><MapPin className="size-4 text-[#9a622f]" />{salon.city}</p> : null}
           <div className="mt-8 rounded-2xl bg-white/70 p-5 dark:bg-black/15">
@@ -269,7 +299,7 @@ export function LiveBookingFlow({ locale, salon, services }: Props) {
           </fieldset>
           {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</p> : null}
           <button type="submit" disabled={!slot || submitting} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-slate-950 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
-            <Clock3 className="size-5" />{submitting ? labels.saving : labels.reserve}
+            <Clock3 className="size-5" />{submitting ? labels.saving : sandbox ? paymentLabels.pay : labels.reserve}
           </button>
         </form>
       </div>

@@ -39,7 +39,9 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
       body: JSON.stringify({ locale: nextLocale }),
     });
 
-    startTransition(() => router.push(segments.join("/")));
+    // Preserve sandbox mode and other current route state across locales.
+    const destination = segments.join("/") + window.location.search + window.location.hash;
+    startTransition(() => router.push(destination));
   }
 
   return (

@@ -1,98 +1,84 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { createStripeClient } from "@/lib/stripe";
+import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
+import { assertSandboxMerchant, safeSandboxReservation, sandboxCheckoutParameters, type SandboxReservation } from "@/lib/stripe-deposits";
 
 export const runtime = "nodejs";
-
-const checkoutSchema = z.object({
-  locale: z.enum(["fr", "en", "es"]),
-  salonSlug: z.string().min(2).max(80),
-  serviceId: z.string().uuid(),
-  appointmentTime: z.string().datetime({ offset: true }),
-});
-
-type ServiceRecord = {
-  id: string;
-  title_json: Record<string, string>;
-  deposit_amount: number;
-  tenant: {
-    slug: string;
-    currency: string;
-    stripe_account_id: string | null;
-  };
-};
-
-export async function POST(request: Request) {
-  const parsed = checkoutSchema.safeParse(await request.json());
-
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  }
-
+export const dynamic = "force-dynamic";
+const bookingSchema = z.object({
+  salonSlug: z.string().trim().min(2).max(80),
+  serviceId: z.string().uuid(), staffId: z.string().uuid(),
+  startTime: z.string().datetime({ offset: true }),
+  fullName: z.string().trim().min(2).max(120), phone: z.string().trim().max(40),
+  email: z.union([z.literal(""), z.string().trim().email().max(160)]),
+  locale: z.enum(["fr", "en", "es"]), requestKey: z.string().uuid(),
+}).strict().refine((value) => value.phone.length > 0 || value.email.length > 0);
+function reply(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { "cache-control": "private, no-store" } });
+}
+async function ownerTenant(salonSlug?: string) {
+  const client = await createClient();
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) return null;
+  let query = client.from("tenants").select("id,slug").eq("owner_id", data.user.id);
+  if (salonSlug) query = query.eq("slug", salonSlug);
+  const { data: tenant, error: tenantError } = await query.single();
+  return tenantError || !tenant ? null : { tenant, client };
+}
+export async function GET(request: Request) {
+  if (!sandboxDepositConfiguration(process.env)) return reply({ error: "sandbox_unavailable" }, 503);
+  const parsed = z.string().uuid().safeParse(new URL(request.url).searchParams.get("reservationId"));
+  if (!parsed.success) return reply({ error: "invalid_request" }, 400);
   try {
-    const supabase = createAdminClient();
+    const owner = await ownerTenant();
+    if (!owner) return reply({ error: "owner_required" }, 403);
+    const { data, error } = await owner.client.from("stripe_sandbox_reservations")
+      .select("id,status,expires_at,checkout_url").eq("id", parsed.data).eq("tenant_id", owner.tenant.id).single();
+    if (error || !data) return reply({ error: "reservation_not_found" }, 404);
+    return reply(safeSandboxReservation(data));
+  } catch { return reply({ error: "sandbox_unavailable" }, 503); }
+}
+export async function POST(request: Request) {
+  const config = sandboxDepositConfiguration(process.env);
+  if (!config) return reply({ error: "sandbox_unavailable" }, 503);
+  let body: unknown;
+  try { body = await request.json(); } catch { return reply({ error: "invalid_request" }, 400); }
+  const parsed = bookingSchema.safeParse(body);
+  if (!parsed.success) return reply({ error: "invalid_request" }, 400);
+  try {
+    const owner = await ownerTenant(parsed.data.salonSlug);
+    if (!owner) return reply({ error: "owner_required" }, 403);
     const stripe = createStripeClient();
-    const { data, error } = await supabase
-      .from("services")
-      .select("id,title_json,deposit_amount,tenant:tenants!inner(slug,currency,stripe_account_id)")
-      .eq("id", parsed.data.serviceId)
-      .eq("tenants.slug", parsed.data.salonSlug)
-      .eq("is_active", true)
-      .single();
-
-    if (error || !data) {
-      return NextResponse.json({ error: "service_not_found" }, { status: 404 });
-    }
-
-    const service = data as unknown as ServiceRecord;
-    if (!service.tenant.stripe_account_id || service.deposit_amount <= 0) {
-      return NextResponse.json({ error: "payments_unavailable" }, { status: 409 });
-    }
-
-    const appOrigin = process.env.GLOWFLOW_APP_URL;
-    if (!appOrigin) {
-      return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
-    }
-
-    // Launch pricing uses salon subscriptions, with no booking commission.
-    const serviceName =
-      service.title_json[parsed.data.locale] ?? service.title_json.fr ?? "GlowFlow service";
-    const session = await stripe.checkout.sessions.create(
-      {
-        mode: "payment",
-        integration_identifier: "glowflow_booking_qxmdrpta",
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: service.tenant.currency.toLowerCase(),
-              unit_amount: service.deposit_amount,
-              product_data: { name: `${serviceName} · deposit` },
-            },
-          },
-        ],
-        payment_intent_data: {
-          metadata: {
-            salon_slug: parsed.data.salonSlug,
-            service_id: service.id,
-            appointment_time: parsed.data.appointmentTime,
-          },
-        },
-        metadata: {
-          salon_slug: parsed.data.salonSlug,
-          service_id: service.id,
-          appointment_time: parsed.data.appointmentTime,
-        },
-        success_url: `${appOrigin}/${parsed.data.locale}/book/${parsed.data.salonSlug}?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appOrigin}/${parsed.data.locale}/book/${parsed.data.salonSlug}?payment=canceled`,
-      },
-      { stripeAccount: service.tenant.stripe_account_id },
-    );
-
-    return NextResponse.json({ url: session.url });
-  } catch {
-    return NextResponse.json({ error: "checkout_unavailable" }, { status: 503 });
+    const platform = await stripe.accounts.retrieve(null);
+    if (platform.id !== config.platformAccountId) return reply({ error: "sandbox_unavailable" }, 503);
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("reserve_stripe_sandbox_booking", {
+      target_salon_slug: parsed.data.salonSlug, target_service_id: parsed.data.serviceId,
+      target_staff_id: parsed.data.staffId, requested_start: parsed.data.startTime,
+      client_full_name: parsed.data.fullName, client_phone: parsed.data.phone,
+      client_email: parsed.data.email, client_locale: parsed.data.locale, request_key: parsed.data.requestKey,
+    });
+    if (error || !data) return reply({ error: error?.code === "23P01" ? "slot_unavailable" : "reservation_unavailable" }, 409);
+    const reservation = data as SandboxReservation;
+    if (reservation.tenant_id !== owner.tenant.id) throw new Error("sandbox_unavailable");
+    if (reservation.status !== "reserved") return reply(safeSandboxReservation(reservation));
+    const account = await stripe.v2.core.accounts.retrieve(reservation.stripe_account_id, { include: ["configuration.merchant"] });
+    assertSandboxMerchant(account, reservation);
+    const parameters = sandboxCheckoutParameters(reservation, config.origin, owner.tenant.slug);
+    const session = await stripe.checkout.sessions.create(parameters, {
+      stripeAccount: reservation.stripe_account_id, idempotencyKey: `glowflow-sandbox-deposit-${reservation.id}`,
+    });
+    if (session.livemode || !session.url || session.metadata?.reservation_id !== reservation.id ||
+        session.amount_total !== reservation.amount || session.currency !== reservation.currency.toLowerCase()) throw new Error("sandbox_unavailable");
+    const { data: attached, error: attachError } = await admin.rpc("attach_stripe_sandbox_checkout", {
+      target_reservation_id: reservation.id, target_session_id: session.id, target_checkout_url: session.url,
+    });
+    if (attachError || !attached) throw new Error("reconciliation_required");
+    return reply(safeSandboxReservation(attached as SandboxReservation));
+  } catch (error) {
+    return reply({ error: error instanceof Error && error.message === "reconciliation_required" ? "reconciliation_required" : "checkout_unavailable" }, 503);
   }
 }

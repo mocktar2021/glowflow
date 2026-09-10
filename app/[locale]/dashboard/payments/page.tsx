@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { isLocale } from "@/lib/i18n";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxConfiguration } from "@/lib/stripe-sandbox-config";
+import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
+import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 import { createStripeClient } from "@/lib/stripe";
 import { startSandboxOnboarding } from "./actions";
 
@@ -25,6 +27,8 @@ export default async function PaymentsPage({ params, searchParams }: {
   const t = copy[locale];
   const query = await searchParams;
   const config = sandboxConfiguration(process.env);
+  const depositConfig = sandboxDepositConfiguration(process.env);
+  const { data: ownedSalon } = depositConfig ? await owner.supabase.from("tenants").select("slug").eq("id", owner.tenant.id).single() : { data: null };
   const { data: connection, error } = await owner.supabase.from("stripe_sandbox_connections")
     .select("stripe_account_id").eq("tenant_id", owner.tenant.id).maybeSingle();
   let ready = false;
@@ -55,6 +59,7 @@ export default async function PaymentsPage({ params, searchParams }: {
           <button className="min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white dark:bg-[#e8bb82] dark:text-slate-950" type="submit">{connection?.stripe_account_id ? t.resume : t.start}</button>
         </form>}
         {ready && <a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer" className="inline-block text-[#a66e38]">{t.dashboard}</a>}
+        {ready && depositConfig && ownedSalon && <Link href={`/${locale}/book/${ownedSalon.slug}?sandbox=1`} className="block rounded-full border border-[#d9c7b2] px-6 py-3 text-center font-semibold">{sandboxPaymentCopy[locale].pay}</Link>}
         <p className="text-sm text-slate-600 dark:text-stone-300">{t.later}</p>
       </section>
     </div>

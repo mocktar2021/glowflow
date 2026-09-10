@@ -11,6 +11,7 @@ const page = await readFile(path.join(root, "app/[locale]/dashboard/services/pag
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/services/actions.ts"), "utf8");
 const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 const checkout = await readFile(path.join(root, "app/api/checkout/route.ts"), "utf8");
+const reservations = await readFile(path.join(root, "supabase/migrations/20260910232219_add_stripe_sandbox_reservations.sql"), "utf8");
 
 test("stores service currency and tenant-scoped eligible staff", () => {
   assert.match(migration, /add column if not exists currency text/);
@@ -40,7 +41,9 @@ test("validates trusted service pricing and deposits", () => {
   assert.ok(page.includes('"$50.00"'));
   assert.ok(page.includes('"50,00 €"'));
   assert.match(actions, /currency: tenant\.currency/);
-  assert.match(checkout, /\.eq\("is_active", true\)/);
+  // Checkout now delegates the trusted service lookup to its atomic reservation RPC.
+  assert.match(checkout, /rpc\("reserve_stripe_sandbox_booking"/);
+  assert.match(reservations, /from public\.services where id=target_service_id and tenant_id=t\.id and is_active/);
 });
 
 test("supports multilingual services and operational timing", () => {
