@@ -61,4 +61,3 @@ No issue has been marked Done by this run. Status reflects Jira, not a claim abo
 ## Subsequent wave candidates and blockers
 
 GLOW-25/42 depend on integrated booking and authoritative payment responses; GLOW-35/37 can extend verification alongside those flows. GLOW-24/30/31/32/33 require lifecycle and financial policy work after GLOW-23. GLOW-14/15/16 and GLOW-39 require existing CRM/catalog inspection before assignment. GLOW-28 can precede provider integration; GLOW-26/27/29 depend on delivery credentials and consent rules. GLOW-44/45/46 require current UI implementation checks. GLOW-53 requires approved pricing/allowances and cannot enable paid plans. GLOW-48 requires the recorded Supabase plan upgrade. Foundation issues GLOW-8–13 need current deployment/acceptance evidence before closure. Epics remain open until child acceptance is verified.
-

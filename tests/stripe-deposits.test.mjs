@@ -108,4 +108,3 @@ test("GET exposes only owner-scoped reservation summary without privileged clien
   const anonymous = await routeHarness({ owner: false });
   assert.equal((await anonymous.route.GET(new Request(`https://preview.example.com/api/checkout?reservationId=${row.id}`))).status, 403);
 });
-
