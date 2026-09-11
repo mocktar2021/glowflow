@@ -22,6 +22,14 @@ test('all declared public tables retain an RLS enable declaration', () => {
 });
 
 test('RLS declaration guard rejects missing and later disabled protection', () => {
+  const protectedTable = 'create table public.private_clients(id uuid); alter table public.private_clients enable row level security;';
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' alter table only public.private_clients disable row level security;']]), /private_clients/);
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' drop table public.private_clients; create table public.private_clients(id uuid);']]), /DROP TABLE/);
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' drop table public.private_clients; create table if not exists public.private_clients(id uuid);']]), /DROP TABLE/);
+  for (const statement of ['create table private_clients(id uuid);', 'alter table only private_clients disable row level security;']) {
+    assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' set search_path=public; ' + statement]]), /Unqualified table/);
+  }
+
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid,tenant_id uuid);']]), /private_clients/);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); alter table public.private_clients enable row level security; alter table public.private_clients disable row level security;']]), /private_clients/);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); -- alter table public.private_clients enable row level security;']]), /private_clients/);

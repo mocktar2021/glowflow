@@ -7,11 +7,17 @@ export function assertRlsDeclarations(sources) {
   const states = new Map();
   for (const [filename, raw] of sources) {
     const source = withoutComments(raw).replace(/--[^\r\n]*/g, '');
-    const operations = /\b(create\s+table\s+(?:if\s+not\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?)public\."?([a-z_][a-z0-9_]*)"?\s*(\(|enable\s+row\s+level\s+security|disable\s+row\s+level\s+security)/gi;
+    if (/\bdrop\s+table\b/i.test(source)) throw new Error('DROP TABLE requires explicit RLS guard support before this schema change can pass.');
+    // Reject unqualified names instead of guessing the active SQL search_path.
+    const declarations = /\b(?:create\s+(?:(?:unlogged|temporary|temp)\s+)?table\s+(?:if\s+not\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?)("[^"]+"|[a-z_][a-z0-9_]*)(\s*\.)?/gi;
+    for (const match of source.matchAll(declarations)) {
+      if (!match[2]) throw new Error(`Unqualified table ${match[1]} in ${filename}; schema qualification is required by the RLS guard.`);
+    }
+    const operations = /\b(create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?)(?:public|"public")\s*\.\s*"?([a-z_][a-z0-9_]*)"?\s*(\(|enable\s+row\s+level\s+security|disable\s+row\s+level\s+security)/gi;
     for (const match of source.matchAll(operations)) {
       const table = match[2].toLowerCase();
       if (match[1].toLowerCase().startsWith('create')) {
-        if (!states.has(table)) states.set(table, { enabled: false, filename });
+        if (!/if\s+not\s+exists/i.test(match[1]) || !states.has(table)) states.set(table, { enabled: false, filename });
       } else {
         states.set(table, { enabled: /^enable/i.test(match[3]), filename });
       }
