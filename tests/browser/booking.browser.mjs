@@ -57,6 +57,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
+  page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
   const errors = [];
   const writes = [];
   let state = status;
