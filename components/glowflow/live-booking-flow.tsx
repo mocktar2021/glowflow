@@ -41,6 +41,11 @@ const copy = {
     subtitle: "Choisissez une prestation, une date et un créneau disponible.",
     service: "Prestation",
     date: "Date",
+    staff: "Professionnel",
+    anyStaff: "Sans préférence : un professionnel disponible",
+    timeZone: "Horaires du salon",
+    availabilityError: "Impossible de charger les créneaux. Réessayez.",
+    retry: "Réessayer",
     time: "Créneaux disponibles",
     loading: "Recherche des créneaux…",
     noSlots: "Aucun créneau disponible pour cette date.",
@@ -65,6 +70,11 @@ const copy = {
     subtitle: "Choose a service, date, and available time.",
     service: "Service",
     date: "Date",
+    staff: "Professional",
+    anyStaff: "No preference: an available professional",
+    timeZone: "Salon time zone",
+    availabilityError: "Available times could not be loaded. Try again.",
+    retry: "Try again",
     time: "Available times",
     loading: "Checking available times…",
     noSlots: "No times are available on this date.",
@@ -89,6 +99,11 @@ const copy = {
     subtitle: "Elige un servicio, una fecha y una hora disponible.",
     service: "Servicio",
     date: "Fecha",
+    staff: "Profesional",
+    anyStaff: "Sin preferencia: un profesional disponible",
+    timeZone: "Zona horaria del salón",
+    availabilityError: "No se pudieron cargar los horarios. Inténtalo de nuevo.",
+    retry: "Reintentar",
     time: "Horas disponibles",
     loading: "Buscando horarios…",
     noSlots: "No hay horarios disponibles para esta fecha.",
@@ -126,6 +141,8 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
   const labels = copy[locale];
   const paymentLabels = sandboxPaymentCopy[locale];
   const retry = useRef<{ payload: string; key: string } | null>(null);
+  const contactRef = useRef<HTMLInputElement>(null);
+  const confirmationRef = useRef<HTMLHeadingElement>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   const [serviceId, setServiceId] = useState(services[0].id);
   const [date, setDate] = useState(today);
@@ -135,6 +152,8 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [availabilityFailed, setAvailabilityFailed] = useState(false);
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
   const service = services.find((item) => item.id === serviceId) ?? services[0];
 
   useEffect(() => {
@@ -146,27 +165,41 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
         return response.json() as Promise<{ slots: Slot[] }>;
       })
       .then(({ slots: values }) => {
+        if (controller.signal.aborted) return;
         const unique = new Map<string, Slot>();
         for (const value of values) if (!unique.has(value.slot_start)) unique.set(value.slot_start, value);
         setSlots([...unique.values()]);
       })
       .catch((reason: unknown) => {
-        if ((reason as { name?: string }).name !== "AbortError") setError(labels.error);
+        if (!controller.signal.aborted && (reason as { name?: string }).name !== "AbortError") setAvailabilityFailed(true);
       })
-      .finally(() => setLoadingSlots(false));
+      .finally(() => { if (!controller.signal.aborted) setLoadingSlots(false); });
 
     return () => controller.abort();
-  }, [date, labels.error, salon.slug, serviceId]);
+  }, [date, salon.slug, serviceId, availabilityVersion]);
+
+  useEffect(() => {
+    if (confirmation) confirmationRef.current?.focus();
+  }, [confirmation]);
+
+  function reloadAvailability() {
+    setSlot(null);
+    setSlots([]);
+    setLoadingSlots(true);
+    setAvailabilityFailed(false);
+    setAvailabilityVersion((value) => value + 1);
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!slot) return;
+    if (!slot || loadingSlots || submitting) return;
     const form = new FormData(event.currentTarget);
     const fullName = String(form.get("fullName") ?? "").trim();
     const phone = String(form.get("phone") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     if (!phone && !email) {
       setError(labels.contact);
+      contactRef.current?.focus();
       return;
     }
 
@@ -197,6 +230,7 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
     if (sandbox) {
       if (!response.ok || !result.reservationId) {
         setError(result.error === "slot_unavailable" ? labels.conflict : paymentLabels.unavailable);
+        if (result.error === "slot_unavailable") reloadAvailability();
         return;
       }
       if (result.url) {
@@ -211,7 +245,7 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
 
     if (!response.ok || !result.confirmation) {
       setError(result.error === "slot_unavailable" ? labels.conflict : labels.error);
-      if (result.error === "slot_unavailable") setSlots((values) => values.filter((value) => value.slot_start !== slot.slot_start));
+      if (result.error === "slot_unavailable") reloadAvailability();
       setSlot(null);
       return;
     }
@@ -232,14 +266,14 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
     return <main className="grid min-h-screen place-items-center bg-[#f3ece2] p-4 text-slate-950 dark:bg-[#101216] dark:text-stone-50">
       <section className="w-full max-w-xl rounded-[2rem] border border-[#e4d6c5] bg-[#faf9f6] p-7 text-center shadow-[0_24px_80px_rgba(48,32,18,0.12)] dark:border-white/10 dark:bg-[#17191e] sm:p-10">
         <span className="mx-auto grid size-20 place-items-center rounded-[1.75rem] bg-emerald-100 text-emerald-700"><CheckCircle2 className="size-10" /></span>
-        <h1 className="mt-6 text-3xl font-semibold tracking-[-0.045em]">{labels.success}</h1>
+        <h1 ref={confirmationRef} tabIndex={-1} className="mt-6 text-3xl font-semibold tracking-[-0.045em]">{labels.success}</h1>
         <p className="mt-3 text-slate-600 dark:text-stone-300">{labels.confirmation}</p>
         <div className="mt-7 rounded-2xl border border-[#e8ded1] bg-white p-5 text-left dark:border-white/10 dark:bg-white/5">
           <p className="font-semibold">{confirmation.service_title[locale] ?? confirmation.service_title.fr}</p>
           <p className="mt-2 text-sm">{formatter.format(new Date(confirmation.confirmed_start))}</p>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
-        <button type="button" onClick={() => setConfirmation(null)} className="mt-6 h-12 rounded-full border border-[#d9c7b2] px-6 font-semibold">{labels.another}</button>
+        <button type="button" onClick={() => { setConfirmation(null); reloadAvailability(); }} className="mt-6 h-12 rounded-full border border-[#d9c7b2] px-6 font-semibold">{labels.another}</button>
       </section>
     </main>;
   }
@@ -264,10 +298,12 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
             <p className="mt-4 text-2xl font-semibold">{money(service.price, service.currency, locale)}</p>
           </div>
         </aside>
-        <form onSubmit={submit} className="space-y-7 p-6 sm:p-9">
+        <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
-            <select value={serviceId} onChange={(event) => {
+            <select disabled={submitting} value={serviceId} onChange={(event) => {
                 setLoadingSlots(true);
+                setAvailabilityFailed(false);
+                setSlots([]);
                 setSlot(null);
                 setError("");
                 setServiceId(event.target.value);
@@ -275,30 +311,38 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
               {services.map((item) => <option key={item.id} value={item.id}>{item.title_json[locale] ?? item.title_json.fr}</option>)}
             </select>
           </label>
+          <div><p className="font-semibold">{labels.staff}</p><p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.anyStaff}</p></div>
           <label className="block font-semibold">{labels.date}
-            <input type="date" min={today} value={date} onChange={(event) => {
+            <input type="date" disabled={submitting} min={today} value={date} onChange={(event) => {
               setLoadingSlots(true);
+              setAvailabilityFailed(false);
+              setSlots([]);
               setSlot(null);
               setError("");
               setDate(event.target.value);
             }} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" />
           </label>
-          <section>
-            <h2 className="flex items-center gap-2 font-semibold"><CalendarDays className="size-5 text-[#9a622f]" />{labels.time}</h2>
-            {loadingSlots ? <p className="mt-3 text-sm text-slate-500">{labels.loading}</p> : slots.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {slots.map((value) => <button key={value.slot_start} type="button" onClick={() => setSlot(value)} className={`h-11 rounded-xl text-sm font-semibold ${slot?.slot_start === value.slot_start ? "bg-[#e7b779] text-slate-950" : "bg-[#f4ece2] hover:bg-[#eadbc9] dark:bg-white/5"}`}>
-                {new Intl.DateTimeFormat(locale, { timeZone: salon.timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(value.slot_start))}
-              </button>)}
-            </div> : <p className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5">{labels.noSlots}</p>}
-          </section>
-          <fieldset className="grid gap-4 sm:grid-cols-2">
+          <fieldset disabled={submitting || loadingSlots} aria-busy={loadingSlots} aria-describedby="booking-time-zone">
+            <legend className="flex items-center gap-2 font-semibold"><CalendarDays aria-hidden="true" className="size-5 text-[#9a622f]" />{labels.time}</legend>
+            <p id="booking-time-zone" className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.timeZone}: {salon.timeZone}</p>
+            {loadingSlots ? <p role="status" className="mt-3 text-sm text-slate-500">{labels.loading}</p> : availabilityFailed ? <div role="alert" className="mt-3"><p>{labels.availabilityError}</p><button type="button" onClick={reloadAvailability} className="mt-2 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.retry}</button></div> : slots.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {slots.map((value) => <label key={value.slot_start} className="cursor-pointer">
+                <input type="radio" name="bookingTime" value={value.slot_start} checked={slot?.slot_start === value.slot_start} onChange={() => setSlot(value)} required className="peer sr-only" />
+                <span className="flex min-h-11 items-center justify-center rounded-xl bg-[#f4ece2] text-sm font-semibold peer-checked:bg-[#e7b779] peer-checked:text-slate-950 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-slate-950 dark:bg-white/5 dark:peer-focus-visible:outline-white">
+                  {new Intl.DateTimeFormat(locale, { timeZone: salon.timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(value.slot_start))}
+                </span>
+              </label>)}
+            </div> : <p role="status" className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5">{labels.noSlots}</p>}
+          </fieldset>
+          <fieldset disabled={submitting} aria-describedby="booking-contact-hint" className="grid gap-4 sm:grid-cols-2">
             <legend className="mb-3 font-semibold">{labels.details}</legend>
-            <label className="sm:col-span-2">{labels.name}<input name="fullName" minLength={2} maxLength={120} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
-            <label>{labels.phone}<input name="phone" type="tel" maxLength={40} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
-            <label>{labels.email}<input name="email" type="email" maxLength={160} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
+            <p id="booking-contact-hint" className="text-sm text-slate-600 dark:text-stone-300 sm:col-span-2">{labels.contact}</p>
+            <label className="sm:col-span-2">{labels.name}<input name="fullName" autoComplete="name" minLength={2} maxLength={120} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
+            <label>{labels.phone}<input ref={contactRef} name="phone" type="tel" autoComplete="tel" aria-invalid={error === labels.contact} aria-describedby="booking-contact-hint" maxLength={40} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
+            <label>{labels.email}<input name="email" type="email" autoComplete="email" aria-invalid={error === labels.contact} aria-describedby="booking-contact-hint" maxLength={160} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
           </fieldset>
           {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</p> : null}
-          <button type="submit" disabled={!slot || submitting} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-slate-950 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
+          <button type="submit" disabled={!slot || loadingSlots || submitting} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-slate-950 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
             <Clock3 className="size-5" />{submitting ? labels.saving : sandbox ? paymentLabels.pay : labels.reserve}
           </button>
         </form>

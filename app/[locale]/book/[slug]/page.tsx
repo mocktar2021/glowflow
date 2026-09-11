@@ -41,6 +41,7 @@ export default async function BookingPage({
   }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
+    if (slug !== "atelier-belle") notFound();
     return <BookingFlow locale={locale} salonSlug={slug} />;
   }
 
