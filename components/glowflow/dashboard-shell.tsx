@@ -220,6 +220,16 @@ export function DashboardShell({
         <SidebarFooter className="p-3">
           <SidebarMenu>
             <SidebarMenuItem>
+              <SidebarMenuButton asChild className="h-11 rounded-xl px-3">
+                <Link href={`/${locale}/dashboard/notifications`}>
+                  <Bell className="size-4" />
+                  <span>{locale === "fr" ? "Aperçu des notifications" : locale === "es" ? "Vista previa de notificaciones" : "Notification preview"}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SidebarMenu>
+            <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip={t("nav.settings")} className="h-11 rounded-xl px-3">
                 <Link href={`/${locale}/dashboard/payments`}>
                   <Settings2 />

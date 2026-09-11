@@ -57,6 +57,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
+  page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
   const errors = [];
   const writes = [];
   let state = status;
@@ -64,6 +65,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   let release;
   const barrier = delay ? new Promise(resolve => release = resolve) : Promise.resolve();
   page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error" && /hydrat|server rendered HTML/i.test(message.text())) errors.push(message.text()); });
   await context.route("**/*", async route => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
@@ -151,4 +153,69 @@ test("unavailable checkout stays in sandbox and never confirms a booking", async
   assert.equal(writes.length, 1);
   assert.equal(new URL(page.url()).searchParams.get("sandbox"), "1");
   assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+});
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} notification preview changes kind and applies language fallback without sending`, async t => {
+    const { page } = await pageFor(t, locale);
+    const mutations = [];
+    page.on("request", request => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?templates=1`);
+    const status = page.getByRole("status");
+    const initial = { fr: "Rendez-vous confirmé", en: "Appointment confirmed", es: "Cita confirmada" };
+    await status.filter({ hasText: initial[locale] }).waitFor();
+    await page.locator("#notification-kind").selectOption("reminder24h");
+    const reminders = { fr: "Rappel de rendez-vous — 24 heures", en: "Appointment reminder — 24 hours", es: "Recordatorio de cita — 24 horas" };
+    await status.filter({ hasText: reminders[locale] }).waitFor();
+    await page.locator("#notification-client").selectOption("");
+    await page.locator("#notification-salon").selectOption("es");
+    await status.filter({ hasText: reminders.es }).waitFor();
+    assert.equal(await status.locator("p").getAttribute("lang"), "es");
+    await page.locator("#notification-salon").selectOption("");
+    await status.filter({ hasText: reminders.fr }).waitFor();
+    await page.locator("#notification-client").selectOption("en");
+    await page.locator("#notification-kind").selectOption("reminder2h");
+    await status.filter({ hasText: "Appointment reminder — 2 hours" }).waitFor();
+    assert.deepEqual(mutations, [], "preview must not send messages or save settings");
+  });
+}
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} selected service stays attached to the sandbox booking payload`, async t => {
+    const { page, writes } = await pageFor(t, locale);
+    const selected = "44444444-4444-4444-8444-444444444444";
+    await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1&service=${selected}`);
+    await page.getByRole("heading", { name: labels[locale].title }).waitFor();
+    assert.equal(await page.locator("select").inputValue(), selected);
+    await page.locator(`input[type="radio"][value="${slot.slot_start}"]`).check();
+    await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+    await page.locator('[name="email"]').fill("browser@example.invalid");
+    await page.getByRole("button", { name: labels[locale].pay, exact: true }).click();
+    await page.waitForURL(`**sandboxReservation=${reservationId}`);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].serviceId, selected);
+    assert.equal(writes[0].locale, locale);
+    assert.equal(writes[0].salonSlug, "browser-fixture");
+  });
+}
+
+test("changing service then language preserves the current service and sandbox query", async t => {
+  const { page, writes } = await pageFor(t, "fr");
+  const first = "11111111-1111-4111-8111-111111111111";
+  const second = "44444444-4444-4444-8444-444444444444";
+  await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1&service=${second}#booking`);
+  await page.getByRole("heading", { name: labels.fr.title }).waitFor();
+  await page.locator("select").selectOption(first);
+  assert.equal(new URL(page.url()).searchParams.get("service"), first);
+  await page.getByRole("button", { name: "Change language" }).click();
+  await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
+  await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1&service=${first}#booking`);
+  assert.equal(await page.locator("select").inputValue(), first);
+  await page.locator(`input[type="radio"][value="${slot.slot_start}"]`).check();
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("browser@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.waitForURL(`**sandboxReservation=${reservationId}`);
+  assert.equal(writes[0].serviceId, first);
+  assert.equal(writes[0].locale, "en");
 });

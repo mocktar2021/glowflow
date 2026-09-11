@@ -32,6 +32,7 @@ type Props = {
   locale: Locale;
   salon: { name: string; slug: string; city: string | null; currency: string; timeZone: string };
   services: Service[];
+  initialServiceId?: string;
   sandbox?: boolean;
 };
 
@@ -137,14 +138,17 @@ function money(amount: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount / 100);
 }
 
-export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Props) {
+export function LiveBookingFlow({ locale, salon, services, initialServiceId, sandbox = false }: Props) {
+  if (!services.length || (initialServiceId !== undefined && !services.some((service) => service.id === initialServiceId))) {
+    throw new Error("Booking requires a service from this salon's catalog.");
+  }
   const labels = copy[locale];
   const paymentLabels = sandboxPaymentCopy[locale];
   const retry = useRef<{ payload: string; key: string } | null>(null);
   const contactRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLHeadingElement>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
-  const [serviceId, setServiceId] = useState(services[0].id);
+  const [serviceId, setServiceId] = useState(initialServiceId ?? services[0].id);
   const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slot, setSlot] = useState<Slot | null>(null);
@@ -301,6 +305,11 @@ export function LiveBookingFlow({ locale, salon, services, sandbox = false }: Pr
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
             <select disabled={submitting} value={serviceId} onChange={(event) => {
+                if (typeof window !== "undefined") {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("service", event.target.value);
+                  window.history.replaceState(window.history.state, "", url.href);
+                }
                 setLoadingSlots(true);
                 setAvailabilityFailed(false);
                 setSlots([]);
