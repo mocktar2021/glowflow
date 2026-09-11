@@ -112,3 +112,30 @@ test("live form selects requested catalog service and rejects foreign component 
   assert.match(html, /42\.00/);
   assert.throws(() => renderToStaticMarkup(createElement(LiveBookingFlow, { ...props, initialServiceId: foreign })), /this salon's catalog/);
 });
+
+test("changing service preserves sandbox query, hash and history state for locale navigation", async () => {
+  const values = [];
+  const payment = await load("../lib/sandbox-payment-copy.ts");
+  const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
+    react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn() },
+    "@/lib/sandbox-payment-copy": payment,
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+  });
+  const previous = globalThis.window;
+  const historyState = { nextRouterState: "retained" };
+  const replacements = [];
+  globalThis.window = { location: { href: `https://example.invalid/fr/book/salon-a?sandbox=1&service=${first}&campaign=fixture#booking` }, history: { state: historyState, replaceState: (...args) => replacements.push(args) } };
+  try {
+    const tree = LiveBookingFlow({ locale: "fr", salon: { ...tenant, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: first });
+    nodes(tree).find(node => node.type === "select").props.onChange({ target: { value: chosen } });
+    assert.equal(values[0], chosen);
+    assert.equal(replacements.length, 1);
+    assert.equal(replacements[0][0], historyState);
+    const url = new URL(replacements[0][2]);
+    assert.equal(url.searchParams.get("service"), chosen);
+    assert.equal(url.searchParams.get("sandbox"), "1");
+    assert.equal(url.searchParams.get("campaign"), "fixture");
+    assert.equal(url.hash, "#booking");
+    assert.equal(url.pathname, "/fr/book/salon-a");
+  } finally { if (previous === undefined) delete globalThis.window; else globalThis.window = previous; }
+});

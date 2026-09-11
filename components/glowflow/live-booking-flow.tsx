@@ -305,6 +305,11 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
             <select disabled={submitting} value={serviceId} onChange={(event) => {
+                if (typeof window !== "undefined") {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("service", event.target.value);
+                  window.history.replaceState(window.history.state, "", url.href);
+                }
                 setLoadingSlots(true);
                 setAvailabilityFailed(false);
                 setSlots([]);
