@@ -4,7 +4,7 @@ Run `npm ci`, `npx playwright install chromium`, then `npm run test:browser`.
 The browser workflow installs Chromium with OS dependencies and uploads screenshots,
 server output, and runtime metadata even on failure.
 
-These nine isolated browser checks import the production booking and sandbox payment
+These isolated browser checks import the production booking and sandbox payment
 status components into a small Next.js fixture. They cover FR/EN/ES booking payloads,
 sandbox query and hash preservation when switching language, authoritative pending to
 paid/failed/expired transitions, and unavailable checkout/status behavior. Each test
@@ -25,3 +25,5 @@ CI uses pinned Playwright 1.58.2 and its installed Chromium. Optional local over
 used bundled Playwright 1.62.1 and installed Chrome 152.0.7977.83 because the local
 Chromium download was incomplete. This does not verify the pinned CI browser version.
 Runtime metadata records whether overrides were used; it contains no credential data.
+
+The GLOW-28/GLOW-42 extension also checks notification kind and locale fallback without mutation requests, selected-service booking payloads, and service re-selection across language changes.
