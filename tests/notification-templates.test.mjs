@@ -57,3 +57,8 @@ test("untrusted text cannot inject extra fields, markup or unresolved template t
   assert.throws(() => renderNotification({ ...base, kind: "Secret" }), { message: "Invalid notification data" });
   assert.throws(() => renderNotification(null), { message: "Invalid notification data" });
 });
+
+test("Spanish preview uses an explicit stable date and time separator across runtimes", () => {
+  const message = renderNotification({ ...base, clientLocale: "es", startsAt: "2030-06-15T12:00:00Z" });
+  assert.ok(message.text.includes("Fecha y hora : 15 de junio de 2030 · 14:00"));
+});

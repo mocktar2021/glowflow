@@ -65,6 +65,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   let release;
   const barrier = delay ? new Promise(resolve => release = resolve) : Promise.resolve();
   page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error" && /hydrat|server rendered HTML/i.test(message.text())) errors.push(message.text()); });
   await context.route("**/*", async route => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();

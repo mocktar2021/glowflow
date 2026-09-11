@@ -58,9 +58,12 @@ export function renderNotification(input: NotificationInput): { locale: Notifica
   const locale = localeBase(input.clientLocale) ?? localeBase(input.salonLocale) ?? "fr";
   let when: string;
   try {
-    when = new Intl.DateTimeFormat(locale, {
-      timeZone, dateStyle: "long", timeStyle: "short",
-    }).format(date);
+    // ICU versions disagree on the connector between dateStyle and timeStyle
+    // (for example Spanish ", " versus " a las "). Join the two explicitly so
+    // server rendering and browser hydration produce identical message text.
+    const day = new Intl.DateTimeFormat(locale, { timeZone, dateStyle: "long" }).format(date);
+    const time = new Intl.DateTimeFormat(locale, { timeZone, timeStyle: "short" }).format(date);
+    when = `${day} · ${time}`;
   } catch {
     throw invalid();
   }
