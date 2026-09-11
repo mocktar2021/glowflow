@@ -17,3 +17,5 @@ The next ready coding work should inspect GLOW-42 marketplace-to-booking links a
 ## Preview configuration inspection
 
 Vercel project settings were inspected read-only. NEXT_PUBLIC_SUPABASE_URL is https://rfwhqutkiztxkagbhevp.supabase.co for all environments. Preview sandbox onboarding is true and its account ID matches acct_1UCiSZDNDjGEQe6f; the restricted key is stored as a Secret and was not revealed. The preview GLOWFLOW_APP_URL still points to the older feat-glow-23 onboarding branch, not this wave. GLOWFLOW_STRIPE_SANDBOX_DEPOSITS and STRIPE_SANDBOX_WEBHOOK_SECRET are absent. Update only a designated protected preview after preparing its stable origin and matching sandbox endpoint.
+
+GitHub master currently has no required status checks (branch API inspected read-only). The new workflows report failures; enforcing them as merge requirements is a separate repository-setting step, so this wave does not claim mandatory release blocking is configured.
