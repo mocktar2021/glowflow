@@ -1,0 +1,154 @@
+import assert from "node:assert/strict";
+import { before, after, test } from "node:test";
+import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+import { mkdir, writeFile } from "node:fs/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import path from "node:path";
+
+// Optional local overrides support an existing browser runtime; CI uses the pinned dependency.
+const { chromium } = await import(process.env.GLOWFLOW_PLAYWRIGHT_PATH ? pathToFileURL(process.env.GLOWFLOW_PLAYWRIGHT_PATH).href : "playwright");
+const root = fileURLToPath(new URL("../../", import.meta.url));
+const fixture = path.join(root, "tests/browser/fixture");
+const artifacts = path.join(root, "test-results/browser");
+let server, browser, origin;
+let output = "";
+const reservationId = "22222222-2222-4222-8222-222222222222";
+const slot = { slot_start: "2030-01-15T10:00:00Z", staff_id: "33333333-3333-4333-8333-333333333333" };
+const labels = {
+  fr: { title: "Test d’acompte du salon", pay: "Tester le paiement de l’acompte", pending: "Paiement en cours de vérification", paid: "Acompte de test confirmé", failed: "Le paiement de test a échoué", expired: "Le créneau de test a expiré", refresh: "Vérifier le paiement", unavailable: "Le test est indisponible" },
+  en: { title: "Salon deposit test", pay: "Test deposit payment", pending: "Payment verification is pending", paid: "Test deposit confirmed", failed: "Test payment failed", expired: "The test hold expired", refresh: "Check payment", unavailable: "Testing is unavailable" },
+  es: { title: "Prueba de depósito del salón", pay: "Probar el pago del depósito", pending: "El pago está pendiente de verificación", paid: "Stripe confirmó el depósito", failed: "El pago de prueba falló", expired: "La retención de prueba caducó", refresh: "Verificar pago", unavailable: "La prueba no está disponible" },
+};
+before(async () => {
+  await mkdir(artifacts, { recursive: true });
+  const probe = createServer();
+  await new Promise(resolve => probe.listen(0, "127.0.0.1", resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  origin = `http://127.0.0.1:${port}`;
+  // No inherited application secrets: this fixture has no server-side API routes.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/SUPABASE|STRIPE|GLOWFLOW_APP|VERCEL/.test(key)));
+  server = spawn(process.execPath, [path.join(root, "node_modules/next/dist/bin/next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: fixture, env: { ...env, NEXT_TELEMETRY_DISABLED: "1" }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  server.stdout.on("data", value => output += value);
+  server.stderr.on("data", value => output += value);
+  const deadline = Date.now() + 120000;
+  while (true) {
+    if (server.exitCode !== null) throw new Error(output);
+    try { const response = await fetch(origin, { signal: AbortSignal.timeout(10000) }); if (response.ok) break; } catch { /* startup */ }
+    if (Date.now() > deadline) throw new Error(`Fixture failed to start: ${output}`);
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  browser = await chromium.launch({ headless: true, executablePath: process.env.GLOWFLOW_CHROMIUM_PATH || undefined });
+  await writeFile(path.join(artifacts, "runtime.json"), JSON.stringify({ node: process.version, browser: browser.version(), playwrightOverride: Boolean(process.env.GLOWFLOW_PLAYWRIGHT_PATH), chromiumOverride: Boolean(process.env.GLOWFLOW_CHROMIUM_PATH) }, null, 2));
+}, { timeout: 150000 });
+after(async () => {
+  await browser?.close();
+  if (server && server.exitCode === null) {
+    if (process.platform === "win32") {
+      await new Promise(resolve => spawn("taskkill", ["/pid", String(server.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" }).once("close", resolve));
+    } else {
+      server.kill("SIGTERM");
+    }
+  }
+  await writeFile(path.join(artifacts, "server.log"), output);
+});
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale });
+  const page = await context.newPage();
+  page.setDefaultTimeout(45000);
+  const errors = [];
+  const writes = [];
+  let state = status;
+  let unavailableState = unavailable;
+  let release;
+  const barrier = delay ? new Promise(resolve => release = resolve) : Promise.resolve();
+  page.on("pageerror", error => errors.push(error.message));
+  await context.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (url.origin !== origin) return route.abort();
+    if (url.pathname === "/api/public-booking") {
+      assert.equal(route.request().method(), "GET", "sandbox must never submit a real booking");
+      return route.fulfill({ json: { slots: [slot] } });
+    }
+    if (url.pathname === "/api/preferences/locale") return route.fulfill({ json: { saved: true } });
+    if (url.pathname === "/api/checkout") {
+      if (route.request().method() === "POST") {
+        writes.push(route.request().postDataJSON());
+        return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: "pending", url: null } });
+      }
+      await barrier;
+      return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: state, url: state === "pending" ? "https://checkout.stripe.com/c/pay/cs_test_fixture" : null } });
+    }
+    return route.continue();
+  });
+  t.after(async () => {
+    try {
+      await page.screenshot({ path: path.join(artifacts, `${t.name.replace(/[^a-z0-9-]/gi, "-")}.png`), fullPage: true });
+      assert.deepEqual(errors, [], "no runtime/hydration errors");
+      assert.equal(await page.locator("[data-nextjs-dialog], .vite-error-overlay").count(), 0);
+    } finally { await context.close(); }
+  });
+  return { page, writes, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
+}
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} sandbox booking submits exact fixture and displays authoritative pending`, async t => {
+    const { page, writes } = await pageFor(t, locale);
+    await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1`);
+    await page.getByRole("heading", { name: labels[locale].title }).waitFor();
+    await page.locator('[name="bookingTime"][value="2030-01-15T10:00:00Z"]').check();
+    await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+    await page.locator('[name="email"]').fill("browser@example.invalid");
+    await page.getByRole("button", { name: labels[locale].pay, exact: true }).click();
+    await page.waitForURL(`**sandboxReservation=${reservationId}`);
+    await page.getByRole("status").filter({ hasText: labels[locale].pending }).waitFor();
+    assert.equal(writes.length, 1);
+    const { requestKey, ...payload } = writes[0];
+    assert.deepEqual(payload, { salonSlug: "browser-fixture", serviceId: "11111111-1111-4111-8111-111111111111", staffId: slot.staff_id, startTime: slot.slot_start, fullName: "Fictional Browser Client", phone: "", email: "browser@example.invalid", locale });
+    assert.match(requestKey, /^[0-9a-f-]{36}$/);
+    assert.equal("amount" in writes[0], false);
+  });
+}
+test("locale switch preserves sandbox query and hash", async t => {
+  const { page } = await pageFor(t);
+  await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1#booking`);
+  await page.getByRole("button", { name: "Change language" }).click();
+  await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
+  await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1#booking`);
+  await page.getByRole("heading", { name: labels.en.title }).waitFor();
+});
+for (const status of ["paid", "failed", "expired"]) {
+  test(`pending transitions to ${status} only after authoritative refresh`, async t => {
+    const { page, setStatus, release } = await pageFor(t, "en", { delay: true });
+    await page.goto(`${origin}/en/book/browser-fixture?sandboxReservation=${reservationId}&paid=true`);
+    await page.getByRole("status").filter({ hasText: labels.en.pending }).waitFor();
+    assert.equal(await page.getByText(labels.en.paid, { exact: false }).count(), 0);
+    release();
+    await page.getByRole("link", { name: labels.en.pay }).waitFor();
+    setStatus(status);
+    await page.getByRole("button", { name: labels.en.refresh }).click();
+    await page.getByRole("status").filter({ hasText: labels.en[status] }).waitFor();
+    assert.equal(await page.getByRole("link", { name: labels.en.pay }).count(), 0);
+  });
+}
+test("unavailable status hides stale checkout continuation", async t => {
+  const { page, setUnavailable } = await pageFor(t, "es");
+  await page.goto(`${origin}/es/book/browser-fixture?sandboxReservation=${reservationId}`);
+  await page.getByRole("link", { name: labels.es.pay }).waitFor();
+  setUnavailable(true);
+  await page.getByRole("button", { name: labels.es.refresh }).click();
+  await page.getByRole("alert").filter({ hasText: labels.es.unavailable }).waitFor();
+  assert.equal(await page.getByRole("link", { name: labels.es.pay }).count(), 0);
+});
+test("unavailable checkout stays in sandbox and never confirms a booking", async t => {
+  const { page, writes } = await pageFor(t, "en", { unavailable: true });
+  await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+  await page.locator('[name="bookingTime"][value="2030-01-15T10:00:00Z"]').check();
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="phone"]').fill("0000000000");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(new URL(page.url()).searchParams.get("sandbox"), "1");
+  assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+});

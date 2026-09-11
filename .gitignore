@@ -45,3 +45,7 @@ next-env.d.ts
 /work/
 /.npm-cache/
 /.sandbox-pg/
+
+/test-results/
+/tests/browser/fixture/.next/
+/.browser-install-incomplete/

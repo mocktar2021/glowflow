@@ -1,0 +1,40 @@
+name: Database security
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  rls:
+    name: RLS and role authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Check source authorization boundaries
+        run: node --test tests/rls-source-guards.test.mjs tests/rls-run.test.mjs
+      - name: Run real PostgreSQL transaction and role tests
+        env:
+          GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
+        run: node tests/rls-run.mjs
