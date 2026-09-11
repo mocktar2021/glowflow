@@ -24,11 +24,13 @@ export default async function BookingPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
-  searchParams: Promise<{ sandbox?: string; sandboxReservation?: string }>;
+  searchParams: Promise<{ sandbox?: string; sandboxReservation?: string; service?: string | string[] }>;
 }) {
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
   const query = await searchParams;
+  if (query.service !== undefined && (typeof query.service !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.service))) notFound();
+  const initialServiceId = typeof query.service === "string" ? query.service.toLowerCase() : undefined;
   const sandbox = query.sandbox === "1" || typeof query.sandboxReservation === "string";
   let sandboxTenantId: string | null = null;
   if (sandbox) {
@@ -41,7 +43,7 @@ export default async function BookingPage({
   }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
-    if (slug !== "atelier-belle") notFound();
+    if (slug !== "atelier-belle" || initialServiceId) notFound();
     return <BookingFlow locale={locale} salonSlug={slug} />;
   }
 
@@ -69,9 +71,12 @@ export default async function BookingPage({
 
   const services = (rawServices ?? []) as Service[];
   if (!services.length) notFound();
+  if (initialServiceId && !services.some((service) => service.id === initialServiceId)) notFound();
 
   return (
     <LiveBookingFlow
+      key={`${tenant.id}:${initialServiceId ?? "default"}:${sandbox}`}
+      initialServiceId={initialServiceId}
       locale={locale}
       sandbox={sandbox}
       salon={{
