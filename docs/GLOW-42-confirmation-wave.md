@@ -16,4 +16,4 @@ The browser fixtures do not prove live Supabase sessions, database conflict tran
 
 Review also caught a legacy RPC replay edge: when stored-service enrichment is unavailable, its returned service title can describe a modified retry instead of the saved appointment. The confirmation therefore shows explicit unavailable guidance until stored-service details are verified. Catalog currency display is limited to the configured EUR/USD markets; other currencies require their own amount-unit contract.
 
-Validation results will be recorded after the integrated checks finish.
+Local validation: 20 focused Node tests passed; all 15 authenticated-route browser cases passed using Node 24.20.0 and Chrome 153.0.8010.36 runtime overrides. The development server logged one non-recurring generated-chunk diagnostic during cold compilation; browser rendering, redirects, hydration and no-mutation assertions passed. Focused fixture lint and booking browser syntax checks passed. Full build, Node, RLS and pinned-browser CI results and preview evidence are maintained in PR33: https://github.com/mocktar2021/glowflow/pull/33.
