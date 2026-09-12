@@ -129,7 +129,7 @@ export async function POST(request: Request) {
           time_zone: validTimeZone(tenant.time_zone),
           address: typeof profile?.address_line1 === "string" && profile.address_line1.trim() ? [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code].filter((part) => typeof part === "string" && part.trim()).join(", ") || null : null,
           policies: localizedText(profile?.policies_json),
-          catalog_price: Number.isSafeInteger(service?.price) && service.price >= 0 ? service.price : null,
+          catalog_price: service && Number.isSafeInteger(service.price) && service.price >= 0 ? service.price : null,
           currency: validCurrency(service?.currency),
           service_title: localizedText(service?.title_json),
         };
