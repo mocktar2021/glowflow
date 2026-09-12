@@ -6,6 +6,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function localizedText(value: unknown): Record<string, string> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value).filter(([locale, text]) =>
+    ["fr", "en", "es"].includes(locale) && typeof text === "string" && text.trim().length > 0);
+  return entries.length ? Object.fromEntries(entries) : null;
+}
+
+function validTimeZone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return value; } catch { return null; }
+}
+
+function validCurrency(value: unknown): string | null {
+  // The current FR/US/ES catalogs use cents in EUR/USD. Other markets need an explicit unit contract.
+  return value === "EUR" || value === "USD" ? value : null;
+}
 const localeSchema = z.enum(["fr", "en", "es"]);
 const availabilitySchema = z.object({
   salonSlug: z.string().trim().min(2).max(80),
@@ -89,5 +105,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "booking_failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ confirmation }, { status: 201 });
+  // Enrichment must never turn an already committed booking into a failed request.
+  // Read the stored appointment, rather than trusting the service in a retried body.
+  let details = null;
+  try {
+    const { data: tenant, error: tenantError } = await supabase.from("tenants")
+      .select("id,time_zone").eq("slug", parsed.data.salonSlug).single();
+    if (tenant && !tenantError) {
+      const { data: appointment, error: appointmentError } = await supabase.from("appointments")
+        .select("service_id").eq("id", confirmation.appointment_id)
+        .eq("tenant_id", tenant.id).eq("public_booking_request_key", parsed.data.requestKey).single();
+      if (appointment && !appointmentError) {
+        const [serviceResult, profileResult] = await Promise.all([
+          supabase.from("services").select("title_json,price,currency")
+            .eq("id", appointment.service_id).eq("tenant_id", tenant.id).single(),
+          supabase.from("salon_public_profiles")
+            .select("address_line1,city,administrative_area,postal_code,country_code,policies_json")
+            .eq("tenant_id", tenant.id).eq("is_published", true).maybeSingle(),
+        ]);
+        const service = serviceResult.error ? null : serviceResult.data;
+        const profile = profileResult.error ? null : profileResult.data;
+        details = {
+          time_zone: validTimeZone(tenant.time_zone),
+          address: typeof profile?.address_line1 === "string" && profile.address_line1.trim() ? [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code].filter((part) => typeof part === "string" && part.trim()).join(", ") || null : null,
+          policies: localizedText(profile?.policies_json),
+          catalog_price: Number.isSafeInteger(service?.price) && service.price >= 0 ? service.price : null,
+          currency: validCurrency(service?.currency),
+          service_title: localizedText(service?.title_json),
+        };
+      }
+    }
+  } catch {
+    // The booking reference remains usable even if optional public details cannot load.
+  }
+
+  return NextResponse.json({ confirmation: { ...confirmation, details } }, {
+    status: 201, headers: { "cache-control": "private, no-store" },
+  });
 }

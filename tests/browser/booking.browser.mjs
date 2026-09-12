@@ -53,7 +53,7 @@ after(async () => {
   }
   await writeFile(path.join(artifacts, "server.log"), output);
 });
-async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false } = {}) {
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
@@ -70,6 +70,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/api/public-booking") {
+      if (publicBooking) return publicBooking(route, writes);
       assert.equal(route.request().method(), "GET", "sandbox must never submit a real booking");
       return route.fulfill({ json: { slots: [slot] } });
     }
@@ -218,4 +219,80 @@ test("changing service then language preserves the current service and sandbox q
   await page.waitForURL(`**sandboxReservation=${reservationId}`);
   assert.equal(writes[0].serviceId, first);
   assert.equal(writes[0].locale, "en");
+});
+
+const confirmationLabels = {
+  fr: { submit: "Confirmer le rendez-vous", success: "Rendez-vous confirmé", conflict: "Ce créneau vient d’être réservé. Choisissez un autre horaire." },
+  en: { submit: "Confirm appointment", success: "Appointment confirmed", conflict: "Someone booked this time. Choose another time." },
+  es: { submit: "Confirmar cita", success: "Cita confirmada", conflict: "Otra persona reservó esta hora. Elige otra." },
+};
+function confirmedBooking(locale, start = slot.slot_start) {
+  return {
+    appointment_id: "55555555-5555-4555-8555-555555555555",
+    confirmed_start: start, confirmed_end: "2030-01-15T11:30:00Z",
+    salon_name: "Verified Salon", service_title: { fr: "Prestation réservée", en: "Booked service", es: "Servicio reservado" },
+    currency: "USD", saved_locale: locale,
+    details: {
+      time_zone: "America/New_York", address: "123 Fictional Street, New York, US",
+      policies: { fr: "Annulation : contactez le salon 24 heures avant.", en: "Cancellation: contact the salon 24 hours ahead.", es: "Cancelación: contacta al salón con 24 horas de antelación." },
+      catalog_price: 7200, currency: "USD", service_title: { fr: "Prestation réservée", en: "Booked service", es: "Servicio reservado" },
+    },
+  };
+}
+async function fillBooking(page, locale, start = slot.slot_start) {
+  await page.locator(`input[type="radio"][value="${start}"]`).check();
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("browser@example.invalid");
+  await page.getByRole("button", { name: confirmationLabels[locale].submit, exact: true }).click();
+}
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} public booking confirmation uses returned salon details and local time`, async t => {
+    const confirmation = confirmedBooking(locale);
+    const { page, writes } = await pageFor(t, locale, { publicBooking: async (route, writes) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: { confirmation } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    const heading = page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true });
+    await heading.waitFor();
+    await page.waitForFunction(() => document.activeElement?.tagName === "H1");
+    const body = await page.locator("main").innerText();
+    assert.ok(body.includes(confirmation.details.address));
+    assert.ok(body.includes(confirmation.details.policies[locale]));
+    assert.ok(body.includes("America/New_York"));
+    assert.ok(body.includes("USD"));
+    assert.match(body, /72[,.]00/);
+    const paymentCopy = { fr: "Aucun paiement en ligne", en: "No online payment", es: "No se ha cobrado ningún pago en línea" };
+    assert.ok(body.includes(paymentCopy[locale]));
+    assert.ok(body.includes("Verified Salon"));
+    const localTime = new Intl.DateTimeFormat(locale, { timeZone: "America/New_York", timeStyle: "short" }).format(new Date(slot.slot_start));
+    assert.ok(body.includes(localTime), `must show the returned salon time ${localTime}`);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].locale, locale);
+    assert.equal("catalog_price" in writes[0], false);
+    assert.equal("policies" in writes[0], false);
+  });
+}
+test("public booking recovers from a taken slot before confirming a replacement", async t => {
+  const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+  let conflicted = false;
+  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [conflicted ? replacement : slot] } });
+    writes.push(route.request().postDataJSON());
+    if (!conflicted) { conflicted = true; return route.fulfill({ status: 409, json: { error: "slot_unavailable" } }); }
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en", replacement.slot_start) } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: confirmationLabels.en.conflict }).waitFor();
+  await page.locator(`input[type="radio"][value="${replacement.slot_start}"]`).waitFor();
+  assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 0);
+  await fillBooking(page, "en", replacement.slot_start);
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].startTime, replacement.slot_start);
+  assert.notEqual(writes[1].requestKey, writes[0].requestKey);
 });

@@ -26,6 +26,14 @@ type Confirmation = {
   service_title: Record<string, string>;
   currency: string;
   saved_locale: Locale;
+  details?: {
+    time_zone: string | null;
+    address: string | null;
+    policies: Record<string, string> | null;
+    catalog_price: number | null;
+    currency: string | null;
+    service_title: Record<string, string> | null;
+  } | null;
 };
 
 type Props = {
@@ -61,6 +69,17 @@ const copy = {
     error: "La réservation a échoué. Vérifiez vos informations.",
     success: "Rendez-vous confirmé",
     confirmation: "Votre rendez-vous est enregistré dans l’agenda du salon.",
+    salon: "Salon",
+    address: "Adresse",
+    serviceMissing: "Détails de la prestation indisponibles. Contactez le salon.",
+    addressMissing: "Adresse non publiée. Contactez le salon pour confirmer le lieu du rendez-vous.",
+    policies: "Conditions du salon et annulation",
+    policiesMissing: "Conditions d’annulation non publiées. Contactez le salon pour les connaître.",
+    price: "Tarif actuel de la prestation",
+    priceNote: "Confirmez le montant final et les modalités de paiement avec le salon.",
+    priceMissing: "Tarif indisponible. Contactez le salon pour le confirmer.",
+    payment: "Paiement",
+    noOnlinePayment: "Aucun paiement en ligne n’a été encaissé lors de cette réservation.",
     reference: "Référence",
     another: "Prendre un autre rendez-vous",
     duration: "Durée",
@@ -90,6 +109,17 @@ const copy = {
     error: "Booking failed. Review your information.",
     success: "Appointment confirmed",
     confirmation: "Your appointment is saved in the salon calendar.",
+    salon: "Salon",
+    address: "Address",
+    serviceMissing: "Service details unavailable. Contact the salon.",
+    addressMissing: "Address not published. Contact the salon to confirm your appointment location.",
+    policies: "Salon and cancellation policies",
+    policiesMissing: "Cancellation policies are not published. Contact the salon for details.",
+    price: "Current service price",
+    priceNote: "Confirm the final amount and payment arrangements with the salon.",
+    priceMissing: "Price unavailable. Contact the salon to confirm it.",
+    payment: "Payment",
+    noOnlinePayment: "No online payment was collected during this booking.",
     reference: "Reference",
     another: "Book another appointment",
     duration: "Duration",
@@ -119,6 +149,17 @@ const copy = {
     error: "La reserva falló. Revisa tus datos.",
     success: "Cita confirmada",
     confirmation: "Tu cita está guardada en el calendario del salón.",
+    salon: "Salón",
+    address: "Dirección",
+    serviceMissing: "Detalles del servicio no disponibles. Contacta con el salón.",
+    addressMissing: "Dirección no publicada. Contacta con el salón para confirmar el lugar de la cita.",
+    policies: "Condiciones del salón y cancelación",
+    policiesMissing: "Las condiciones de cancelación no están publicadas. Contacta con el salón para conocerlas.",
+    price: "Precio actual del servicio",
+    priceNote: "Confirma el importe final y las condiciones de pago con el salón.",
+    priceMissing: "Precio no disponible. Contacta con el salón para confirmarlo.",
+    payment: "Pago",
+    noOnlinePayment: "No se ha cobrado ningún pago en línea durante esta reserva.",
     reference: "Referencia",
     another: "Reservar otra cita",
     duration: "Duración",
@@ -263,18 +304,31 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
   }
 
   const formatter = new Intl.DateTimeFormat(locale, {
-    timeZone: salon.timeZone, dateStyle: "full", timeStyle: "short",
+    timeZone: confirmation?.details?.time_zone ?? salon.timeZone, dateStyle: "full", timeStyle: "short",
   });
 
   if (confirmation) {
+    const details = confirmation.details;
+    const title = details?.service_title;
+    const policyLocale = ([locale, "fr", "en", "es"] as const).find((language) => typeof details?.policies?.[language] === "string" && details.policies[language].trim());
+    const policy = policyLocale ? details?.policies?.[policyLocale] : null;
+    const hasPrice = details?.catalog_price != null && Number.isSafeInteger(details.catalog_price) && details.catalog_price >= 0 && details.currency && ["EUR", "USD"].includes(details.currency);
     return <main className="grid min-h-screen place-items-center bg-[#f3ece2] p-4 text-slate-950 dark:bg-[#101216] dark:text-stone-50">
       <section className="w-full max-w-xl rounded-[2rem] border border-[#e4d6c5] bg-[#faf9f6] p-7 text-center shadow-[0_24px_80px_rgba(48,32,18,0.12)] dark:border-white/10 dark:bg-[#17191e] sm:p-10">
         <span className="mx-auto grid size-20 place-items-center rounded-[1.75rem] bg-emerald-100 text-emerald-700"><CheckCircle2 className="size-10" /></span>
         <h1 ref={confirmationRef} tabIndex={-1} className="mt-6 text-3xl font-semibold tracking-[-0.045em]">{labels.success}</h1>
         <p className="mt-3 text-slate-600 dark:text-stone-300">{labels.confirmation}</p>
         <div className="mt-7 rounded-2xl border border-[#e8ded1] bg-white p-5 text-left dark:border-white/10 dark:bg-white/5">
-          <p className="font-semibold">{confirmation.service_title[locale] ?? confirmation.service_title.fr}</p>
-          <p className="mt-2 text-sm">{formatter.format(new Date(confirmation.confirmed_start))}</p>
+          <p className="font-semibold">{title?.[locale] ?? title?.fr ?? title?.en ?? title?.es ?? labels.serviceMissing}</p>
+          <p className="mt-2 text-sm">{formatter.format(new Date(confirmation.confirmed_start))} – {formatter.format(new Date(confirmation.confirmed_end))}</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-stone-300">{labels.timeZone}: {details?.time_zone ?? salon.timeZone}</p>
+          <dl className="mt-5 space-y-4 text-sm">
+            <div><dt className="font-semibold">{labels.salon}</dt><dd className="mt-1">{confirmation.salon_name}</dd></div>
+            <div><dt className="font-semibold">{labels.address}</dt><dd className="mt-1 whitespace-pre-line">{details?.address || labels.addressMissing}</dd></div>
+            <div><dt className="font-semibold">{labels.price}</dt><dd className="mt-1">{hasPrice ? `${money(details!.catalog_price!, details!.currency!, locale)} (${details!.currency})` : labels.priceMissing}</dd><dd className="mt-1 text-slate-600 dark:text-stone-300">{labels.priceNote}</dd></div>
+            <div><dt className="font-semibold">{labels.payment}</dt><dd className="mt-1">{labels.noOnlinePayment}</dd></div>
+            <div><dt className="font-semibold">{labels.policies}</dt><dd lang={policy ? policyLocale : locale} className="mt-1 whitespace-pre-line">{policy || labels.policiesMissing}</dd></div>
+          </dl>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
         <button type="button" onClick={() => { setConfirmation(null); reloadAvailability(); }} className="mt-6 h-12 rounded-full border border-[#d9c7b2] px-6 font-semibold">{labels.another}</button>
