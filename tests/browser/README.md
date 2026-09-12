@@ -15,7 +15,7 @@ No Supabase or Stripe application credentials are inherited by the fixture serve
 This is component interaction evidence, not a deployed payment integration test. The
 fixture does not load the application stylesheet, so its narrow viewport screenshots
 are diagnostic evidence rather than mobile styling/accessibility certification.
-Actual owner authorization, Stripe Checkout, signed webhook settlement, database
+Real Supabase session authorization, Stripe Checkout, signed webhook settlement, database
 isolation, cash/mixed checkout and cancellation require their respective integration
 checks. GLOW-35 is not complete solely from this suite.
 
@@ -27,3 +27,22 @@ Chromium download was incomplete. This does not verify the pinned CI browser ver
 Runtime metadata records whether overrides were used; it contains no credential data.
 
 The GLOW-28/GLOW-42 extension also checks notification kind and locale fallback without mutation requests, selected-service booking payloads, and service re-selection across language changes.
+
+## GLOW-28 authenticated-route fixture
+
+`auth.browser.mjs` runs the actual production notifications server page and
+`requireUser` inside Next.js. Only `lib/supabase/server` is replaced by a
+fixture-scoped webpack alias. Cookie-selected fictitious identities and two in-memory
+tenants exercise the ownership query; the production route contains no fixture
+switch or authentication bypass. Each case uses an isolated browser context.
+
+The 15 FR/EN/ES scenarios cover owner rendering and interaction, signed-out identity on
+reload, anonymous login redirects, staff/cross-tenant denial, and fail-closed query
+errors. Attempts to select another owner or tenant through query parameters do not
+grant access. Denied destinations contain no preview controls or database diagnostic.
+All non-read browser requests are blocked and fail the no-mutation assertion.
+
+These are server-route/browser integration tests with a mocked authentication and
+database SDK, not proof of real Supabase JWT verification, RLS policies, or deployed
+owner access. Real authenticated-session and database isolation checks remain separate.
+Screenshots and runtime/server evidence go to `test-results/browser/auth`.

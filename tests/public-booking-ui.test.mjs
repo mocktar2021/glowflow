@@ -64,12 +64,13 @@ test("aborted earlier availability cannot clear loading or replace newer slots",
   try {
     const h = await harness();
     let tree = h.render(); h.runEffects();
-    find(tree, (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: "2026-09-13" } });
+    const nextDate = new Date(Date.parse(`${h.values[1]}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    find(tree, (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: nextDate } });
     tree = h.render(); h.runEffects();
     assert.equal(requests[0].signal.aborted, true);
     requests[0].resolve({ ok: true, json: async () => ({ slots: [slot] }) }); await settle();
     assert.equal(h.values[4], true); assert.deepEqual(h.values[2], []);
-    const newer = { ...slot, slot_start: "2026-09-13T12:00:00Z" };
+    const newer = { ...slot, slot_start: `${nextDate}T12:00:00Z` };
     requests[1].resolve({ ok: true, json: async () => ({ slots: [newer] }) }); await settle();
     assert.equal(h.values[4], false); assert.deepEqual(h.values[2], [newer]); h.cleanup();
   } finally { globalThis.fetch = originalFetch; }
@@ -86,7 +87,7 @@ test("availability error offers retry and stale selection is cleared when servic
   assert.deepEqual(h.values[2], []); assert.equal(h.values[3], null);
 });
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start } });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
   const tree = h.render();
   find(tree, (node) => node.type === "button").props.onClick();
   assert.equal(h.values[7], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
