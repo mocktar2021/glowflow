@@ -39,7 +39,12 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
  sql(readFileSync(new URL('supabase/migrations/'+migration,root),'utf8'));
  sql(`insert into public.stripe_sandbox_connections(tenant_id,stripe_account_id) values('${tenant}','acct_fixture')`);
  const key='40000000-0000-0000-0000-000000000001';
+ // Reproduce the deployed failure before applying the forward migration.
+ sql(`update public.salon_public_profiles set is_published=false where tenant_id='${tenant}'`);
+ assert.throws(()=>sql('set role service_role;'+reserve(key)),/sandbox_payments_unavailable/);
+ sql(readFileSync(new URL('supabase/migrations/20260913160600_allow_unpublished_sandbox_reservations.sql',root),'utf8'));
  const r=JSON.parse(sql('set role service_role;'+reserve(key)) .split('\n').at(-1));
+ assert.equal(sql(`select is_published from public.salon_public_profiles where tenant_id='${tenant}'`),'f');
  assert.equal(JSON.parse(sql(reserve(key))).id,r.id);
  assert.notEqual(r.appointment_id,r.id); assert.notEqual(r.client_id,r.id);
  assert.equal(sql('select count(*) from public.appointments'),'0');
