@@ -56,4 +56,3 @@ begin
  account_id,s.deposit_amount,t.currency,s.title_json) returning * into r;
  return r;
 end; $$;
-
