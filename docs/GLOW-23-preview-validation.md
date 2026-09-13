@@ -34,3 +34,17 @@ No protected-preview browser payment, real restricted-key Checkout call, deploye
 The owner explicitly approved `add_stripe_sandbox_reservations`; it was applied to `rfwhqutkiztxkagbhevp` as remote migration `20260913000239`. Only the reviewed sandbox migration was executed. Postchecks verified RLS on both tables, owner-only reservation SELECT, hidden event rows, no client writes, service-only RPC execution with empty search paths, two GiST exclusion constraints and four foreign keys. Both new tables were empty after application. Source migration SHA256: D3A152AB26ADD266AE5F68D9BC5D9F4539DC6BC1FB6E306662842DE4F471F47A.
 
 `codex/GLOW-23-sandbox-validation` is the dedicated branch for sandbox environment configuration and signed-webhook delivery verification. Production payments remain disabled. End-to-end Stripe validation is pending configuration and successful webhook reachability through Vercel deployment protection.
+
+## Preview configuration preparation — pending
+
+The dedicated preview is READY at `https://glowflow-git-codex-glow-23-388b27-tairoumocktar-9966s-projects.vercel.app` (initial deployment `dpl_FG7WizgRzeQfM3R3SubJ9XxKAU8J`). Configure overrides only for branch `codex/GLOW-23-sandbox-validation`:
+
+- `GLOWFLOW_APP_URL`: the exact branch origin above.
+- `STRIPE_SANDBOX_WEBHOOK_SECRET`: sensitive secret returned by the dedicated sandbox webhook creation; not yet created.
+- `GLOWFLOW_STRIPE_SANDBOX_DEPOSITS=true`: enable only after the webhook secret and delivery path are configured.
+
+Inherit the existing preview-only restricted key, sandbox account ID and onboarding flag. Keep production values unchanged. No environment variables have been changed by this preparation.
+
+Webhook request: Stripe context `acct_1UCiSZDNDjGEQe6f`, test mode, `connect=true`, API version `2026-07-29.dahlia`, endpoint `/api/stripe/webhook` on the branch origin, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`. Connected-account events are required because deposits use direct charges on salon accounts. Automatic approval review rejected creation pending explicit authorization for connected-account event scope. No endpoint or signing secret was created.
+
+Vercel browser controls timed out in the in-app browser and Chrome; CLI authentication is not configured locally. Environment saving remains blocked until browser access recovers. Vercel deployment protection also needs an approved delivery path for Stripe; do not disable preview authentication globally or place bypass credentials in source or public documentation.
