@@ -28,3 +28,9 @@ Migration is prepared in source only until execution is explicitly recorded. Fir
 5. Repeat in French, English and Spanish. Verify production and disabled-preview checkout fail closed.
 
 No protected-preview browser payment, real restricted-key Checkout call, deployed webhook delivery or shared-database migration is claimed by local/mock tests. These remain external acceptance gates. Public-customer payment activation and the broader ready Jira backlog remain unfinished after this sandbox candidate.
+
+## Shared database application — 2026-09-13 UTC
+
+The owner explicitly approved `add_stripe_sandbox_reservations`; it was applied to `rfwhqutkiztxkagbhevp` as remote migration `20260913000239`. Only the reviewed sandbox migration was executed. Postchecks verified RLS on both tables, owner-only reservation SELECT, hidden event rows, no client writes, service-only RPC execution with empty search paths, two GiST exclusion constraints and four foreign keys. Both new tables were empty after application. Source migration SHA256: D3A152AB26ADD266AE5F68D9BC5D9F4539DC6BC1FB6E306662842DE4F471F47A.
+
+`codex/GLOW-23-sandbox-validation` is the dedicated branch for sandbox environment configuration and signed-webhook delivery verification. Production payments remain disabled. End-to-end Stripe validation is pending configuration and successful webhook reachability through Vercel deployment protection.
