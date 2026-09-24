@@ -42,11 +42,4 @@ test("blocks public booking in inactive markets", async () => {
   assert.equal((sql.match(/markets\.status = 'active'/g) ?? []).length, 2);
 });
 
-test("keeps fresh schema aligned with the migration", async () => {
-  const schema = await readFile(path.join(root, "supabase", "schema.sql"), "utf8");
-
-  assert.match(schema, /create table public\.markets/);
-  assert.match(schema, /country_code text not null references public\.markets/);
-  assert.match(schema, /create policy markets_active_select/);
-  assert.match(schema, /grant select \(country_code, name_json/);
-});
+// Fresh-install compatibility is executed against PostgreSQL in schema-database.test.mjs.

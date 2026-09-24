@@ -1,4 +1,5 @@
--- Minimal local dependency fixture; the repository's legacy schema.sql is malformed.
+-- Minimal dependency fixture for isolated sandbox transaction regression tests.
+-- Full baseline and migration replay is covered separately by schema-database.test.mjs.
 -- Run ONLY in a fresh disposable database. No remote or existing database reset.
 DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') THEN CREATE ROLE authenticated; END IF; IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role BYPASSRLS; END IF; END $$;
 create schema auth; create schema private; create schema extensions;

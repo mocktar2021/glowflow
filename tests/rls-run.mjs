@@ -12,11 +12,7 @@ if (!['postgres:', 'postgresql:'].includes(admin.protocol)
   throw new Error('Use a localhost PostgreSQL admin URL ending in /postgres with no query or fragment.');
 }
 const psql = process.env.PSQL_BIN || 'psql';
-const database = `glowflow_sandbox_test_${Date.now()}_${randomInt(1_000_000)}`;
-const testUrl = new URL(admin);
-testUrl.pathname = `/${database}`;
-let created = false;
-let exitCode = 1;
+let exitCode = 0;
 function command(query) {
   try {
     execFileSync(psql, ['-X', '-w', '-v', 'ON_ERROR_STOP=1', '-d', admin.href, '-c', query], {
@@ -26,21 +22,28 @@ function command(query) {
     throw new Error('Local PostgreSQL setup or cleanup failed; check the local server and client configuration.');
   }
 }
-try {
-  command(`CREATE DATABASE "${database}"`);
-  created = true;
-  const result = spawnSync(process.execPath, ['--test', 'tests/sandbox-database.test.mjs'], {
-    cwd: new URL('../', import.meta.url),
-    env: { ...process.env, GLOWFLOW_SANDBOX_TEST_DATABASE_URL: testUrl.href },
-    stdio: 'inherit', timeout: 180_000,
-  });
-  if (result.error) throw result.error;
-  exitCode = result.status ?? 1;
-} finally {
-  if (created) {
-    // This name is generated here and never accepted as an input. FORCE also cleans
-    // connections left behind if a test subprocess times out.
-    command(`DROP DATABASE "${database}" WITH (FORCE)`);
+for (const suite of ['schema-database.test.mjs', 'sandbox-database.test.mjs']) {
+  const database = `glowflow_sandbox_test_${Date.now()}_${randomInt(1_000_000)}`;
+  const testUrl = new URL(admin);
+  testUrl.pathname = `/${database}`;
+  let created = false;
+  try {
+    command(`CREATE DATABASE "${database}"`);
+    created = true;
+    const result = spawnSync(process.execPath, ['--test', `tests/${suite}`], {
+      cwd: new URL('../', import.meta.url),
+      env: { ...process.env, GLOWFLOW_SANDBOX_TEST_DATABASE_URL: testUrl.href },
+      stdio: 'inherit', timeout: 240_000,
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) exitCode = result.status ?? 1;
+  } finally {
+    if (created) {
+      // This name is generated here and never accepted as an input. FORCE also cleans
+      // connections left behind if a test subprocess times out.
+      command(`DROP DATABASE "${database}" WITH (FORCE)`);
+    }
   }
+  if (exitCode !== 0) break;
 }
 process.exitCode = exitCode;
