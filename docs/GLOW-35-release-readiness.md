@@ -10,9 +10,9 @@
 
 | Gate | State | Required next evidence |
 | --- | --- | --- |
-| Authenticated dashboard accuracy | Implemented and locally tested | Signed-in workspace uses real management links without sample customer/financial claims; deployed owner smoke check remains |
+| Authenticated dashboard accuracy | Verified September 24 | Real signed-in owner dashboard, service catalog and calendar rendered in production |
 | Build, lint, unit, browser and database checks | Local checks passed September 24 | GitHub minutes exhausted; owner requested local verification. Runtime differences recorded below |
-| Real tenant isolation | Partial | Full historical bootstrap and every tenant table need reproducible database policy tests |
+| Real tenant isolation | Partial | Full baseline/migration replay and core authorization now tested locally; scheduling, queue, public-profile and Storage operation matrices remain |
 | Live deposits and Connect | Not ready | Separate live flow, real appointment lifecycle, approved merchant configuration, signed settlement and reconciliation |
 | Refund/cancellation/no-show policies | Not ready | Approved policy plus implementation and failure/retry coverage |
 | Cash/mixed checkout and accounting | Not ready | Persistent financial ledger, receipts, reconciliation and role tests |
@@ -43,3 +43,9 @@ Application revision `dda0bac9096962e0219ecc20fdb5c181361cbb59`, PR 36:
 - Independent review found an authentication-page home link pointing at a missing locale root; it was corrected to localized salon discovery before final verification.
 
 The owner confirmed GitHub Actions minutes were exhausted and requested local checks. Failed GitHub jobs did not execute their test steps; their status is not represented as passing. Vercel built the application revision successfully. No database migration, environment change or live payment activation is included. Fixture browser coverage does not replace a deployed authenticated owner smoke test or real payment integration evidence.
+
+## September 24 follow-up: production and database rebuild
+
+PR 36 production deployment `dpl_ALhteXH8Wk2oe2bvLLC1CDD8u4uV` is READY at merge commit `93c1b0bfeb7cec9738b1245c144b05a76b33bd61`. FR/EN/ES login and discovery routes returned 200, anonymous dashboards redirected to localized login, and production checkout remained disabled (`503 sandbox_unavailable`). The existing signed-in Chrome session rendered the actual owner dashboard, service catalog and calendar; no records were changed during this check.
+
+GLOW-37 restores the last intact database baseline and executes every checked-in migration on a disposable local database. Runtime RLS checks and owner/staff/anonymous/cross-tenant core authorization pass, alongside the separate sandbox transaction suite. Local PostgreSQL 14 is still different from CI PostgreSQL 16. This validates a clean application-schema rebuild using platform substitutes, not recovery of a hosted backup or reconciliation of the shared project's migration ledger. No production schema change is part of this repair.

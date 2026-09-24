@@ -56,10 +56,4 @@ test("returns an explicit public search field set", async () => {
   assert.doesNotMatch(signature, /phone/);
 });
 
-test("keeps the fresh schema aligned", async () => {
-  const schema = await readFile(path.join(root, "supabase", "schema.sql"), "utf8");
-
-  assert.match(schema, /create table public\.salon_public_profiles/);
-  assert.match(schema, /create function public\.search_public_salons/);
-  assert.match(schema, /salon_public_profiles_search_idx/);
-});
+// Fresh-install compatibility is executed against PostgreSQL in schema-database.test.mjs.
