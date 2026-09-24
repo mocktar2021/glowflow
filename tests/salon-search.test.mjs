@@ -11,6 +11,12 @@ const migrationPath = path.join(
   "migrations",
   "20260905014500_add_public_salon_search.sql",
 );
+const publicGrantMigrationPath = path.join(
+  root,
+  "supabase",
+  "migrations",
+  "20260924183024_restrict_public_salon_profile_columns.sql",
+);
 
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -54,6 +60,18 @@ test("returns an explicit public search field set", async () => {
   assert.doesNotMatch(signature, /owner_id/);
   assert.doesNotMatch(signature, /email/);
   assert.doesNotMatch(signature, /phone/);
+});
+
+test("limits anonymous profile reads to explicit public columns", async () => {
+  const sql = await readFile(publicGrantMigrationPath, "utf8");
+  const grant = sql.slice(sql.indexOf("grant select ("), sql.indexOf(") on public.salon_public_profiles"));
+
+  assert.match(sql, /revoke select on public\.salon_public_profiles from anon/);
+  for (const column of ["business_name", "description_json", "public_phone", "opening_hours", "policies_json", "gallery_urls", "is_published"]) {
+    assert.match(grant, new RegExp(`\\b${column}\\b`));
+  }
+  assert.doesNotMatch(grant, /\bcreated_at\b|\bupdated_at\b|\bpublished_at\b/);
+  assert.match(sql, /to anon/);
 });
 
 // Fresh-install compatibility is executed against PostgreSQL in schema-database.test.mjs.
