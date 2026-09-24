@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { GlowFlowIntlProvider } from "@/components/glowflow/i18n-provider";
+import { LegalFooter } from "@/components/glowflow/legal-footer";
 import { isLocale, messages } from "@/lib/i18n";
 
 export function generateStaticParams() {
@@ -22,7 +23,7 @@ export default async function LocaleLayout({
 
   return (
     <GlowFlowIntlProvider locale={locale} messages={messages[locale]}>
-      <div lang={locale}>{children}</div>
+      <div lang={locale}>{children}<LegalFooter locale={locale} /></div>
     </GlowFlowIntlProvider>
   );
 }

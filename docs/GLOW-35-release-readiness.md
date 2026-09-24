@@ -17,7 +17,7 @@
 | Refund/cancellation/no-show policies | Not ready | Approved policy plus implementation and failure/retry coverage |
 | Cash/mixed checkout and accounting | Not ready | Persistent financial ledger, receipts, reconciliation and role tests |
 | Messaging | Preview only | Consent, provider delivery, retries, opt-out and scheduled-job verification |
-| Legal/support | Not ready | Owner-approved business identity, support contact, privacy/terms and cancellation/deposit content |
+| Legal/support | Owner approved September 24 | Localized privacy, terms, support and cancellation/deposit guidance use the verified Mocktar Technologies identity and support address; confirm the published production routes after merge |
 | Recovery | Local logical restore verified | Synthetic records, RLS, grants, functions and Realtime membership restore locally; an isolated hosted restore, Storage file recovery and timed critical-flow checks remain |
 | Operational alerts | Partial | Safe diagnostics in this wave; alert destination, ownership and an exercised failure alert still required |
 | Test-data cleanup | Before salon publication | Retire the Test service and disabled test staff fixture; preserve sandbox payment audit records |
