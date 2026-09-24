@@ -10,8 +10,8 @@
 
 | Gate | State | Required next evidence |
 | --- | --- | --- |
-| Authenticated dashboard accuracy | Fix in this wave | Signed-in workspace uses real management links without sample customer/financial claims |
-| Build, lint, unit, browser and database checks | Pending final revision | CI checks must pass on the PR head |
+| Authenticated dashboard accuracy | Implemented and locally tested | Signed-in workspace uses real management links without sample customer/financial claims; deployed owner smoke check remains |
+| Build, lint, unit, browser and database checks | Local checks passed September 24 | GitHub minutes exhausted; owner requested local verification. Runtime differences recorded below |
 | Real tenant isolation | Partial | Full historical bootstrap and every tenant table need reproducible database policy tests |
 | Live deposits and Connect | Not ready | Separate live flow, real appointment lifecycle, approved merchant configuration, signed settlement and reconciliation |
 | Refund/cancellation/no-show policies | Not ready | Approved policy plus implementation and failure/retry coverage |
@@ -29,3 +29,17 @@ Do not enable live payments by changing sandbox gates. Keep secrets in Vercel an
 Before merging an application-only release, check the exact PR head, verify preview behavior, and retain the previous READY deployment for rollback. After merging, verify the production deployment commit, HTTP routes, authentication redirects and affected owner flow. A code rollback does not undo database data or provider settings.
 
 Jira: GLOW-35 critical-flow verification; GLOW-36 launch checklist; GLOW-34 diagnostics; GLOW-33 truthful reporting. These issues remain open while their complete acceptance criteria are unmet.
+
+## September 24 local release verification
+
+Application revision `dda0bac9096962e0219ecc20fdb5c181361cbb59`, PR 36:
+
+- Lint and production build/type checking passed.
+- Unit suite: 116 passed, 0 failed, 1 opt-in database test skipped in the ordinary suite.
+- Separate database runner: 1 passed, 0 failed, 0 skipped; transaction/conflict and RLS assertions plus cleanup passed against disposable local PostgreSQL 14. The cluster was stopped afterward. CI normally uses PostgreSQL 16.
+- Browser suite: 35 passed, 0 failed or skipped, in 503.4 seconds: 15 authenticated-route fixture cases and 20 booking, status, notification and confirmation cases.
+- Browser runtime: Node 24.20.0, bundled Playwright 1.62.1, installed Chrome 153.0.8010.53. The documented local overrides were used; CI pins Node 22 and Playwright 1.58.2 with Chromium. This run does not establish identical results on those CI runtimes.
+- Browser evidence is retained locally under `test-results/browser/` and `test-results/browser/auth/` (screenshots, runtime metadata and server logs); unit output is `test-results/release-unit.log`.
+- Independent review found an authentication-page home link pointing at a missing locale root; it was corrected to localized salon discovery before final verification.
+
+The owner confirmed GitHub Actions minutes were exhausted and requested local checks. Failed GitHub jobs did not execute their test steps; their status is not represented as passing. Vercel built the application revision successfully. No database migration, environment change or live payment activation is included. Fixture browser coverage does not replace a deployed authenticated owner smoke test or real payment integration evidence.
