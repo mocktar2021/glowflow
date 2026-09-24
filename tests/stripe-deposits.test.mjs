@@ -61,6 +61,7 @@ async function routeHarness({ owner = true, tenantMatches = true, configEnabled 
     "@/lib/stripe": { createStripeClient: () => { calls.push("stripe"); return { accounts: { retrieve: async () => ({ id: env.STRIPE_SANDBOX_ACCOUNT_ID }) }, v2: { core: { accounts: { retrieve: async () => ({ id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, environment: "sandbox", product: "glowflow" }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } }) } } }, checkout: { sessions: { create: async (params, options) => { calls.push({ params, options }); return { id: "cs_test_fixture", livemode: false, url: "https://checkout.stripe.com/c/pay/test", metadata: params.metadata, amount_total: row.amount, currency: "eur" }; } } } }; } },
     "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => configEnabled ? { origin: env.GLOWFLOW_APP_URL, platformAccountId: env.STRIPE_SANDBOX_ACCOUNT_ID } : null },
     "@/lib/stripe-deposits": helpers,
+    "@/lib/payment-diagnostics": await moduleAt("../lib/payment-diagnostics.ts"),
   });
   return { route, calls };
 }

@@ -12,7 +12,6 @@ const migration = await readFile(
 const page = await readFile(path.join(root, "app/[locale]/dashboard/walk-ins/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/walk-ins/actions.ts"), "utf8");
 const realtime = await readFile(path.join(root, "app/[locale]/dashboard/walk-ins/realtime.tsx"), "utf8");
-const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 
 test("creates a tenant-scoped queue with reporting history", () => {
   assert.match(migration, /create table public\.walk_in_queue/);
@@ -55,5 +54,5 @@ test("renders touch-friendly queue controls in French, English, and Spanish", ()
   assert.match(page, /assignWalkIn/);
   assert.match(page, /setWalkInStatus/);
   assert.match(page, /Completed today/);
-  assert.match(dashboard, /dashboard\/walk-ins/);
+  // Dashboard navigation is covered by dashboard-workspace.test.mjs render tests.
 });

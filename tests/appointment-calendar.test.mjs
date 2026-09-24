@@ -16,7 +16,6 @@ const stationHoursMigration = await readFile(
 const page = await readFile(path.join(root, "app/[locale]/dashboard/calendar/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/calendar/actions.ts"), "utf8");
 const dateTimeFields = await readFile(path.join(root, "app/[locale]/dashboard/calendar/date-time-fields.tsx"), "utf8");
-const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 
 test("creates appointments idempotently in the salon time zone", () => {
   assert.match(migration, /calendar_request_key uuid/);
@@ -65,7 +64,6 @@ test("renders daily and weekly touch friendly calendar controls in three languag
   assert.doesNotMatch(page, /type="datetime-local"/);
   assert.match(page, /deposit_paid/);
   assert.match(page, /createQuickClient/);
-  assert.match(dashboard, /dashboard\/calendar/);
 });
 
 test("uses stable local date keys across daylight saving transitions", () => {
