@@ -4,9 +4,9 @@ import { Sparkles } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
 
 const copy = {
-  fr: { back: "Retour à la réservation", secure: "Votre espace salon sécurisé" },
-  en: { back: "Back to booking", secure: "Your secure salon workspace" },
-  es: { back: "Volver a reservas", secure: "Tu espacio de salón seguro" },
+  fr: { back: "Retour à l’accueil", secure: "Votre espace salon sécurisé" },
+  en: { back: "Back to home", secure: "Your secure salon workspace" },
+  es: { back: "Volver al inicio", secure: "Tu espacio de salón seguro" },
 } satisfies Record<Locale, { back: string; secure: string }>;
 
 export function AuthShell({
@@ -23,7 +23,7 @@ export function AuthShell({
   return (
     <main className="grid min-h-screen place-items-center bg-[#f3ece2] p-4 dark:bg-[#101216]">
       <section className="w-full max-w-md rounded-[2rem] border border-[#e4d6c5] bg-[#faf9f6] p-6 shadow-[0_24px_80px_rgba(48,32,18,0.12)] dark:border-white/10 dark:bg-[#17191e] sm:p-8">
-        <Link href={`/${locale}/book/atelier-lumiere`} className="mb-8 flex items-center gap-3">
+        <Link href={`/${locale}`} className="mb-8 flex items-center gap-3">
           <span className="grid size-11 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950">
             <Sparkles className="size-5" />
           </span>
@@ -35,7 +35,7 @@ export function AuthShell({
         <h1 className="text-3xl font-semibold tracking-[-0.05em]">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-stone-400">{subtitle}</p>
         <div className="mt-7">{children}</div>
-        <Link href={`/${locale}/book/atelier-lumiere`} className="mt-7 block text-center text-sm text-slate-500 hover:text-slate-950 dark:hover:text-white">
+        <Link href={`/${locale}`} className="mt-7 block text-center text-sm text-slate-500 hover:text-slate-950 dark:hover:text-white">
           {copy[locale].back}
         </Link>
       </section>

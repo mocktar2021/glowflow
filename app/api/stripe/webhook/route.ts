@@ -1,3 +1,4 @@
+import { reportPaymentFailure } from "@/lib/payment-diagnostics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createStripeClient } from "@/lib/stripe";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   try {
     stripe = createStripeClient();
   } catch {
+    reportPaymentFailure("webhook_client");
     return Response.json({ error: "sandbox_unavailable" }, { status: 503 });
   }
   let event;
@@ -31,9 +33,13 @@ export async function POST(request: Request) {
     // PostgreSQL locks the reservation and atomically validates correlation,
     // deduplicates delivery and applies monotonic settlement/reconciliation.
     const { error } = await createAdminClient().rpc("process_stripe_sandbox_event", args);
-    if (error) return Response.json({ error: "event_processing_failed" }, { status: 503 });
+    if (error) {
+      reportPaymentFailure("webhook_persist", "persistence_failed");
+      return Response.json({ error: "event_processing_failed" }, { status: 503 });
+    }
     return Response.json({ received: true });
   } catch {
+    reportPaymentFailure("webhook_persist", "persistence_failed");
     // Do not acknowledge failed persistence: Stripe must retry this delivery.
     return Response.json({ error: "event_processing_failed" }, { status: 503 });
   }

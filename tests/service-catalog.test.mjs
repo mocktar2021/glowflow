@@ -9,7 +9,6 @@ const migration = await readFile(path.join(root, "supabase/migrations/2026090517
 const indexMigration = await readFile(path.join(root, "supabase/migrations/20260905175500_add_service_staff_foreign_key_indexes.sql"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/dashboard/services/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/services/actions.ts"), "utf8");
-const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 const checkout = await readFile(path.join(root, "app/api/checkout/route.ts"), "utf8");
 const reservations = await readFile(path.join(root, "supabase/migrations/20260910232219_add_stripe_sandbox_reservations.sql"), "utf8");
 
@@ -62,7 +61,4 @@ test("archives services without deleting historical records", () => {
   assert.match(page, /labels\.archived/);
 });
 
-test("links the dashboard to the service catalog", () => {
-  assert.match(dashboard, /dashboard\/services/);
-  assert.match(dashboard, /Service catalog|Prestations|Servicios/);
-});
+// Dashboard destinations are verified by rendered owner/staff tests in dashboard-workspace.test.mjs.

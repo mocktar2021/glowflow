@@ -1,108 +1,66 @@
-import { CalendarClock, CalendarDays, ExternalLink, LogOut, Scissors, UsersRound } from "lucide-react";
+import { CalendarClock, CalendarDays, CreditCard, Globe, LogOut, Scissors, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { DashboardShell } from "@/components/glowflow/dashboard-shell";
+import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
 import { signOut } from "../auth-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+const copy = {
+  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", services: "Prestations", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements" },
+  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", services: "Service catalog", availability: "Team and availability", profile: "Public profile", payments: "Payments" },
+  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", services: "Servicios", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos" },
+} as const;
+
+export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-
-  if (!isLocale(locale)) {
-    notFound();
-  }
-
+  if (!isLocale(locale)) notFound();
   const { supabase, userId } = await requireUser(locale);
-
-  const { data: profile } = await supabase
-    .from("users")
-    .select("full_name, tenant_id")
-    .eq("id", userId)
-    .single();
-
+  const { data: profile } = await supabase.from("users").select("full_name, tenant_id").eq("id", userId).single();
   const { data: tenant } = profile?.tenant_id
-    ? await supabase
-        .from("tenants")
-        .select("name, slug, currency, country_code, time_zone")
-        .eq("id", profile.tenant_id)
-        .single()
+    ? await supabase.from("tenants").select("name, owner_id, currency, country_code, time_zone").eq("id", profile.tenant_id).single()
     : { data: null };
-
-  if (!profile || !tenant) {
-    throw new Error("Authenticated owner workspace is missing");
-  }
-
-  const owner = {
-    fullName: profile.full_name,
-    salonName: tenant.name,
-    salonSlug: tenant.slug,
-    currency: tenant.currency,
-    countryCode: tenant.country_code,
-    timeZone: tenant.time_zone,
-  };
-  const calendarLabel = locale === "fr" ? "Calendrier" : locale === "es" ? "Calendario" : "Calendar";
-  const walkInLabel = locale === "fr" ? "Sans rendez-vous" : locale === "es" ? "Sin cita" : "Walk-ins";
-  const serviceLabel = locale === "fr" ? "Prestations" : locale === "es" ? "Servicios" : "Service catalog";
-  const profileLabel = locale === "fr" ? "Profil public" : locale === "es" ? "Perfil público" : "Public profile";
-  const availabilityLabel = locale === "fr" ? "Disponibilités" : locale === "es" ? "Disponibilidad" : "Availability";
-
+  if (!profile || !tenant) throw new Error("Authenticated salon workspace is missing");
+  const labels = copy[locale];
+  const links = [
+    { route: "calendar", title: labels.calendar, icon: CalendarDays },
+    { route: "walk-ins", title: labels.walkIns, icon: UsersRound },
+    ...(tenant.owner_id === userId ? [
+      { route: "services", title: labels.services, icon: Scissors },
+      { route: "availability", title: labels.availability, icon: CalendarClock },
+      { route: "public-profile", title: labels.profile, icon: Globe },
+      { route: "payments", title: labels.payments, icon: CreditCard },
+    ] : []),
+  ];
+  const date = new Intl.DateTimeFormat(locale, { dateStyle: "full", timeZone: tenant.time_zone }).format(new Date());
   return (
-    <>
-      <DashboardShell locale={locale} owner={owner} />
-      <nav className="fixed bottom-24 left-4 z-40 flex items-center gap-2 md:bottom-5 md:left-72" aria-label="Salon settings">
-        <Link
-          href={`/${locale}/dashboard/calendar`}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-semibold text-white shadow-lg dark:bg-[#e8bb82] dark:text-slate-950"
-        >
-          <CalendarDays className="size-4" />
-          {calendarLabel}
-        </Link>
-        <Link
-          href={`/${locale}/dashboard/walk-ins`}
-          className="inline-flex h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
-        >
-          <UsersRound className="size-4" />
-          {walkInLabel}
-        </Link>
-        <Link
-          href={`/${locale}/dashboard/services`}
-          className="hidden h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
-        >
-          <Scissors className="size-4" />
-          {serviceLabel}
-        </Link>
-        <Link
-          href={`/${locale}/dashboard/availability`}
-          className="hidden h-11 items-center gap-2 rounded-full border border-[#d9c7b2] bg-white px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex dark:border-white/10 dark:bg-[#202228] dark:text-stone-100"
-        >
-          <CalendarClock className="size-4" />
-          {availabilityLabel}
-        </Link>
-        <Link
-          href={`/${locale}/dashboard/public-profile`}
-          className="hidden h-11 items-center gap-2 rounded-full bg-[#e8bb82] px-4 text-sm font-semibold text-slate-950 shadow-lg sm:inline-flex"
-        >
-          {profileLabel}
-          <ExternalLink className="size-4" />
-        </Link>
-      </nav>
-      <form action={signOut.bind(null, locale)} className="fixed bottom-24 right-4 z-50 md:bottom-5">
-        <button
-          type="submit"
-          className="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-lg hover:bg-slate-50 dark:border-white/10 dark:bg-[#202228] dark:text-stone-200"
-        >
-          <LogOut className="size-4" />
-          Sign out
-        </button>
-      </form>
-    </>
+    <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#0f1115] dark:text-stone-50">
+      <header className="border-b border-[#e8dfd2] dark:border-white/10">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
+          <span className="text-2xl font-semibold tracking-tight">GlowFlow</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <LanguageSwitcher locale={locale} />
+            <form action={signOut.bind(null, locale)}><button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#dfd2c1] px-4 text-sm font-semibold hover:bg-[#f4ede3] dark:border-white/15 dark:hover:bg-white/10"><LogOut className="size-4" />{labels.signOut}</button></form>
+          </div>
+        </div>
+      </header>
+      <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+        <p className="text-sm font-medium text-[#a56d37] dark:text-[#e8bb82]">{date} · {tenant.time_zone}</p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{labels.greeting}, {profile.full_name}</h1>
+        <p className="mt-3 text-lg font-medium">{tenant.name}</p>
+        <p className="mt-2 text-slate-500 dark:text-stone-400">{labels.subtitle}</p>
+        <p className="mt-3 text-sm text-slate-500 dark:text-stone-400">{tenant.country_code} · {tenant.currency}</p>
+        <nav aria-label={labels.navigation} className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {links.map(({ route, title, icon: Icon }) => (
+            <Link key={route} href={`/${locale}/dashboard/${route}`} className="group rounded-3xl border border-[#e4d6c5] bg-white p-6 shadow-sm transition hover:border-[#b77a42] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b77a42] focus-visible:ring-offset-4 dark:border-white/10 dark:bg-[#17191e] dark:hover:border-[#e8bb82]">
+              <Icon className="size-6 text-[#95602e] dark:text-[#e8bb82]" />
+              <h2 className="mt-5 text-xl font-semibold">{title}</h2>
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </main>
   );
 }

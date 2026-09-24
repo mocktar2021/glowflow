@@ -5,7 +5,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Plus,
   UserPlus,
   XCircle,
@@ -181,7 +180,6 @@ export default async function CalendarPage({
   const visibleAppointments = appointments.filter((item) => days.includes(dateKey(new Date(item.start_time), tenant.time_zone)));
   const previousDate = shiftDate(firstDay, view === "week" ? -7 : -1);
   const nextDate = shiftDate(firstDay, view === "week" ? 7 : 1);
-  const queryBase = `date=${selected}&view=${view}`;
   const formatter = new Intl.DateTimeFormat(locale, {
     timeZone: tenant.time_zone, hour: "2-digit", minute: "2-digit",
   });

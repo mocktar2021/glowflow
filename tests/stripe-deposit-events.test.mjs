@@ -63,6 +63,7 @@ globalThis.__depositWebhookMocks = {
 };
 let routeSource = await readFile(new URL("../app/api/stripe/webhook/route.ts", import.meta.url), "utf8");
 routeSource = routeSource
+  .replace('"@/lib/payment-diagnostics"', JSON.stringify(compile(await readFile(new URL("../lib/payment-diagnostics.ts", import.meta.url), "utf8"))))
   .replace('import { createAdminClient } from "@/lib/supabase/admin";', 'const createAdminClient = globalThis.__depositWebhookMocks.admin;')
   .replace('import { createStripeClient } from "@/lib/stripe";', 'const createStripeClient = () => globalThis.__depositWebhookMocks.stripe;')
   .replace('import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";', 'const sandboxDepositConfiguration = globalThis.__depositWebhookMocks.configuration;')
@@ -102,4 +103,16 @@ test("database failure and correlation rejection are retryable and never acknowl
   }
   result = { error: null };
   assert.equal((await POST(request())).status, 200);
+});
+
+test("webhook diagnostics exclude provider errors and signed payload content", async () => {
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  try {
+    for (const failure of [{ error: { message: "private@example.com rk_test_secret", details: "private SQL" } }, new Error("private@example.com whsec_secret")]) {
+      result = failure;
+      assert.equal((await POST(request())).status, 503);
+    }
+    assert.deepEqual(logs.map(([line]) => JSON.parse(line)), Array(2).fill({ event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_persist", code: "persistence_failed" }));
+  } finally { console.error = original; result = { error: null }; }
 });
