@@ -17,8 +17,8 @@
 | Refund/cancellation/no-show policies | Not ready | Approved policy plus implementation and failure/retry coverage |
 | Cash/mixed checkout and accounting | Not ready | Persistent financial ledger, receipts, reconciliation and role tests |
 | Messaging | Preview only | Consent, provider delivery, retries, opt-out and scheduled-job verification |
-| Legal/support | Owner approved September 24 | Localized privacy, terms, support and cancellation/deposit guidance use the verified Mocktar Technologies identity and support address; confirm the published production routes after merge |
-| Recovery | Local logical restore verified | Synthetic records, RLS, grants, functions and Realtime membership restore locally; an isolated hosted restore, Storage file recovery and timed critical-flow checks remain |
+| Legal/support | Production verified September 24 | Owner-approved localized privacy, terms, support and cancellation/deposit guidance are published in FR/EN/ES with the verified Mocktar Technologies identity and support address |
+| Recovery | Hosted clone and Storage drill verified | A current-state hosted clone, 16-table count comparison, Auth count, bucket definitions, anonymous denials and synthetic file recovery passed; a historical restore point and recovered-app signed-in journey remain |
 | Operational alerts | Partial | Safe diagnostics in this wave; alert destination, ownership and an exercised failure alert still required |
 | Test-data cleanup | Before salon publication | Retire the Test service and disabled test staff fixture; preserve sandbox payment audit records |
 
@@ -49,3 +49,13 @@ The owner confirmed GitHub Actions minutes were exhausted and requested local ch
 PR 36 production deployment `dpl_ALhteXH8Wk2oe2bvLLC1CDD8u4uV` is READY at merge commit `93c1b0bfeb7cec9738b1245c144b05a76b33bd61`. FR/EN/ES login and discovery routes returned 200, anonymous dashboards redirected to localized login, and production checkout remained disabled (`503 sandbox_unavailable`). The existing signed-in Chrome session rendered the actual owner dashboard, service catalog and calendar; no records were changed during this check.
 
 GLOW-37 restores the last intact database baseline and executes every checked-in migration on a disposable local database. Runtime RLS checks and owner/staff/anonymous/cross-tenant core authorization pass, alongside the separate sandbox transaction suite. Local PostgreSQL 14 is still different from CI PostgreSQL 16. This validates a clean application-schema rebuild using platform substitutes, not recovery of a hosted backup or reconciliation of the shared project's migration ledger. No production schema change is part of this repair.
+
+## September 24 hosted recovery drill
+
+Supabase created an isolated, non-persistent `micro` preview branch from the production project's current data. The branch was first observed `ACTIVE_HEALTHY` 3 minutes 35 seconds after the create request. Production stayed `ACTIVE_HEALTHY` throughout.
+
+Read-only comparison found identical counts across all 16 application tables, matching Auth user counts, and matching Storage bucket definitions. Anonymous access to clients and Stripe connection records remained denied, and anonymous access to private public-profile metadata remained denied. The comparison observed 37 application rows in the restored branch without logging row contents.
+
+A separate hosted Storage drill uploaded a 4,164-byte synthetic PNG to `salon-public-media`, downloaded and checksummed it, deleted its authoritative object metadata, restored the file, and verified the restored SHA-256 checksum. Cleanup removed the synthetic object. The temporary recovery branch `kxntrimhollnsvbldexy` was then deleted; the production project was not written to.
+
+This proves a hosted current-state clone and a separate file-object recovery procedure. It does not prove selection of a historical daily/PITR recovery point or a complete signed-in application journey against recovered infrastructure. Working operational targets are a 24-hour RPO while daily backups are used and a 4-hour RTO, with the GlowFlow product owner as incident lead, Mocktar Technologies as database owner, and `support@mocktar.com` as the support contact. Revisit the targets after a historical restore and recovered-app exercise.
