@@ -42,6 +42,8 @@ Supabase documents that database backups exclude Storage objects, that restore o
 
 `tests/hosted-storage-recovery-run.mjs` writes only to the explicitly named recovery project. It uploads a synthetic image, downloads and checksums the backup, deletes the object metadata, restores the file, verifies its checksum, and removes the synthetic object. The URL guard rejects production, mismatched project refs, URL paths, query strings, and insecure origins.
 
+`tests/hosted-recovered-app-run.mjs` creates a disposable confirmed owner only in the explicitly named recovery project, starts GlowFlow locally against that project, signs in through the real browser form, and verifies the owner dashboard and navigation in EN, FR and ES. Its `finally` cleanup removes the temporary tenant and Auth user and stops the server and browser.
+
 Provide credentials only through process environment variables and remove them from the process after the run:
 
 ```powershell
@@ -52,12 +54,20 @@ $env:GLOWFLOW_RECOVERY_PROJECT_REF = '<temporary-recovery-ref>'
 $env:GLOWFLOW_RECOVERY_SUPABASE_URL = 'https://<temporary-recovery-ref>.supabase.co'
 $env:GLOWFLOW_RECOVERY_SERVICE_ROLE_KEY = '<temporary recovery credential>'
 $env:GLOWFLOW_RECOVERY_ANON_KEY = '<temporary recovery publishable key>'
+$env:GLOWFLOW_RECOVERY_PUBLISHABLE_KEY = '<temporary recovery publishable key>'
 node tests/hosted-recovery-compare.mjs
 node tests/hosted-storage-recovery-run.mjs
+node tests/hosted-recovered-app-run.mjs
 ```
 
 On September 24, 2026, a non-persistent Supabase `micro` preview branch cloned the production project's current data and was first observed healthy after 3 minutes 35 seconds. Sixteen application-table counts, Auth user counts, and Storage bucket definitions matched. Anonymous client and Stripe-connection access remained denied, as did private public-profile metadata. The Storage drill restored a 4,164-byte synthetic PNG with an identical SHA-256 checksum and cleaned it up. The temporary branch was deleted after verification, and production received no writes.
 
 ## Remaining production gate
 
-The local drill proves the checked-in schema and synthetic database records can survive a logical backup and restore. The hosted drill proves a current-state data-bearing clone, aggregate production-data parity, Auth/bucket parity, representative anonymous denials, and a synthetic Storage file recovery. It does not prove restoration to a selected historical daily/PITR point, real file-volume recovery, provider settings, secrets, or a complete signed-in application journey against recovered infrastructure. Working targets are a 24-hour RPO with daily backups and a 4-hour RTO; the product owner is the incident lead, Mocktar Technologies owns the database, and `support@mocktar.com` is the support contact.
+The local drill proves the checked-in schema and synthetic database records can survive a logical backup and restore. The hosted drill proves a current-state data-bearing clone, aggregate production-data parity, Auth/bucket parity, representative anonymous denials, and a synthetic Storage file recovery. At that stage, a selected historical daily/PITR point, real file-volume recovery, provider settings, secrets, and a complete signed-in application journey remained unverified; the following exercise closes the application-journey gap. Working targets are a 24-hour RPO with daily backups and a 4-hour RTO; the product owner is the incident lead, Mocktar Technologies owns the database, and `support@mocktar.com` is the support contact.
+
+The recovered-app run subsequently verified confirmed-owner password authentication, workspace creation, and owner dashboards in EN, FR and ES. It exposed a `42501` onboarding failure caused by the workspace function reading more `markets` columns than the authenticated grant allows. Migration `20260924213044_fix_owner_workspace_market_permissions.sql` keeps the function `SECURITY INVOKER` and narrows its query to granted fields. The journey passed after applying the candidate migration only to the temporary recovery project; cleanup removed the user and tenant, and the project was deleted. Production is unchanged until the migration is reviewed and applied.
+
+The final local validation passed the production build, 125 ordinary tests with 2 expected opt-in database skips, and both database suites separately against disposable PostgreSQL 14. The fresh-schema suite applied the baseline plus every migration, including the owner-workspace fix, and passed the full authorization matrix. The sandbox transaction/RLS suite also passed.
+
+Do not use `supabase db push` for this repair. The shared production migration ledger still contains historical remote timestamps that do not match the repository filenames, so an unrestricted push would try to replay unrelated migrations. After owner-approved merge, apply only `20260924213044_fix_owner_workspace_market_permissions.sql` through the Management API query path, verify a disposable production owner can create a workspace and sign in, then reconcile or explicitly repair the migration ledger as a separate reviewed operation.

@@ -11,6 +11,12 @@ const migrationPath = path.join(
   "migrations",
   "20260905011500_add_multi_country_markets.sql",
 );
+const ownerWorkspaceFixPath = path.join(
+  root,
+  "supabase",
+  "migrations",
+  "20260924213044_fix_owner_workspace_market_permissions.sql",
+);
 
 test("defines an RLS-protected active market registry", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -40,6 +46,18 @@ test("blocks public booking in inactive markets", async () => {
   assert.match(sql, /drop policy if exists tenants_public_booking_select/);
   assert.match(sql, /drop policy if exists services_public_booking_select/);
   assert.equal((sql.match(/markets\.status = 'active'/g) ?? []).length, 2);
+});
+
+test("owner onboarding reads only market columns granted to authenticated users", async () => {
+  const sql = await readFile(ownerWorkspaceFixPath, "utf8");
+
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /selected_market record/);
+  assert.match(sql, /select country_code, supported_locales, currency, supported_time_zones, address_format/);
+  assert.doesNotMatch(sql, /selected_market public\.markets%rowtype/);
+  assert.doesNotMatch(sql, /select \*\s+into selected_market/);
+  assert.match(sql, /revoke all on function public\.create_owner_workspace[\s\S]*from public, anon/);
+  assert.match(sql, /grant execute on function public\.create_owner_workspace[\s\S]*to authenticated/);
 });
 
 // Fresh-install compatibility is executed against PostgreSQL in schema-database.test.mjs.
