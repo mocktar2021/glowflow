@@ -18,7 +18,7 @@
 | Cash/mixed checkout and accounting | Not ready | Persistent financial ledger, receipts, reconciliation and role tests |
 | Messaging | Preview only | Consent, provider delivery, retries, opt-out and scheduled-job verification |
 | Legal/support | Production verified September 24 | Owner-approved localized privacy, terms, support and cancellation/deposit guidance are published in FR/EN/ES with the verified Mocktar Technologies identity and support address |
-| Recovery | Hosted clone and Storage drill verified | A current-state hosted clone, 16-table count comparison, Auth count, bucket definitions, anonymous denials and synthetic file recovery passed; a historical restore point and recovered-app signed-in journey remain |
+| Recovery | Hosted clone, Storage and signed-in journey verified | Current-state hosted clones passed data/Auth/bucket parity, anonymous denials, synthetic file recovery, real Auth sign-in, owner workspace creation and FR/EN/ES dashboard rendering; a selected historical daily/PITR restore remains |
 | Operational alerts | Partial | Safe diagnostics in this wave; alert destination, ownership and an exercised failure alert still required |
 | Test-data cleanup | Before salon publication | Retire the Test service and disabled test staff fixture; preserve sandbox payment audit records |
 
@@ -58,4 +58,10 @@ Read-only comparison found identical counts across all 16 application tables, ma
 
 A separate hosted Storage drill uploaded a 4,164-byte synthetic PNG to `salon-public-media`, downloaded and checksummed it, deleted its authoritative object metadata, restored the file, and verified the restored SHA-256 checksum. Cleanup removed the synthetic object. The temporary recovery branch `kxntrimhollnsvbldexy` was then deleted; the production project was not written to.
 
-This proves a hosted current-state clone and a separate file-object recovery procedure. It does not prove selection of a historical daily/PITR recovery point or a complete signed-in application journey against recovered infrastructure. Working operational targets are a 24-hour RPO while daily backups are used and a 4-hour RTO, with the GlowFlow product owner as incident lead, Mocktar Technologies as database owner, and `support@mocktar.com` as the support contact. Revisit the targets after a historical restore and recovered-app exercise.
+This proves a hosted current-state clone and a separate file-object recovery procedure. At this stage, selection of a historical daily/PITR recovery point and a complete signed-in application journey against recovered infrastructure remained; the following exercise closes the application-journey gap. Working operational targets are a 24-hour RPO while daily backups are used and a 4-hour RTO, with the GlowFlow product owner as incident lead, Mocktar Technologies as database owner, and `support@mocktar.com` as the support contact.
+
+### Recovered application journey
+
+A second non-persistent hosted clone exercised the real GlowFlow login and dashboard with a disposable confirmed owner account. The first run identified a production onboarding defect: `create_owner_workspace` used `SELECT *` against `markets` even though authenticated users intentionally receive an explicit column grant, causing PostgreSQL `42501 permission denied for table markets`.
+
+Migration `20260924213044_fix_owner_workspace_market_permissions.sql` preserves `SECURITY INVOKER` and the explicit market grant while selecting only the five fields the function needs. After applying that migration only to the temporary clone, the real password sign-in created the owner workspace and rendered the owner dashboard and navigation in EN, FR and ES. The disposable Auth user and tenant were verified absent after cleanup, and the temporary clone was deleted. The migration remains prepared only until it is reviewed, merged and applied to production.

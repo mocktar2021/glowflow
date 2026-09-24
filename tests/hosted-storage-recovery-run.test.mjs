@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRecoveryTarget } from './hosted-storage-recovery-run.mjs';
 import { parseComparisonTargets } from './hosted-recovery-compare.mjs';
+import { parseRecoveredAppTarget } from './hosted-recovered-app-run.mjs';
 
 const valid = {
   GLOWFLOW_RECOVERY_PROJECT_REF: 'recoveryprojectref01',
@@ -56,4 +57,12 @@ test('comparison targets require an exact production URL', () => {
     ...comparison,
     GLOWFLOW_PRODUCTION_SUPABASE_URL: 'https://another-project.supabase.co',
   }), /exactly match/);
+});
+
+test('recovered app target requires a temporary publishable key', () => {
+  assert.throws(() => parseRecoveredAppTarget(valid), /PUBLISHABLE_KEY/);
+  assert.equal(parseRecoveredAppTarget({
+    ...valid,
+    GLOWFLOW_RECOVERY_PUBLISHABLE_KEY: 'fixture-publishable',
+  }).publishableKey, 'fixture-publishable');
 });
