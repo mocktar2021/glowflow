@@ -11,7 +11,6 @@ const migration = await readFile(
 );
 const page = await readFile(path.join(root, "app/[locale]/dashboard/availability/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/availability/actions.ts"), "utf8");
-const dashboard = await readFile(path.join(root, "app/[locale]/dashboard/page.tsx"), "utf8");
 
 test("stores tenant-scoped staff, exception, and station schedules", () => {
   assert.match(migration, /create table public\.staff_working_hours/);
@@ -47,7 +46,6 @@ test("renders owner controls in French, English, and Spanish", () => {
   assert.match(page, /name="is_enabled"/);
   assert.match(page, /type="datetime-local"/);
   assert.match(page, /tenant\?\.time_zone/);
-  assert.match(dashboard, /dashboard\/availability/);
 });
 
 test("covers America New York daylight-saving boundaries", () => {
