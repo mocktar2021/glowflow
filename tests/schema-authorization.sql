@@ -11,14 +11,25 @@ language plpgsql security invoker as $$ begin
   end;
   raise exception 'expected permission denial: %', statement;
 end $$;
+create function public.test_rejected(statement text, expected_state text) returns void
+language plpgsql security invoker as $$
+begin
+  begin
+    execute statement;
+  exception when others then
+    if sqlstate = expected_state then return; end if;
+    raise exception 'unexpected SQLSTATE % for: %', sqlstate, statement;
+  end;
+  raise exception 'expected SQLSTATE % for: %', expected_state, statement;
+end $$;
 
 insert into auth.users(id,email) values
 ('20000000-0000-0000-0000-000000000001','owner-a@example.invalid'),
 ('20000000-0000-0000-0000-000000000002','staff-a@example.invalid'),
 ('20000000-0000-0000-0000-000000000003','owner-b@example.invalid');
-insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone) values
-('10000000-0000-0000-0000-000000000001','Fixture A','fixture-a','20000000-0000-0000-0000-000000000001','US','USD','America/New_York'),
-('10000000-0000-0000-0000-000000000002','Fixture B','fixture-b','20000000-0000-0000-0000-000000000003','US','USD','America/New_York');
+insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone,stripe_account_id) values
+('10000000-0000-0000-0000-000000000001','Fixture A','fixture-a','20000000-0000-0000-0000-000000000001','US','USD','America/New_York','acct_fixture_a'),
+('10000000-0000-0000-0000-000000000002','Fixture B','fixture-b','20000000-0000-0000-0000-000000000003','US','USD','America/New_York','acct_fixture_b');
 insert into public.users(id,tenant_id,full_name,email,role) values
 ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Owner A','owner-a@example.invalid','owner'),
 ('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','Staff A','staff-a@example.invalid','staff'),
@@ -117,6 +128,10 @@ insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_m
 values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','payment','external_card',500,'USD','66000000-0000-0000-0000-000000000010','20000000-0000-0000-0000-000000000001');
 insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id)
 values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','refund','external_card',250,'USD','66000000-0000-0000-0000-000000000011','20000000-0000-0000-0000-000000000001');
+select public.test_denied('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''stripe'',500,''USD'',''acct_fixture_a'',''pi_forged'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')');
+select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''EUR'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')','22023');
+select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''USD'',''66000000-0000-0000-0000-000000000010'',''20000000-0000-0000-0000-000000000001'')','23505');
+select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''refund'',''cash'',5000,''USD'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')','22023');
 select public.test_assert(
   (select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001'))=1250,
   'mixed tender and refund derive net balance'
@@ -204,8 +219,17 @@ select public.test_denied('insert into public.salon_public_profiles(tenant_id,sl
 select public.test_denied('select * from storage.objects');
 select public.test_denied('insert into storage.objects(bucket_id,name) values(''salon-public-media'',''10000000-0000-0000-0000-000000000001/anon.webp'')');
 reset role;
+reset request.jwt.claim.sub;
+set role service_role;
+select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''stripe'',500,''USD'',''acct_fixture_b'',''pi_wrong_account'',gen_random_uuid())','22023');
+insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key)
+values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','payment','stripe',500,'USD','acct_fixture_a','pi_verified','66000000-0000-0000-0000-000000000012');
+select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''stripe'',500,''USD'',''acct_fixture_a'',''pi_verified'',gen_random_uuid())','23505');
+reset role;
+select public.test_rejected('update public.payment_entries set amount=1','55000');
+select public.test_rejected('delete from public.payment_entries','55000');
 select public.test_assert((select count(*) from public.clients)=2,'denied operations preserved clients');
 select public.test_assert((select count(*) from public.invoices)=2,'denied operations preserved invoices');
-select public.test_assert((select count(*) from public.payment_entries)=4,'denied operations preserved immutable payment entries');
+select public.test_assert((select count(*) from public.payment_entries)=5,'denied operations preserved immutable payment entries');
 select public.test_assert((select count(*) from public.walk_in_queue)=2,'denied operations preserved queue');
 select public.test_assert((select count(*) from storage.objects)=2,'owner media lifecycle and denied writes preserve fixtures');

@@ -21,9 +21,12 @@ create table public.payment_entries (
   foreign key (actor_user_id, tenant_id)
     references public.users(id, tenant_id) on delete restrict,
   check (
-    (provider_account_id is null and provider_payment_id is null)
-    or (nullif(btrim(provider_account_id), '') is not null
-        and nullif(btrim(provider_payment_id), '') is not null)
+    (payment_method = 'stripe'
+      and nullif(btrim(provider_account_id), '') is not null
+      and nullif(btrim(provider_payment_id), '') is not null)
+    or (payment_method <> 'stripe'
+      and provider_account_id is null
+      and provider_payment_id is null)
   )
 );
 
@@ -42,12 +45,14 @@ set search_path = ''
 as $$
 declare
   tenant_currency text;
+  tenant_provider_account text;
   paid_total bigint;
   refunded_total bigint;
 begin
-  if (select auth.uid()) is not null
-     and not (select private.is_tenant_owner(new.tenant_id)) then
-    raise exception using errcode = '42501', message = 'payment_owner_required';
+  if (select auth.uid()) is not null then
+    if not (select private.is_tenant_owner(new.tenant_id)) then
+      raise exception using errcode = '42501', message = 'payment_owner_required';
+    end if;
   end if;
 
   -- Serialize entries for one appointment so concurrent refunds cannot exceed payments.
@@ -66,6 +71,17 @@ begin
 
   if new.currency is distinct from tenant_currency then
     raise exception using errcode = '22023', message = 'payment_currency_mismatch';
+  end if;
+
+  if new.payment_method = 'stripe' then
+    select stripe_account_id into tenant_provider_account
+    from public.tenants
+    where id = new.tenant_id;
+
+    if tenant_provider_account is null
+       or new.provider_account_id is distinct from tenant_provider_account then
+      raise exception using errcode = '22023', message = 'payment_provider_account_mismatch';
+    end if;
   end if;
 
   if new.entry_type = 'refund' then
@@ -116,6 +132,9 @@ on public.payment_entries for insert to authenticated
 with check (
   (select private.is_tenant_owner(tenant_id))
   and actor_user_id = (select auth.uid())
+  and payment_method in ('cash', 'external_card')
+  and provider_account_id is null
+  and provider_payment_id is null
 );
 
 revoke all on public.payment_entries from public, anon, authenticated;
