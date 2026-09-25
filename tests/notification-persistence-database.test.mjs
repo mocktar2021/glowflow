@@ -140,13 +140,26 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   sql(`set role service_role;select public.record_notification_delivery_result('${secondClaim}','delivered','70000000-0000-0000-0000-000000000010','${reconsentAt}',null,null,'provider-neutral-reference')`);
   assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000011','${reconsentAt}')`), /notification_not_eligible/);
 
+  const originalStart = sql(`select start_time from public.appointments where id='${appointmentA}'`);
   const oldReminder = sql(`select id from public.notification_outbox where appointment_id='${appointmentA}' and notification_kind='reminder24h'`);
   sql(`update public.appointments set start_time=start_time+interval '1 day' where id='${appointmentA}'`);
   assert.throws(() => sql(`set role service_role;select * from public.schedule_appointment_notifications('${appointmentA}','email','${scheduleKey}')`), /notification_schedule_request_mismatch/);
   const rescheduleKey = "70000000-0000-0000-0000-000000000012";
   assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','${rescheduleKey}')`).split("\n").at(-1), "3");
   assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "6");
-  assert.equal(sql(`select count(*) from public.notification_outbox o join public.appointments a on a.id=o.appointment_id and a.tenant_id=o.tenant_id where o.appointment_id='${appointmentA}' and o.appointment_start_time=a.start_time and ((o.notification_kind='confirmation') or (o.notification_kind='reminder24h' and o.scheduled_for=a.start_time-interval '24 hours') or (o.notification_kind='reminder2h' and o.scheduled_for=a.start_time-interval '2 hours'))`), "3");
+  assert.equal(sql(`select count(*) from public.notification_outbox o join public.appointments a on a.id=o.appointment_id and a.tenant_id=o.tenant_id where o.appointment_id='${appointmentA}' and o.schedule_generation=a.notification_schedule_generation and o.appointment_start_time=a.start_time and ((o.notification_kind='confirmation') or (o.notification_kind='reminder24h' and o.scheduled_for=a.start_time-interval '24 hours') or (o.notification_kind='reminder2h' and o.scheduled_for=a.start_time-interval '2 hours'))`), "3");
+  assert.equal(sql(`select private.notification_delivery_eligible('${oldReminder}',now()+interval '20 days')`), "f");
+
+  sql(`update public.appointments set start_time='${originalStart}' where id='${appointmentA}'`);
+  assert.equal(sql(`select notification_schedule_generation from public.appointments where id='${appointmentA}'`), "2");
+  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','70000000-0000-0000-0000-000000000013')`).split("\n").at(-1), "3");
+  assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "9");
+  assert.equal(sql(`select private.notification_delivery_eligible('${oldReminder}',now()+interval '20 days')`), "f");
+
+  sql(`update public.appointments set status='canceled' where id='${appointmentA}'; update public.appointments set status='confirmed' where id='${appointmentA}'`);
+  assert.equal(sql(`select notification_schedule_generation from public.appointments where id='${appointmentA}'`), "4");
+  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','70000000-0000-0000-0000-000000000014')`).split("\n").at(-1), "3");
+  assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "12");
   assert.equal(sql(`select private.notification_delivery_eligible('${oldReminder}',now()+interval '20 days')`), "f");
   assert.throws(() => sql(`update public.notification_outbox set scheduled_for=now() where id='${confirmation}'`), /notification_history_is_append_only/);
   assert.throws(() => sql(`delete from public.client_notification_consent_events where id='${consentId}'`), /notification_history_is_append_only/);

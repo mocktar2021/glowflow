@@ -23,6 +23,8 @@ export type NotificationStatusInput = {
   scheduledFor: string;
   appointmentStartTime: string;
   currentAppointmentStartTime: string | null;
+  scheduleGeneration: number;
+  currentScheduleGeneration: number | null;
   appointmentStatus: string | null;
   consentStatus: "consented" | "opted_out" | null;
   latestAttempt: NotificationAttempt | null;
@@ -44,7 +46,7 @@ export function deriveNotificationStatus(input: NotificationStatusInput): Notifi
   if (attempt?.event_type === "failed") return "failed";
   if (attempt?.event_type === "canceled") return "canceled";
   if (input.appointmentStatus !== "confirmed") return "appointment_inactive";
-  if (time(input.appointmentStartTime) !== time(input.currentAppointmentStartTime)) return "superseded";
+  if (input.scheduleGeneration !== input.currentScheduleGeneration) return "superseded";
   if (input.consentStatus === "opted_out") return "opted_out";
   if (input.consentStatus !== "consented") return "awaiting_consent";
 

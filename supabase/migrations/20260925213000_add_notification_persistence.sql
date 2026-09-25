@@ -3,6 +3,31 @@
 
 begin;
 
+alter table public.appointments
+  add column notification_schedule_generation bigint not null default 0
+  check (notification_schedule_generation >= 0);
+
+create or replace function private.bump_notification_schedule_generation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if new.start_time is distinct from old.start_time
+     or new.status is distinct from old.status then
+    new.notification_schedule_generation := old.notification_schedule_generation + 1;
+  else
+    new.notification_schedule_generation := old.notification_schedule_generation;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger appointments_bump_notification_schedule_generation
+before update on public.appointments
+for each row execute function private.bump_notification_schedule_generation();
+
 create table public.client_notification_consent_events (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete restrict,
@@ -27,6 +52,7 @@ create table public.notification_outbox (
   appointment_id uuid not null,
   client_id uuid not null,
   appointment_start_time timestamptz not null,
+  schedule_generation bigint not null check (schedule_generation >= 0),
   notification_kind text not null
     check (notification_kind in ('confirmation', 'reminder24h', 'reminder2h')),
   channel text not null check (channel in ('email', 'sms')),
@@ -34,7 +60,7 @@ create table public.notification_outbox (
   request_key uuid not null,
   created_at timestamptz not null default now(),
   unique (id, tenant_id),
-  unique (tenant_id, appointment_id, notification_kind, channel, appointment_start_time),
+  unique (tenant_id, appointment_id, notification_kind, channel, schedule_generation),
   unique (tenant_id, request_key, notification_kind, channel),
   foreign key (appointment_id, tenant_id)
     references public.appointments(id, tenant_id) on delete restrict,
@@ -243,7 +269,7 @@ begin
 
   if found and (
     request_replay.appointment_id is distinct from selected_appointment.id
-    or request_replay.appointment_start_time is distinct from selected_appointment.start_time
+    or request_replay.schedule_generation is distinct from selected_appointment.notification_schedule_generation
   ) then
     raise exception using errcode = '22023', message = 'notification_schedule_request_mismatch';
   end if;
@@ -253,7 +279,7 @@ begin
   where outbox.tenant_id = selected_appointment.tenant_id
     and outbox.appointment_id = selected_appointment.id
     and outbox.channel = target_channel
-    and outbox.appointment_start_time = selected_appointment.start_time
+    and outbox.schedule_generation = selected_appointment.notification_schedule_generation
   limit 1;
 
   if found and existing_request_key is distinct from target_request_key then
@@ -261,11 +287,12 @@ begin
   end if;
 
   insert into public.notification_outbox (
-    tenant_id, appointment_id, client_id, appointment_start_time, notification_kind,
+    tenant_id, appointment_id, client_id, appointment_start_time, schedule_generation, notification_kind,
     channel, scheduled_for, request_key
   )
   select selected_appointment.tenant_id, selected_appointment.id,
-    selected_appointment.client_id, selected_appointment.start_time, schedule.notification_kind,
+    selected_appointment.client_id, selected_appointment.start_time,
+    selected_appointment.notification_schedule_generation, schedule.notification_kind,
     target_channel, schedule.scheduled_for, target_request_key
   from (values
     ('confirmation'::text, now()),
@@ -273,14 +300,14 @@ begin
     ('reminder2h'::text, selected_appointment.start_time - interval '2 hours')
   ) as schedule(notification_kind, scheduled_for)
   where schedule.notification_kind = 'confirmation' or schedule.scheduled_for > now()
-  on conflict (tenant_id, appointment_id, notification_kind, channel, appointment_start_time) do nothing;
+  on conflict (tenant_id, appointment_id, notification_kind, channel, schedule_generation) do nothing;
 
   select outbox.request_key into existing_request_key
   from public.notification_outbox as outbox
   where outbox.tenant_id = selected_appointment.tenant_id
     and outbox.appointment_id = selected_appointment.id
     and outbox.channel = target_channel
-    and outbox.appointment_start_time = selected_appointment.start_time
+    and outbox.schedule_generation = selected_appointment.notification_schedule_generation
   limit 1;
 
   if existing_request_key is distinct from target_request_key then
@@ -293,7 +320,7 @@ begin
   where outbox.tenant_id = selected_appointment.tenant_id
     and outbox.appointment_id = selected_appointment.id
     and outbox.channel = target_channel
-    and outbox.appointment_start_time = selected_appointment.start_time
+    and outbox.schedule_generation = selected_appointment.notification_schedule_generation
   order by outbox.scheduled_for, outbox.id;
 end;
 $$;
@@ -316,7 +343,7 @@ as $$
      and appointment.tenant_id = outbox.tenant_id
     where outbox.id = target_outbox_id
       and appointment.status = 'confirmed'
-      and appointment.start_time = outbox.appointment_start_time
+      and appointment.notification_schedule_generation = outbox.schedule_generation
       and outbox.scheduled_for <= evaluated_at
   ), consent as (
     select event.consent_status
@@ -512,11 +539,13 @@ returns table (
   appointment_id uuid,
   client_id uuid,
   appointment_start_time timestamptz,
+  schedule_generation bigint,
   notification_kind text,
   channel text,
   scheduled_for timestamptz,
   appointment_status text,
   current_appointment_start_time timestamptz,
+  current_schedule_generation bigint,
   consent_status text,
   latest_event_type text,
   latest_retry_after timestamptz,
@@ -534,11 +563,13 @@ as $$
     outbox.appointment_id,
     outbox.client_id,
     outbox.appointment_start_time,
+    outbox.schedule_generation,
     outbox.notification_kind,
     outbox.channel,
     outbox.scheduled_for,
     appointment.status,
     appointment.start_time,
+    appointment.notification_schedule_generation,
     consent.consent_status,
     latest.event_type,
     latest.retry_after,
@@ -578,6 +609,7 @@ as $$
 $$;
 
 revoke all on function private.reject_notification_history_mutation() from public, anon, authenticated;
+revoke all on function private.bump_notification_schedule_generation() from public, anon, authenticated;
 revoke all on function private.notification_delivery_eligible(uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.record_client_notification_consent(uuid, uuid, text, text, uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.schedule_appointment_notifications(uuid, text, uuid) from public, anon, authenticated;

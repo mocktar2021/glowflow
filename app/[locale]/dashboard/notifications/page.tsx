@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic";
 type NotificationStatusRow = {
   id: string;
   appointment_start_time: string;
+  schedule_generation: number | string;
   notification_kind: string;
   channel: string;
   scheduled_for: string;
   appointment_status: string | null;
   current_appointment_start_time: string | null;
+  current_schedule_generation: number | string | null;
   consent_status: string | null;
   latest_event_type: NotificationAttempt["event_type"] | null;
   latest_retry_after: string | null;
@@ -30,6 +32,7 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
   const { data: tenant, error } = await supabase.from("tenants")
     .select("id").eq("owner_id", userId).single();
   if (error || !tenant) redirect(`/${locale}/dashboard`);
+  if (typeof supabase.rpc !== "function") return <NotificationTemplatePreview locale={locale} statusUnavailable />;
 
   const { data, error: statusError } = await supabase.rpc("get_notification_status_rows", {
     target_tenant_id: tenant.id,
@@ -46,6 +49,8 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
       scheduledFor: row.scheduled_for,
       appointmentStartTime: row.appointment_start_time,
       currentAppointmentStartTime: row.current_appointment_start_time,
+      scheduleGeneration: Number(row.schedule_generation),
+      currentScheduleGeneration: row.current_schedule_generation === null ? null : Number(row.current_schedule_generation),
       appointmentStatus: row.appointment_status,
       consentStatus: row.consent_status as "consented" | "opted_out" | null,
       latestAttempt: row.latest_event_type ? {

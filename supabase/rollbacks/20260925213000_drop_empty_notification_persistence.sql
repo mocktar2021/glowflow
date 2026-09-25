@@ -28,5 +28,8 @@ drop table if exists public.notification_delivery_attempts;
 drop table if exists public.notification_outbox;
 drop table if exists public.client_notification_consent_events;
 drop function if exists private.reject_notification_history_mutation();
+drop trigger if exists appointments_bump_notification_schedule_generation on public.appointments;
+drop function if exists private.bump_notification_schedule_generation();
+alter table public.appointments drop column if exists notification_schedule_generation;
 
 commit;

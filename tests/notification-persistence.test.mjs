@@ -18,9 +18,11 @@ test("migration keeps notification history tenant-scoped, append-only, and servi
   assert.match(migration, /revoke all on function public\.claim_notification_delivery[\s\S]*from public, anon, authenticated/);
   assert.match(migration, /consent_status in \('consented', 'opted_out'\)/);
   assert.match(migration, /appointment_start_time timestamptz not null/);
-  assert.match(migration, /on conflict \(tenant_id, appointment_id, notification_kind, channel, appointment_start_time\) do nothing/);
+  assert.match(migration, /notification_schedule_generation bigint not null default 0/);
+  assert.match(migration, /bump_notification_schedule_generation/);
+  assert.match(migration, /on conflict \(tenant_id, appointment_id, notification_kind, channel, schedule_generation\) do nothing/);
   assert.match(migration, /notification_schedule_request_mismatch/);
-  assert.match(migration, /appointment\.start_time = outbox\.appointment_start_time/);
+  assert.match(migration, /appointment\.notification_schedule_generation = outbox\.schedule_generation/);
   assert.match(migration, /notification_not_eligible/);
   assert.doesNotMatch(migration, /resend|twilio|sendgrid|messagebird|application_fee/i);
 });
