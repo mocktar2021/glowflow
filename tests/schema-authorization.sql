@@ -34,6 +34,16 @@ select ('50000000-0000-0000-0000-00000000000'||right(c.id::text,1))::uuid,c.tena
 from public.clients c join public.services s using(tenant_id) join public.tenants t on t.id=c.tenant_id;
 insert into public.invoices(tenant_id,appointment_id,invoice_number,total_amount,currency)
 select tenant_id,id,'TEST-1',5000,'USD' from public.appointments;
+insert into public.payment_entries(
+  id,tenant_id,appointment_id,entry_type,payment_method,amount,currency,
+  idempotency_key,actor_user_id
+)
+select
+  ('65000000-0000-0000-0000-00000000000'||right(id::text,1))::uuid,
+  tenant_id,id,'payment','cash',1000,'USD',
+  ('66000000-0000-0000-0000-00000000000'||right(id::text,1))::uuid,
+  staff_id
+from public.appointments;
 insert into public.staff_working_hours(id,tenant_id,staff_id,weekday,start_local,end_local) values
 ('60000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002',1,'09:00','17:00'),
 ('60000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000003',1,'09:00','17:00');
@@ -71,6 +81,10 @@ begin
       get diagnostics n = row_count;
       perform public.test_assert(n=0,who||' cannot delete foreign '||table_name);
     end loop;
+    select count(*) into n from public.payment_entries where tenant_id=own_tenant;
+    perform public.test_assert(n=1,who||' reads own payment ledger');
+    select count(*) into n from public.payment_entries where tenant_id=other_tenant;
+    perform public.test_assert(n=0,who||' cannot read foreign payment ledger');
     update public.clients set notes='forbidden' where tenant_id=other_tenant;
     get diagnostics n = row_count;
     perform public.test_assert(n=0,'cross-tenant update invisible');
@@ -95,9 +109,21 @@ with changed as (update public.services set price=1 returning id)
 select public.test_assert((select count(*) from changed)=0,'staff cannot edit catalog');
 with removed as (delete from public.invoices returning id)
 select public.test_assert((select count(*) from removed)=0,'staff cannot delete invoices');
+select public.test_denied('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''USD'',gen_random_uuid(),''20000000-0000-0000-0000-000000000002'')');
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
 with changed as (update public.services set price=5500 where tenant_id='10000000-0000-0000-0000-000000000001' returning id)
 select public.test_assert((select count(*) from changed)=1,'owner can edit own catalog');
+insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id)
+values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','payment','external_card',500,'USD','66000000-0000-0000-0000-000000000010','20000000-0000-0000-0000-000000000001');
+insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id)
+values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','refund','external_card',250,'USD','66000000-0000-0000-0000-000000000011','20000000-0000-0000-0000-000000000001');
+select public.test_assert(
+  (select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001'))=1250,
+  'mixed tender and refund derive net balance'
+);
+select public.test_denied('update public.payment_entries set amount=1');
+select public.test_denied('delete from public.payment_entries');
+select public.test_denied('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000002'',''50000000-0000-0000-0000-000000000002'',''payment'',''cash'',500,''USD'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')');
 
 -- Scheduling is tenant-readable but owner-managed.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
@@ -154,12 +180,14 @@ set request.jwt.claim.sub='20000000-0000-0000-0000-000000000099';
 select public.test_assert((select count(*) from public.clients)=0,'unaffiliated identity has no clients');
 select public.test_assert((select count(*) from public.appointments)=0,'unaffiliated identity has no appointments');
 select public.test_assert((select count(*) from public.invoices)=0,'unaffiliated identity has no invoices');
+select public.test_assert((select count(*) from public.payment_entries)=0,'unaffiliated identity has no payment entries');
 reset role;
 set role anon;
 select public.test_denied('select * from public.clients');
 select public.test_denied('select * from public.users');
 select public.test_denied('select * from public.appointments');
 select public.test_denied('select * from public.invoices');
+select public.test_denied('select * from public.payment_entries');
 select public.test_denied('select stripe_account_id from public.tenants');
 select public.test_denied('insert into public.clients(tenant_id,full_name) values(''10000000-0000-0000-0000-000000000001'',''Anonymous client'')');
 select public.test_denied('select * from public.staff_working_hours');
@@ -178,5 +206,6 @@ select public.test_denied('insert into storage.objects(bucket_id,name) values(''
 reset role;
 select public.test_assert((select count(*) from public.clients)=2,'denied operations preserved clients');
 select public.test_assert((select count(*) from public.invoices)=2,'denied operations preserved invoices');
+select public.test_assert((select count(*) from public.payment_entries)=4,'denied operations preserved immutable payment entries');
 select public.test_assert((select count(*) from public.walk_in_queue)=2,'denied operations preserved queue');
 select public.test_assert((select count(*) from storage.objects)=2,'owner media lifecycle and denied writes preserve fixtures');
