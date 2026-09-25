@@ -1,0 +1,22 @@
+import type { Locale } from "@/lib/i18n";
+
+export const authCopy = {
+  fr: {
+    register: { title: "Créez votre salon", subtitle: "Commencez avec un compte propriétaire sécurisé et un espace GlowFlow privé.", name: "Votre nom", salon: "Nom du salon", email: "Adresse e-mail", password: "Mot de passe", submit: "Créer mon compte GlowFlow", existing: "Vous avez déjà un compte ?", signIn: "Se connecter" },
+    forgot: { title: "Réinitialisez votre mot de passe", subtitle: "Saisissez l’adresse e-mail du compte. GlowFlow enverra un lien sécurisé.", email: "Adresse e-mail", submit: "Envoyer le lien" },
+    update: { title: "Choisissez un nouveau mot de passe", subtitle: "Utilisez au moins huit caractères.", password: "Nouveau mot de passe", submit: "Mettre à jour le mot de passe" },
+    notices: { invalidCredentials: "Adresse e-mail ou mot de passe incorrect.", workspaceNotReady: "Votre espace salon n’est pas encore prêt.", completeFields: "Remplissez tous les champs. Le mot de passe doit comporter au moins 8 caractères.", signupFailed: "Impossible de créer le compte. Réessayez ou contactez l’assistance.", checkEmail: "Consultez votre messagerie pour confirmer votre compte GlowFlow.", resetSent: "Si ce compte existe, un lien de réinitialisation a été envoyé.", passwordLength: "Utilisez au moins huit caractères.", passwordFailed: "Impossible de mettre à jour le mot de passe. Demandez un nouveau lien.", passwordUpdated: "Mot de passe mis à jour. Connectez-vous avec votre nouveau mot de passe.", invalidLink: "Le lien de confirmation n’est pas valide.", expiredLink: "Le lien de confirmation a expiré." },
+  },
+  en: {
+    register: { title: "Create your salon", subtitle: "Start with one secure owner account and a private GlowFlow workspace.", name: "Your name", salon: "Salon name", email: "Email address", password: "Password", submit: "Create GlowFlow account", existing: "Already registered?", signIn: "Sign in" },
+    forgot: { title: "Reset your password", subtitle: "Enter your account email. GlowFlow will send a secure reset link.", email: "Email address", submit: "Send reset link" },
+    update: { title: "Choose a new password", subtitle: "Use at least eight characters.", password: "New password", submit: "Update password" },
+    notices: { invalidCredentials: "Invalid email or password.", workspaceNotReady: "Your salon workspace is not ready.", completeFields: "Complete every field. Passwords need at least 8 characters.", signupFailed: "We could not create the account. Try again or contact support.", checkEmail: "Check your email to confirm your GlowFlow account.", resetSent: "If the account exists, a reset link is on its way.", passwordLength: "Use at least eight characters.", passwordFailed: "We could not update the password. Request a new link.", passwordUpdated: "Password updated. Sign in with your new password.", invalidLink: "The confirmation link is invalid.", expiredLink: "The confirmation link has expired." },
+  },
+  es: {
+    register: { title: "Crea tu salón", subtitle: "Empieza con una cuenta de propietario segura y un espacio privado en GlowFlow.", name: "Tu nombre", salon: "Nombre del salón", email: "Correo electrónico", password: "Contraseña", submit: "Crear mi cuenta GlowFlow", existing: "¿Ya tienes una cuenta?", signIn: "Iniciar sesión" },
+    forgot: { title: "Restablece tu contraseña", subtitle: "Introduce el correo de la cuenta. GlowFlow enviará un enlace seguro.", email: "Correo electrónico", submit: "Enviar el enlace" },
+    update: { title: "Elige una nueva contraseña", subtitle: "Utiliza al menos ocho caracteres.", password: "Nueva contraseña", submit: "Actualizar contraseña" },
+    notices: { invalidCredentials: "El correo o la contraseña no son válidos.", workspaceNotReady: "El espacio de tu salón aún no está listo.", completeFields: "Completa todos los campos. La contraseña debe tener al menos 8 caracteres.", signupFailed: "No pudimos crear la cuenta. Inténtalo de nuevo o contacta con soporte.", checkEmail: "Revisa tu correo para confirmar tu cuenta de GlowFlow.", resetSent: "Si la cuenta existe, se ha enviado un enlace de restablecimiento.", passwordLength: "Utiliza al menos ocho caracteres.", passwordFailed: "No pudimos actualizar la contraseña. Solicita un enlace nuevo.", passwordUpdated: "Contraseña actualizada. Inicia sesión con la nueva contraseña.", invalidLink: "El enlace de confirmación no es válido.", expiredLink: "El enlace de confirmación ha caducado." },
+  },
+} as const satisfies Record<Locale, object>;

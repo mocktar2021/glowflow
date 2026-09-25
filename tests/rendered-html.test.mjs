@@ -84,4 +84,17 @@ test("renders localized authentication and booking routes in production", { time
   });
   assert.equal(unpublished.status, 200);
   assert.match(await unpublished.text(), /This page could not be found|404/i);
+
+  const frenchRegistration = await fetch(`${origin}/fr/register`);
+  const frenchRegistrationHtml = await frenchRegistration.text();
+  assert.match(frenchRegistrationHtml, /Créez votre salon/);
+  assert.match(frenchRegistrationHtml, /Votre nom/);
+  assert.match(frenchRegistrationHtml, /Fuseau horaire/);
+  assert.doesNotMatch(frenchRegistrationHtml, /Create your salon|Salon address|>Country</);
+
+  const spanishReset = await fetch(`${origin}/es/forgot-password`);
+  const spanishResetHtml = await spanishReset.text();
+  assert.match(spanishResetHtml, /Restablece tu contraseña/);
+  assert.match(spanishResetHtml, /Correo electrónico/);
+  assert.doesNotMatch(spanishResetHtml, /Reset your password|Send reset link/);
 });
