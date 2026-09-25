@@ -15,6 +15,11 @@ const rpcPermissions = await readFile(
 const route = await readFile(path.join(root, "app/api/public-booking/route.ts"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/book/[slug]/page.tsx"), "utf8");
 const flow = await readFile(path.join(root, "components/glowflow/live-booking-flow.tsx"), "utf8");
+const publicationGuard = await readFile(
+  path.join(root, "supabase/migrations/20260925184222_require_published_salon_for_public_booking.sql"),
+  "utf8",
+);
+const messages = await readFile(path.join(root, "lib/i18n.ts"), "utf8");
 
 test("public booking rechecks availability and stores client locale", () => {
   assert.match(migration, /private\.public_resource_available/);
@@ -52,4 +57,19 @@ test("keeps public booking RPCs behind the server boundary", () => {
   assert.match(rpcPermissions, /from public, anon, authenticated/);
   assert.match(rpcPermissions, /to service_role/g);
   assert.doesNotMatch(rpcPermissions, /to anon/);
+});
+
+test("requires owner publication for public slots and appointment creation", () => {
+  assert.equal((publicationGuard.match(/from public\.salon_public_profiles as profile/g) ?? []).length, 2);
+  assert.equal((publicationGuard.match(/profile\.is_published = true/g) ?? []).length, 2);
+  assert.match(publicationGuard, /grant execute on function public\.get_public_booking_slots[\s\S]*to service_role/);
+  assert.doesNotMatch(publicationGuard, /to anon, authenticated/);
+  assert.match(page, /from\("salon_public_profiles"\)[\s\S]*\.eq\("is_published", true\)[\s\S]*if \(!publishedProfile\) notFound\(\)/);
+});
+
+test("uses neutral localized cancellation guidance without inventing a deadline", () => {
+  assert.match(messages, /Consultez la politique du salon avant de confirmer/);
+  assert.match(messages, /Review the salon policy before confirming/);
+  assert.match(messages, /Consulta la política del salón antes de confirmar/);
+  assert.doesNotMatch(messages, /Annulation gratuite|Free cancellation|Cancelación gratuita|24 hours|24 h|24 horas/);
 });
