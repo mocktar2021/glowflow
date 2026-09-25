@@ -24,7 +24,8 @@ Record database application separately from the already READY Vercel deployment.
 
 1. Query `pg_get_functiondef` and verify `prosecdef = false`, the five-column select, and no `select *` or `%rowtype`.
 2. Verify `PUBLIC` and `anon` have no execute privilege and `authenticated` does.
-3. Run `tests/production-owner-verification-run.mjs` with the exact project, URL, application origin, keys, and acknowledgement in process environment variables. It creates one randomized `@example.invalid` Auth user through the public sign-up API, confirms it, signs in through the real production form, creates the workspace through the application, renders FR/EN/ES dashboards, then deletes the tenant and Auth user in `finally`.
+3. Run `tests/production-owner-verification-run.mjs` with the exact project, URL, application origin, keys, and acknowledgement in process environment variables. It creates one randomized `@mocktar.com` Auth user through the public sign-up API, confirms it, signs in through the real production form, creates the workspace through the application, renders FR/EN/ES dashboards, then deletes the tenant and Auth user in `finally`.
+   If Supabase's email rate limit blocks public sign-up, set `GLOWFLOW_PRODUCTION_OWNER_PROVISIONING=admin` to exercise the post-registration sign-in and workspace path with an administratively confirmed disposable user. Report that result as admin provisioning; it does not prove that public registration is available.
 4. Query for the disposable owner prefix and require zero residual Auth users and tenants.
 
 ## Rollback

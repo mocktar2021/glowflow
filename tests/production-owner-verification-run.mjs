@@ -28,18 +28,18 @@ async function main() {
   const admin = createClient(target.url, target.serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const publicClient = createClient(target.url, target.publishableKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const suffix = randomUUID();
-  const email = `launch-verification-${suffix}@example.invalid`;
+  const email = `launch-verification-${suffix}@mocktar.com`;
   const password = `Launch!${randomBytes(18).toString('base64url')}`;
   const slug = `launch-verification-${suffix}`;
+  const metadata = { full_name: 'Launch Verification Owner', salon_name: 'Launch Verification Salon', salon_slug: slug, locale: 'en', country_code: 'US', time_zone: 'America/New_York', address_line1: '100 Verification Way', city: 'New York', postal_code: '10001', administrative_area: 'NY' };
+  const useAdminProvisioning = process.env.GLOWFLOW_PRODUCTION_OWNER_PROVISIONING === 'admin';
   let userId;
   let browser;
 
   try {
-    const registered = await publicClient.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: 'Launch Verification Owner', salon_name: 'Launch Verification Salon', salon_slug: slug, locale: 'en', country_code: 'US', time_zone: 'America/New_York', address_line1: '100 Verification Way', city: 'New York', postal_code: '10001', administrative_area: 'NY' } },
-    });
+    const registered = useAdminProvisioning
+      ? await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: metadata })
+      : await publicClient.auth.signUp({ email, password, options: { data: metadata } });
     if (registered.error || !registered.data.user) throw registered.error ?? new Error('Registration returned no user.');
     userId = registered.data.user.id;
     if (!registered.data.session) {
@@ -84,7 +84,7 @@ async function main() {
     await page.screenshot({ path: path.join(artifacts, 'production-owner-dashboard.png'), fullPage: true });
     await writeFile(path.join(artifacts, 'runtime.json'), JSON.stringify({ node: process.version, browser: browser.version(), projectRef: target.ref, applicationOrigin: target.origin, locales: ['fr', 'en', 'es'] }, null, 2));
     await context.close();
-    console.log(JSON.stringify({ result: 'passed', project_ref: target.ref, auth_registration: true, auth_sign_in: true, owner_workspace_created: true, dashboard_locales: ['fr', 'en', 'es'] }));
+    console.log(JSON.stringify({ result: 'passed', project_ref: target.ref, auth_public_registration: !useAdminProvisioning, auth_admin_provisioning: useAdminProvisioning, auth_sign_in: true, owner_workspace_created: true, dashboard_locales: ['fr', 'en', 'es'] }));
   } finally {
     await browser?.close();
     if (userId) {
