@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { ensureOwnerWorkspace, safeLocale } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { authCopy } from "@/lib/auth-copy";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -16,18 +17,19 @@ function authUrl(locale: string, path: string, key?: string, message?: string) {
 
 export async function signIn(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
+  const notices = authCopy[locale].notices;
   const email = value(formData, "email");
   const password = value(formData, "password");
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect(authUrl(locale, "login", "error", "Invalid email or password."));
+    redirect(authUrl(locale, "login", "error", notices.invalidCredentials));
   }
 
   const workspace = await ensureOwnerWorkspace();
   if (workspace.error) {
-    redirect(authUrl(locale, "login", "error", "Your salon workspace is not ready."));
+    redirect(authUrl(locale, "login", "error", notices.workspaceNotReady));
   }
 
   redirect(`/${locale}/dashboard`);
@@ -35,6 +37,7 @@ export async function signIn(localeValue: string, formData: FormData) {
 
 export async function signUp(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
+  const notices = authCopy[locale].notices;
   const fullName = value(formData, "full_name");
   const salonName = value(formData, "salon_name");
   const email = value(formData, "email");
@@ -62,7 +65,7 @@ export async function signUp(localeValue: string, formData: FormData) {
     city.length < 2 ||
     !postalCode
   ) {
-    redirect(authUrl(locale, "register", "error", "Complete every field. Passwords need 8 characters."));
+    redirect(authUrl(locale, "register", "error", notices.completeFields));
   }
 
   const supabase = await createClient();
@@ -88,7 +91,7 @@ export async function signUp(localeValue: string, formData: FormData) {
   });
 
   if (error) {
-    redirect(authUrl(locale, "register", "error", error.message));
+    redirect(authUrl(locale, "register", "error", notices.signupFailed));
   }
 
   if (data.session) {
@@ -96,11 +99,12 @@ export async function signUp(localeValue: string, formData: FormData) {
     if (!workspace.error) redirect(`/${locale}/dashboard`);
   }
 
-  redirect(authUrl(locale, "login", "message", "Check your email to confirm your GlowFlow account."));
+  redirect(authUrl(locale, "login", "message", notices.checkEmail));
 }
 
 export async function requestPasswordReset(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
+  const notices = authCopy[locale].notices;
   const email = value(formData, "email");
   const origin = process.env.GLOWFLOW_APP_URL ?? "https://glowflow.mocktar.com";
   const supabase = await createClient();
@@ -108,25 +112,26 @@ export async function requestPasswordReset(localeValue: string, formData: FormDa
     redirectTo: `${origin}/auth/callback?next=/${locale}/update-password`,
   });
 
-  redirect(authUrl(locale, "forgot-password", "message", "If an account exists, a reset link is on its way."));
+  redirect(authUrl(locale, "forgot-password", "message", notices.resetSent));
 }
 
 export async function updatePassword(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
+  const notices = authCopy[locale].notices;
   const password = value(formData, "password");
 
   if (password.length < 8) {
-    redirect(authUrl(locale, "update-password", "error", "Use at least 8 characters."));
+    redirect(authUrl(locale, "update-password", "error", notices.passwordLength));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    redirect(authUrl(locale, "update-password", "error", error.message));
+    redirect(authUrl(locale, "update-password", "error", notices.passwordFailed));
   }
 
-  redirect(authUrl(locale, "login", "message", "Password updated. Sign in with your new password."));
+  redirect(authUrl(locale, "login", "message", notices.passwordUpdated));
 }
 
 export async function signOut(localeValue: string) {
