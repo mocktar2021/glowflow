@@ -161,19 +161,67 @@ set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
 select public.test_denied('insert into public.services(tenant_id,title_json,duration_minutes,price,category,currency) values(''10000000-0000-0000-0000-000000000001'',''{"fr":"Denied"}'',30,100,''hair'',''USD'')');
 with changed as (update public.services set price=1 returning id)
 select public.test_assert((select count(*) from changed)=0,'staff cannot edit catalog');
+update public.appointments
+set service_id='40000000-0000-0000-0000-000000000002', service_price=1,
+    service_currency='EUR', service_duration_minutes=5
+where id='50000000-0000-0000-0000-000000000001';
+select public.test_assert(
+  exists (
+    select 1 from public.appointments
+    where id='50000000-0000-0000-0000-000000000001'
+      and service_id='40000000-0000-0000-0000-000000000001'
+      and service_price=5000 and service_currency='USD'
+      and service_duration_minutes=30
+  ),
+  'staff cannot rewrite booked service identity, price, currency, or duration'
+);
 with removed as (delete from public.invoices returning id)
 select public.test_assert((select count(*) from removed)=0,'staff cannot delete invoices');
 select public.test_denied('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''USD'',gen_random_uuid(),''20000000-0000-0000-0000-000000000002'')');
+select public.test_rejected('select public.record_manual_appointment_payment(''50000000-0000-0000-0000-000000000001'',''cash'',500,gen_random_uuid())','42501');
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
 with changed as (update public.services set price=5500 where tenant_id='10000000-0000-0000-0000-000000000001' returning id)
 select public.test_assert((select count(*) from changed)=1,'owner can edit own catalog');
-insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id)
-values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','payment','external_card',500,'USD','66000000-0000-0000-0000-000000000010','20000000-0000-0000-0000-000000000001');
+select public.test_assert(
+  (select service_price from public.appointments where id='50000000-0000-0000-0000-000000000001')=5000,
+  'appointment preserves trusted service price snapshot'
+);
+update public.appointments
+set service_id='40000000-0000-0000-0000-000000000002',
+    service_title_json='{"fr":"Forged"}', service_price=1,
+    service_deposit_amount=0, service_currency='EUR'
+where id='50000000-0000-0000-0000-000000000001';
+select public.test_assert(
+  exists (
+    select 1 from public.appointments
+    where id='50000000-0000-0000-0000-000000000001'
+      and service_id='40000000-0000-0000-0000-000000000001'
+      and service_title_json='{"fr":"Coupe","en":"Cut","es":"Corte"}'
+      and service_price=5000 and service_deposit_amount=0 and service_currency='USD'
+  ),
+  'appointment service identity and trusted snapshots are immutable'
+);
+do $$
+declare first_id uuid; retry_id uuid;
+begin
+  first_id := public.record_manual_appointment_payment(
+    '50000000-0000-0000-0000-000000000001','external_card',500,
+    '66000000-0000-0000-0000-000000000010'
+  );
+  retry_id := public.record_manual_appointment_payment(
+    '50000000-0000-0000-0000-000000000001','external_card',500,
+    '66000000-0000-0000-0000-000000000010'
+  );
+  perform public.test_assert(first_id=retry_id,'manual payment retries return the original entry');
+end $$;
 insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id)
 values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','refund','external_card',250,'USD','66000000-0000-0000-0000-000000000011','20000000-0000-0000-0000-000000000001');
 select public.test_denied('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''stripe'',500,''USD'',''acct_fixture_a'',''pi_forged'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')');
 select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''EUR'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')','22023');
 select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''cash'',500,''USD'',''66000000-0000-0000-0000-000000000010'',''20000000-0000-0000-0000-000000000001'')','23505');
+select public.test_rejected('select public.record_manual_appointment_payment(''50000000-0000-0000-0000-000000000001'',''external_card'',501,''66000000-0000-0000-0000-000000000010'')','22023');
+select public.test_rejected('select public.record_manual_appointment_payment(''50000000-0000-0000-0000-000000000001'',''cash'',4000,gen_random_uuid())','22023');
+select public.test_rejected('select public.record_manual_appointment_payment(''50000000-0000-0000-0000-000000000002'',''cash'',100,gen_random_uuid())','23503');
 select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key,actor_user_id) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''refund'',''cash'',5000,''USD'',gen_random_uuid(),''20000000-0000-0000-0000-000000000001'')','22023');
 select public.test_assert(
   (select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001'))=1250,

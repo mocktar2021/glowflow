@@ -1,8 +1,51 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { isLocale } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
+import { parseMinorAmount } from "@/lib/payments/recording";
 import { sandboxOnboardingUrl } from "@/lib/stripe-sandbox";
+import { sandboxOwner } from "@/lib/stripe-sandbox";
+
+function paymentDestination(locale: Locale, result: string): never {
+  redirect(`/${locale}/dashboard/payments?${result}`);
+}
+
+export async function recordManualPayment(locale: string, formData: FormData) {
+  if (!isLocale(locale)) redirect("/fr/dashboard");
+  const appointmentId = z.string().uuid().safeParse(String(formData.get("appointment_id") ?? ""));
+  const paymentMethod = z.enum(["cash", "external_card"]).safeParse(formData.get("payment_method"));
+  const requestKey = z.string().uuid().safeParse(String(formData.get("request_key") ?? ""));
+  const amount = parseMinorAmount(String(formData.get("amount") ?? ""));
+  if (!appointmentId.success || !paymentMethod.success || !requestKey.success || amount === null) {
+    paymentDestination(locale, "record_error=invalid_payment");
+  }
+
+  const owner = await sandboxOwner();
+  if (!owner) paymentDestination(locale, "record_error=owner_required");
+
+  const { error } = await owner.supabase.rpc("record_manual_appointment_payment", {
+    target_appointment_id: appointmentId.data,
+    target_payment_method: paymentMethod.data,
+    target_amount: amount,
+    request_key: requestKey.data,
+  });
+
+  if (error) {
+    const known = [
+      "payment_exceeds_outstanding_balance",
+      "payment_idempotency_key_reuse",
+      "payment_appointment_not_found",
+    ];
+    const reason = known.find((code) => error.message.includes(code)) ?? "record_failed";
+    paymentDestination(locale, `record_error=${reason}`);
+  }
+
+  revalidatePath(`/${locale}/dashboard/payments`);
+  paymentDestination(locale, "recorded=1");
+}
 
 export async function startSandboxOnboarding(locale: string) {
   if (!isLocale(locale)) redirect("/fr/dashboard");
