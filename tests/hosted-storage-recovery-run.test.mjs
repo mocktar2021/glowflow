@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseRecoveryTarget } from './hosted-storage-recovery-run.mjs';
 import { parseComparisonTargets } from './hosted-recovery-compare.mjs';
 import { parseRecoveredAppTarget } from './hosted-recovered-app-run.mjs';
+import { parseProductionOwnerTarget } from './production-owner-verification-run.mjs';
 
 const valid = {
   GLOWFLOW_RECOVERY_PROJECT_REF: 'recoveryprojectref01',
@@ -65,4 +66,19 @@ test('recovered app target requires a temporary publishable key', () => {
     ...valid,
     GLOWFLOW_RECOVERY_PUBLISHABLE_KEY: 'fixture-publishable',
   }).publishableKey, 'fixture-publishable');
+});
+
+test('production owner verification requires the exact GlowFlow target and acknowledgement', () => {
+  const target = {
+    GLOWFLOW_PRODUCTION_PROJECT_REF: 'rfwhqutkiztxkagbhevp',
+    GLOWFLOW_PRODUCTION_SUPABASE_URL: 'https://rfwhqutkiztxkagbhevp.supabase.co',
+    GLOWFLOW_PRODUCTION_APP_URL: 'https://glowflow.mocktar.com',
+    GLOWFLOW_PRODUCTION_SERVICE_ROLE_KEY: 'fixture-secret',
+    GLOWFLOW_PRODUCTION_PUBLISHABLE_KEY: 'fixture-publishable',
+    GLOWFLOW_PRODUCTION_OWNER_VERIFICATION_ACK: 'create-and-delete-disposable-owner:rfwhqutkiztxkagbhevp',
+  };
+  assert.equal(parseProductionOwnerTarget(target).ref, 'rfwhqutkiztxkagbhevp');
+  assert.throws(() => parseProductionOwnerTarget({ ...target, GLOWFLOW_PRODUCTION_PROJECT_REF: 'udodswbyaopgbmugdopj' }), /exactly/);
+  assert.throws(() => parseProductionOwnerTarget({ ...target, GLOWFLOW_PRODUCTION_OWNER_VERIFICATION_ACK: '' }), /acknowledgement/);
+  assert.throws(() => parseProductionOwnerTarget({ ...target, GLOWFLOW_PRODUCTION_APP_URL: 'https://example.com' }), /exactly/);
 });
