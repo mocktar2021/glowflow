@@ -21,14 +21,15 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database() {
+function database({ profilePublished = true } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
     const query = { select() { return query; }, eq(key, value) { filters.push([key, value]); return query; }, order() { return result(false); }, single() { return result(true); }, maybeSingle() { return result(true); } };
     function result(single) {
       queries.push({ table, filters });
-      const rows = (table === "tenants" ? [tenant] : table === "services" ? catalog : [profile]).filter(row => filters.every(([key, value]) => row[key] === value));
+      const profiles = [{ ...profile, is_published: profilePublished }];
+      const rows = (table === "tenants" ? [tenant] : table === "services" ? catalog : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
     return query;
@@ -91,6 +92,15 @@ test("forged, inactive, malformed, duplicate and offline service selections fail
   for (const id of [foreign, inactive, "bad-id", "", [first, chosen]]) await assert.rejects(Page(request("fr", id)), /not-found/);
   delete process.env.SUPABASE_SECRET_KEY;
   await assert.rejects(Page({ params: Promise.resolve({ locale: "fr", slug: "atelier-belle" }), searchParams: Promise.resolve({ service: chosen }) }), /not-found/);
+}));
+test("unpublished salons reject direct public booking URLs while owner sandbox access remains isolated", async () => withConfiguration(async () => {
+  const unpublished = database({ profilePublished: false });
+  const Page = await booking(unpublished);
+  await assert.rejects(Page(request("fr", chosen)), /not-found/);
+  assert.ok(unpublished.queries.some(query => query.table === "salon_public_profiles" && query.filters.some(([key, value]) => key === "is_published" && value === true)));
+
+  const SandboxPage = await booking(database({ profilePublished: false }), { sandbox: true });
+  assert.equal((await SandboxPage(request("en", chosen, { sandbox: "1" }))).props.sandbox, true);
 }));
 test("selected service preserves sandbox owner/configuration gates and reservation status", async () => withConfiguration(async () => {
   const Page = await booking(database(), { sandbox: true });

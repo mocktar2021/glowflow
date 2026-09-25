@@ -74,6 +74,49 @@ insert into storage.objects(id,bucket_id,name) values
 ('64000000-0000-0000-0000-000000000001','salon-public-media','10000000-0000-0000-0000-000000000001/a.webp'),
 ('64000000-0000-0000-0000-000000000002','salon-public-media','10000000-0000-0000-0000-000000000002/b.webp');
 
+-- Public availability and appointment creation require an owner-published profile.
+set role service_role;
+select public.test_assert(
+  (select count(*) from public.get_public_booking_slots(
+    'fixture-a',
+    '40000000-0000-0000-0000-000000000001',
+    (current_date + ((8 - extract(dow from current_date)::integer) % 7))::date
+  )) > 0,
+  'published salon exposes public availability'
+);
+select public.test_assert(
+  (select count(*) from public.get_public_booking_slots(
+    'fixture-b',
+    '40000000-0000-0000-0000-000000000002',
+    (current_date + ((8 - extract(dow from current_date)::integer) % 7))::date
+  )) = 0,
+  'unpublished salon hides public availability'
+);
+do $$
+begin
+  perform public.create_public_appointment(
+    'fixture-b',
+    '40000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000003',
+    (current_date + ((8 - extract(dow from current_date)::integer) % 7) + time '10:00') at time zone 'America/New_York',
+    'Blocked Client',
+    null,
+    'blocked@example.invalid',
+    'en',
+    '67000000-0000-0000-0000-000000000001'
+  );
+  raise exception 'unpublished public booking unexpectedly succeeded';
+exception
+  when foreign_key_violation then
+    if sqlerrm <> 'public_service_not_found' then raise; end if;
+end
+$$;
+select public.test_assert(
+  (select count(*) from public.clients where full_name = 'Blocked Client') = 0,
+  'unpublished booking creates no client record'
+);
+reset role;
+
 -- Each real identity can read its tenant, but neither read nor change the other.
 set role authenticated;
 do $$
