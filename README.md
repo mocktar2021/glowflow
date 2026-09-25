@@ -26,7 +26,7 @@ GlowFlow is a multilingual salon operations scaffold for independent hair stylis
 - `/api/preferences/locale`
 - `/api/stripe/webhook`
 
-Supported locales are `fr`, `en`, and `es`. Language preferences stay separate from salon operating countries. Active launch markets are configured in `public.markets`. The root route redirects to `/fr/dashboard`.
+Supported locales are `fr`, `en`, and `es`. Language preferences stay separate from salon operating countries. Active launch markets are configured in `public.markets`. The root route redirects to the public French salon directory at `/fr/salons`.
 
 ## Local setup
 
