@@ -6,6 +6,7 @@ import { CountryFields } from "@/components/glowflow/country-fields";
 import { isLocale } from "@/lib/i18n";
 import { fallbackMarkets, type Market } from "@/lib/markets";
 import { createClient } from "@/lib/supabase/server";
+import { authCopy } from "@/lib/auth-copy";
 import { signUp } from "../auth-actions";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function RegisterPage({ params, searchParams }: { params: P
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const notices = await searchParams;
+  const labels = authCopy[locale].register;
   let markets = fallbackMarkets;
 
   if (
@@ -33,17 +35,17 @@ export default async function RegisterPage({ params, searchParams }: { params: P
   }
 
   return (
-    <AuthShell locale={locale} title="Create your salon" subtitle="Start with one secure owner account and a private GlowFlow workspace.">
+    <AuthShell locale={locale} title={labels.title} subtitle={labels.subtitle}>
       <AuthMessage {...notices} />
       <form action={signUp.bind(null, locale)} className="space-y-4">
-        <label className="block text-sm font-medium">Your name<input className={`${inputClass} mt-2`} name="full_name" autoComplete="name" minLength={2} required /></label>
-        <label className="block text-sm font-medium">Salon name<input className={`${inputClass} mt-2`} name="salon_name" minLength={2} required /></label>
-        <label className="block text-sm font-medium">Email<input className={`${inputClass} mt-2`} name="email" type="email" autoComplete="email" required /></label>
-        <label className="block text-sm font-medium">Password<input className={`${inputClass} mt-2`} name="password" type="password" autoComplete="new-password" minLength={8} required /></label>
+        <label className="block text-sm font-medium">{labels.name}<input className={`${inputClass} mt-2`} name="full_name" autoComplete="name" minLength={2} required /></label>
+        <label className="block text-sm font-medium">{labels.salon}<input className={`${inputClass} mt-2`} name="salon_name" minLength={2} required /></label>
+        <label className="block text-sm font-medium">{labels.email}<input className={`${inputClass} mt-2`} name="email" type="email" autoComplete="email" required /></label>
+        <label className="block text-sm font-medium">{labels.password}<input className={`${inputClass} mt-2`} name="password" type="password" autoComplete="new-password" minLength={8} required /></label>
         <CountryFields locale={locale} markets={markets} />
-        <button className={buttonClass} type="submit">Create GlowFlow account</button>
+        <button className={buttonClass} type="submit">{labels.submit}</button>
       </form>
-      <p className="mt-5 text-center text-sm">Already registered? <Link className="font-semibold hover:underline" href={`/${locale}/login`}>Sign in</Link></p>
+      <p className="mt-5 text-center text-sm">{labels.existing} <Link className="font-semibold hover:underline" href={`/${locale}/login`}>{labels.signIn}</Link></p>
     </AuthShell>
   );
 }

@@ -115,7 +115,7 @@ for (const locale of ["fr", "en", "es"]) {
 test("locale switch preserves sandbox query and hash", async t => {
   const { page } = await pageFor(t);
   await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1#booking`);
-  await page.getByRole("button", { name: "Change language" }).click();
+  await page.getByRole("button", { name: "Changer de langue" }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
   await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1#booking`);
   await page.getByRole("heading", { name: labels.en.title }).waitFor();
@@ -208,7 +208,7 @@ test("changing service then language preserves the current service and sandbox q
   await page.getByRole("heading", { name: labels.fr.title }).waitFor();
   await page.locator("select").selectOption(first);
   assert.equal(new URL(page.url()).searchParams.get("service"), first);
-  await page.getByRole("button", { name: "Change language" }).click();
+  await page.getByRole("button", { name: "Changer de langue" }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
   await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1&service=${first}#booking`);
   assert.equal(await page.locator("select").inputValue(), first);

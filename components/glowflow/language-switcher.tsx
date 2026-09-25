@@ -20,6 +20,12 @@ const languageOptions: Array<{ locale: Locale; short: string; flag: string }> = 
   { locale: "es", short: "ES", flag: "🇪🇸" },
 ];
 
+const accessibleLabel: Record<Locale, string> = {
+  fr: "Changer de langue",
+  en: "Change language",
+  es: "Cambiar idioma",
+};
+
 export function LanguageSwitcher({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,7 +58,7 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
           size="sm"
           className="h-10 rounded-full border-[#decaa6] bg-white/75 px-3 text-slate-800 shadow-none backdrop-blur hover:bg-white dark:border-white/15 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10"
           disabled={isPending}
-          aria-label="Change language"
+          aria-label={accessibleLabel[locale]}
         >
           <Languages className="size-4 sm:hidden" />
           <span className="hidden sm:inline">{current.flag}</span>

@@ -47,6 +47,11 @@ const copy = {
     emptyText: "Modifiez votre ville, votre catégorie ou votre prix maximum.",
     errorTitle: "La recherche est indisponible",
     errorText: "Réessayez dans quelques instants.",
+    ownerLogin: "Espace salon",
+    filteredEmptyTitle: "Aucun salon ne correspond à ces critères",
+    filteredEmptyText: "Modifiez ou effacez les filtres pour élargir votre recherche.",
+    browseEmptyTitle: "Les premiers salons arrivent bientôt",
+    browseEmptyText: "Les salons apparaîtront ici uniquement après que leur propriétaire aura choisi de publier leur profil.",
     previous: "Précédent",
     nextPage: "Suivant",
     page: "Page",
@@ -82,6 +87,11 @@ const copy = {
     emptyText: "Change your city, category, or maximum price.",
     errorTitle: "Search is unavailable",
     errorText: "Please try again in a moment.",
+    ownerLogin: "Salon sign in",
+    filteredEmptyTitle: "No salons match these filters",
+    filteredEmptyText: "Change or clear the filters to broaden your search.",
+    browseEmptyTitle: "The first salons are coming soon",
+    browseEmptyText: "Salons will appear here only after their owner chooses to publish their profile.",
     previous: "Previous",
     nextPage: "Next",
     page: "Page",
@@ -117,6 +127,11 @@ const copy = {
     emptyText: "Cambia la ciudad, la categoría o el precio máximo.",
     errorTitle: "La búsqueda no está disponible",
     errorText: "Inténtalo de nuevo en unos instantes.",
+    ownerLogin: "Acceso para salones",
+    filteredEmptyTitle: "Ningún salón coincide con estos filtros",
+    filteredEmptyText: "Cambia o borra los filtros para ampliar la búsqueda.",
+    browseEmptyTitle: "Los primeros salones llegarán pronto",
+    browseEmptyText: "Los salones aparecerán aquí solo cuando su propietario decida publicar el perfil.",
     previous: "Anterior",
     nextPage: "Siguiente",
     page: "Página",
@@ -219,6 +234,7 @@ export default async function SalonSearchPage({
 
   const total = Number(results[0]?.total_count ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = Boolean(searchText || country || city || postalCode || category || maxPriceValue || availableDate);
 
   return (
     <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#101216] dark:text-stone-100">
@@ -233,7 +249,10 @@ export default async function SalonSearchPage({
               <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.marketplace}</span>
             </span>
           </Link>
-          <LanguageSwitcher locale={locale} />
+          <nav className="flex items-center gap-2" aria-label={labels.marketplace}>
+            <Link href={`/${locale}/login`} className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-semibold text-[#8c5728] hover:bg-[#f3e8dc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b77a42] dark:text-[#efc992] dark:hover:bg-white/10">{labels.ownerLogin}</Link>
+            <LanguageSwitcher locale={locale} />
+          </nav>
         </div>
       </header>
 
@@ -314,8 +333,9 @@ export default async function SalonSearchPage({
         ) : results.length === 0 ? (
           <div className="rounded-[1.75rem] border border-dashed border-[#d9c7b2] bg-white/60 p-10 text-center dark:border-white/15 dark:bg-white/5">
             <Search className="mx-auto size-8 text-[#b77a42]" aria-hidden="true" />
-            <h2 className="mt-4 text-xl font-semibold">{labels.emptyTitle}</h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.emptyText}</p>
+            <h2 className="mt-4 text-xl font-semibold">{hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-stone-300">{hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}</p>
+            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] dark:border-white/15 dark:hover:bg-white/10" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
           </div>
         ) : (
           <>
@@ -368,7 +388,7 @@ export default async function SalonSearchPage({
             </div>
 
             {totalPages > 1 ? (
-              <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Pagination">
+              <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${labels.page} ${page}`}>
                 {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, filters, page - 1)}>{labels.previous}</Link> : null}
                 <span className="text-sm text-slate-600 dark:text-stone-300">{labels.page} {page} / {totalPages}</span>
                 {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, filters, page + 1)}>{labels.nextPage}</Link> : null}

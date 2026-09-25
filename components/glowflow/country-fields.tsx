@@ -25,7 +25,7 @@ export function CountryFields({ locale, markets }: { locale: Locale; markets: Ma
   return (
     <>
       <label className="block text-sm font-medium">
-        Country
+        {labels.country}
         <select
           className={`${inputClass} mt-2`}
           name="country_code"
@@ -41,7 +41,7 @@ export function CountryFields({ locale, markets }: { locale: Locale; markets: Ma
         </select>
       </label>
       <label className="block text-sm font-medium">
-        Time zone
+        {labels.timeZone}
         <select className={`${inputClass} mt-2`} name="time_zone" defaultValue={selectedMarket.default_time_zone} key={countryCode} required>
           {selectedMarket.supported_time_zones.map((timeZone) => (
             <option key={timeZone} value={timeZone}>{timeZone.replaceAll("_", " ")}</option>
@@ -49,12 +49,12 @@ export function CountryFields({ locale, markets }: { locale: Locale; markets: Ma
         </select>
       </label>
       <label className="block text-sm font-medium">
-        Salon address
+        {labels.address}
         <input className={`${inputClass} mt-2`} name="address_line1" autoComplete="street-address" minLength={3} required />
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-medium">
-          City
+          {labels.city}
           <input className={`${inputClass} mt-2`} name="city" autoComplete="address-level2" minLength={2} required />
         </label>
         <label className="block text-sm font-medium">
