@@ -15,7 +15,7 @@
 | Real tenant isolation | Partial | Full baseline/migration replay and core authorization now tested locally; scheduling, queue, public-profile and Storage operation matrices remain |
 | Live deposits and Connect | Not ready | Separate live flow, real appointment lifecycle, approved merchant configuration, signed settlement and reconciliation |
 | Refund/cancellation/no-show policies | Not ready | Approved policy plus implementation and failure/retry coverage |
-| Cash/mixed checkout and accounting | Not ready | Persistent financial ledger, receipts, reconciliation and role tests |
+| Cash/mixed checkout and accounting | Partial | PR 45 adds an immutable tenant-scoped payment/refund ledger with mixed-tender and role tests; owner UI, receipts and reconciliation remain incomplete |
 | Messaging | Preview only | Consent, provider delivery, retries, opt-out and scheduled-job verification |
 | Legal/support | Production verified September 24 | Owner-approved localized privacy, terms, support and cancellation/deposit guidance are published in FR/EN/ES with the verified Mocktar Technologies identity and support address |
 | Recovery | Hosted clone, Storage and signed-in journey verified | Current-state hosted clones passed data/Auth/bucket parity, anonymous denials, synthetic file recovery, real Auth sign-in, owner workspace creation and FR/EN/ES dashboard rendering; a selected historical daily/PITR restore remains |
