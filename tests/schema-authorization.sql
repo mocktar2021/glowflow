@@ -221,6 +221,10 @@ select public.test_denied('insert into storage.objects(bucket_id,name) values(''
 reset role;
 reset request.jwt.claim.sub;
 set role service_role;
+select public.test_assert(not has_table_privilege('service_role','public.payment_entries','update'),'service role cannot update payment ledger');
+select public.test_assert(not has_table_privilege('service_role','public.payment_entries','delete'),'service role cannot delete payment ledger');
+select public.test_assert(not has_table_privilege('service_role','public.payment_entries','truncate'),'service role cannot truncate payment ledger');
+select public.test_denied('truncate public.payment_entries');
 select public.test_rejected('insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key) values(''10000000-0000-0000-0000-000000000001'',''50000000-0000-0000-0000-000000000001'',''payment'',''stripe'',500,''USD'',''acct_fixture_b'',''pi_wrong_account'',gen_random_uuid())','22023');
 insert into public.payment_entries(tenant_id,appointment_id,entry_type,payment_method,amount,currency,provider_account_id,provider_payment_id,idempotency_key)
 values('10000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','payment','stripe',500,'USD','acct_fixture_a','pi_verified','66000000-0000-0000-0000-000000000012');

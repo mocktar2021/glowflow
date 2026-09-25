@@ -1,6 +1,8 @@
 -- GLOW-33: immutable appointment payment ledger.
 -- Entries are append-only. Corrections use compensating payment/refund entries.
 
+begin;
+
 create table public.payment_entries (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete restrict,
@@ -137,7 +139,7 @@ with check (
   and provider_payment_id is null
 );
 
-revoke all on public.payment_entries from public, anon, authenticated;
+revoke all on public.payment_entries from public, anon, authenticated, service_role;
 grant select, insert on public.payment_entries to authenticated;
 grant select, insert on public.payment_entries to service_role;
 
@@ -173,3 +175,5 @@ grant execute on function public.get_appointment_payment_summary(uuid) to authen
 
 comment on table public.payment_entries is
   'Append-only tenant payment and refund entries in minor currency units. Mixed tender uses multiple payment entries.';
+
+commit;

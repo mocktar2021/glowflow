@@ -59,7 +59,7 @@ record:
 
 The rollback file is intentionally guarded. It aborts if `payment_entries` contains any row,
 because payment and refund history must never be discarded to roll back an application
-release. Before first use, execute:
+release. If first-deployment verification fails and the table is still empty, execute:
 
 ```powershell
 npx supabase db query --linked --project-ref rfwhqutkiztxkagbhevp --file supabase/rollbacks/20260925143324_drop_empty_payment_ledger.sql --output-format json
@@ -69,3 +69,6 @@ Then verify that `payment_entries`, `get_appointment_payment_summary`, and the t
 trigger functions are absent. If any ledger row exists, keep the schema in place and roll the
 application back independently; design a forward-compatible repair and preserve the audit
 history.
+
+Both the forward migration and guarded rollback use an explicit transaction so an error cannot
+leave a partially created or partially removed ledger schema.
