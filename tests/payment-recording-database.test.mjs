@@ -49,10 +49,34 @@ test("manual recording is idempotent and cannot concurrently exceed the appointm
     insert into public.clients(id,tenant_id,full_name)
     values('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Client');
     insert into public.services(id,tenant_id,title_json,duration_minutes,price,deposit_amount,category,currency)
-    values('40000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','{"fr":"Coupe","en":"Cut"}',30,5000,1000,'hair','USD');
+    values
+      ('40000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','{"fr":"Coupe","en":"Cut"}',30,5000,1000,'hair','USD'),
+      ('40000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','{"fr":"Test volume"}',30,2000000,0,'hair','USD');
     insert into public.appointments(id,tenant_id,client_id,service_id,staff_id,start_time,end_time)
-    values('50000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',now()+interval '1 day',now()+interval '1 day 30 minutes');
+    values
+      ('50000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001',now()+interval '1 day',now()+interval '1 day 30 minutes'),
+      ('50000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001',now()+interval '2 days',now()+interval '2 days 30 minutes');
+
+    insert into public.payment_entries(
+      tenant_id,appointment_id,entry_type,payment_method,amount,currency,idempotency_key
+    )
+    select
+      '10000000-0000-0000-0000-000000000001',
+      '50000000-0000-0000-0000-000000000002',
+      'payment','cash',1,'USD',gen_random_uuid()
+    from generate_series(1,1001);
   `);
+
+  const grouped = sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select paid_amount
+    from public.get_appointment_payment_summaries(
+      array['50000000-0000-0000-0000-000000000002']::uuid[]
+    );
+  `);
+  assert.match(grouped, /(?:^|\r?\n)1001(?:\r?\n|$)/,
+    "grouped summary must include ledger rows beyond the Data API row limit");
 
   const payment = (amount, key) => `
     begin;
@@ -71,7 +95,7 @@ test("manual recording is idempotent and cannot concurrently exceed the appointm
   ]);
   assert.equal(bounded.filter(result => result.status === 0).length, 1);
   assert.match(bounded.find(result => result.status !== 0)?.stderr ?? "", /payment_exceeds_outstanding_balance/);
-  assert.equal(sql("select sum(amount) from public.payment_entries"), "3000");
+  assert.equal(sql("select sum(amount) from public.payment_entries where appointment_id='50000000-0000-0000-0000-000000000001'"), "3000");
 
   const duplicate = await Promise.all([
     concurrentSql(payment(1000, "66000000-0000-0000-0000-000000000003")),

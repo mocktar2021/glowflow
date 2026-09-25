@@ -244,12 +244,49 @@ begin
 end;
 $$;
 
+create or replace function public.get_appointment_payment_summaries(
+  target_appointment_ids uuid[]
+)
+returns table (
+  appointment_id uuid,
+  currency text,
+  paid_amount bigint,
+  refunded_amount bigint,
+  net_paid_amount bigint
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select
+    appointment.id,
+    appointment.service_currency,
+    coalesce(sum(entry.amount) filter (where entry.entry_type = 'payment'), 0)::bigint,
+    coalesce(sum(entry.amount) filter (where entry.entry_type = 'refund'), 0)::bigint,
+    coalesce(sum(case when entry.entry_type = 'payment' then entry.amount else -entry.amount end), 0)::bigint
+  from public.appointments as appointment
+  left join public.payment_entries as entry
+    on entry.appointment_id = appointment.id
+   and entry.tenant_id = appointment.tenant_id
+  where appointment.id = any(coalesce(target_appointment_ids, '{}'::uuid[]))
+  group by appointment.id, appointment.service_currency;
+$$;
+
 revoke all on function public.record_manual_appointment_payment(uuid, text, integer, uuid)
 from public, anon;
 grant execute on function public.record_manual_appointment_payment(uuid, text, integer, uuid)
 to authenticated;
 
+revoke all on function public.get_appointment_payment_summaries(uuid[])
+from public, anon;
+grant execute on function public.get_appointment_payment_summaries(uuid[])
+to authenticated;
+
 comment on function public.record_manual_appointment_payment(uuid, text, integer, uuid) is
   'Owner-only idempotent recording of cash or externally processed card tender, bounded by the immutable appointment total.';
+
+comment on function public.get_appointment_payment_summaries(uuid[]) is
+  'RLS-scoped grouped ledger totals, with at most one row per requested appointment.';
 
 commit;

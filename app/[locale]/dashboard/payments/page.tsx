@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isLocale } from "@/lib/i18n";
-import { localizedServiceTitle, paymentSummary, type LedgerEntry } from "@/lib/payments/recording";
+import { localizedServiceTitle, paymentSummary, type LedgerSummary } from "@/lib/payments/recording";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxConfiguration } from "@/lib/stripe-sandbox-config";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
@@ -35,12 +35,12 @@ export default async function PaymentsPage({ params, searchParams }: {
     .select("id,start_time,service_title_json,service_price,service_currency")
     .neq("status", "canceled").order("start_time", { ascending: false }).limit(20);
   const appointmentIds = appointments?.map((appointment) => appointment.id) ?? [];
-  const { data: entries, error: entriesError } = appointmentIds.length
-    ? await owner.supabase.from("payment_entries")
-      .select("appointment_id,entry_type,payment_method,amount,occurred_at")
-      .in("appointment_id", appointmentIds).order("occurred_at", { ascending: false })
+  const { data: summaries, error: summariesError } = appointmentIds.length
+    ? await owner.supabase.rpc("get_appointment_payment_summaries", {
+      target_appointment_ids: appointmentIds,
+    })
     : { data: [], error: null };
-  const ledgerUnavailable = !!appointmentsError || !!entriesError;
+  const ledgerUnavailable = !!appointmentsError || !!summariesError;
   const { data: ownedSalon } = depositConfig ? await owner.supabase.from("tenants").select("slug").eq("id", owner.tenant.id).single() : { data: null };
   const { data: connection, error } = await owner.supabase.from("stripe_sandbox_connections").select("stripe_account_id").eq("tenant_id", owner.tenant.id).maybeSingle();
   let ready = false;
@@ -68,7 +68,7 @@ export default async function PaymentsPage({ params, searchParams }: {
         {!ledgerUnavailable && !appointments?.length && <p>{t.noAppointments}</p>}
         {!ledgerUnavailable && <div className="space-y-4">
           {(appointments as Appointment[] | null)?.map((appointment) => {
-            const summary = paymentSummary(appointment.id, appointment.service_price, (entries ?? []) as LedgerEntry[]);
+            const summary = paymentSummary(appointment.id, appointment.service_price, (summaries ?? []) as LedgerSummary[]);
             const money = (amount: number) => new Intl.NumberFormat(locale, { style: "currency", currency: appointment.service_currency }).format(amount / 100);
             return <article key={appointment.id} className="space-y-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-700">
               <div className="flex flex-wrap items-start justify-between gap-2">

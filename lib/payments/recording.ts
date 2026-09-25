@@ -1,9 +1,9 @@
-export type LedgerEntry = {
+export type LedgerSummary = {
   appointment_id: string;
-  entry_type: "payment" | "refund";
-  payment_method: "stripe" | "cash" | "external_card";
-  amount: number;
-  occurred_at?: string;
+  currency: string;
+  paid_amount: number;
+  refunded_amount: number;
+  net_paid_amount: number;
 };
 
 export type AppointmentPaymentSummary = {
@@ -24,16 +24,12 @@ export function parseMinorAmount(value: string): number | null {
 export function paymentSummary(
   appointmentId: string,
   appointmentTotal: number,
-  entries: LedgerEntry[],
+  summaries: LedgerSummary[],
 ): AppointmentPaymentSummary {
-  let paid = 0;
-  let refunded = 0;
-  for (const entry of entries) {
-    if (entry.appointment_id !== appointmentId) continue;
-    if (entry.entry_type === "payment") paid += entry.amount;
-    else refunded += entry.amount;
-  }
-  const netPaid = paid - refunded;
+  const summary = summaries.find((item) => item.appointment_id === appointmentId);
+  const paid = summary?.paid_amount ?? 0;
+  const refunded = summary?.refunded_amount ?? 0;
+  const netPaid = summary?.net_paid_amount ?? 0;
   return { paid, refunded, netPaid, outstanding: Math.max(appointmentTotal - netPaid, 0) };
 }
 

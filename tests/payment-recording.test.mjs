@@ -20,10 +20,8 @@ test("parses salon-entered amounts into integer minor units", () => {
 
 test("derives appointment totals only from immutable ledger entries", () => {
   const entries = [
-    { appointment_id: "a", entry_type: "payment", payment_method: "cash", amount: 2000 },
-    { appointment_id: "a", entry_type: "payment", payment_method: "external_card", amount: 1500 },
-    { appointment_id: "a", entry_type: "refund", payment_method: "cash", amount: 500 },
-    { appointment_id: "b", entry_type: "payment", payment_method: "cash", amount: 9999 },
+    { appointment_id: "a", currency: "USD", paid_amount: 3500, refunded_amount: 500, net_paid_amount: 3000 },
+    { appointment_id: "b", currency: "USD", paid_amount: 9999, refunded_amount: 0, net_paid_amount: 9999 },
   ];
   assert.deepEqual(paymentSummary("a", 5000, entries), {
     paid: 3500, refunded: 500, netPaid: 3000, outstanding: 2000,
@@ -48,11 +46,12 @@ test("migration enforces trusted snapshots, ownership, idempotency, and payment 
   assert.doesNotMatch(migration, /application_fee_amount/);
 });
 
-test("payments page reads the complete displayed ledger and fails closed on query errors", async () => {
+test("payments page uses bounded grouped summaries and fails closed on query errors", async () => {
   const page = await readFile(new URL("../app/[locale]/dashboard/payments/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /\.in\("appointment_id", appointmentIds\)/);
-  assert.doesNotMatch(page, /payment_entries[\s\S]{0,200}\.limit\(/);
-  assert.match(page, /ledgerUnavailable = !!appointmentsError \|\| !!entriesError/);
+  assert.match(page, /rpc\("get_appointment_payment_summaries"/);
+  assert.match(page, /target_appointment_ids: appointmentIds/);
+  assert.doesNotMatch(page, /from\("payment_entries"\)/);
+  assert.match(page, /ledgerUnavailable = !!appointmentsError \|\| !!summariesError/);
   assert.match(page, /ledgerUnavailable && <p role="alert"/);
   assert.match(page, /!ledgerUnavailable && <div/);
 });

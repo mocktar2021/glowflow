@@ -57,7 +57,8 @@ npx supabase db query --linked --project-ref rfwhqutkiztxkagbhevp --file supabas
 5. Verify a payment above the outstanding amount fails with `payment_exceeds_outstanding_balance` and leaves the ledger unchanged.
 6. Verify staff, unrelated users, anonymous users, and cross-tenant appointment identifiers cannot record a payment.
 7. Submit concurrent payments whose sum exceeds the outstanding amount and verify at most the bounded amount commits.
-8. Remove every disposable fixture and confirm no test rows remain.
+8. Insert more than 1,000 disposable ledger entries for one appointment and verify `get_appointment_payment_summaries` returns the complete grouped total in one row.
+9. Remove every disposable fixture and confirm no test rows remain.
 
 Retain these read-only catalog checks as post-application evidence:
 
@@ -74,6 +75,13 @@ select p.prosecdef, p.proconfig,
 from pg_proc p
 join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='public' and p.proname='record_manual_appointment_payment';
+
+select p.proname, p.prosecdef, p.proconfig,
+  has_function_privilege('anon', p.oid, 'execute') as anon_execute,
+  has_function_privilege('authenticated', p.oid, 'execute') as authenticated_execute
+from pg_proc p
+join pg_namespace n on n.oid=p.pronamespace
+where n.nspname='public' and p.proname='get_appointment_payment_summaries';
 
 select count(*) as snapshot_mismatch
 from public.appointments
