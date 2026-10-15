@@ -87,6 +87,31 @@ begin
     return;
   end if;
 
+  -- Serialize the request key independently of the requested start. A concurrent
+  -- retry may drift to another start but must still converge on the first result.
+  if request_key is not null then
+    perform pg_advisory_xact_lock(
+      hashtextextended(
+        selected_tenant_id::text || ':public-booking-request:' || request_key::text,
+        0
+      )
+    );
+
+    -- This is the authoritative idempotency read. A competing transaction may
+    -- have committed while this transaction waited for the request-key lock.
+    select appointment.* into existing_appointment
+    from public.appointments as appointment
+    where appointment.tenant_id = selected_tenant_id
+      and appointment.public_booking_request_key = request_key;
+
+    if found then
+      return query select existing_appointment.id, existing_appointment.start_time,
+        existing_appointment.end_time, selected_salon_name, selected_service_title,
+        selected_currency, existing_appointment.booking_locale;
+      return;
+    end if;
+  end if;
+
   if not exists (
     select 1 from public.users
     where id = target_staff_id and tenant_id = selected_tenant_id
@@ -125,6 +150,8 @@ begin
     raise exception using errcode = '23P01', message = 'public_time_unavailable';
   end if;
 
+  -- Keep a distinct resource lock so different request keys competing for the
+  -- same start are serialized before the final conflict check.
   perform pg_advisory_xact_lock(
     hashtextextended(selected_tenant_id::text || requested_start::text, 0)
   );

@@ -74,22 +74,33 @@ test("public availability and booking honor optional service staff assignments",
 });
 
 test("appointment creation accepts only an exposed service, staff, and local-date slot", () => {
+  const requestLookups = [...slotIntegrity.matchAll(/public_booking_request_key = request_key/g)];
+  assert.equal(requestLookups.length, 2, "fast and authoritative idempotency reads must remain");
+  assert.match(slotIntegrity, /:public-booking-request:/);
+  assert.ok(
+    slotIntegrity.indexOf("pg_advisory_xact_lock") < requestLookups[1].index,
+    "authoritative idempotency read must follow the request-key lock",
+  );
+  assert.ok(
+    requestLookups[1].index < slotIntegrity.indexOf("select 1 from public.users"),
+    "authoritative idempotency read must precede staff validation",
+  );
   assert.match(slotIntegrity, /from public\.get_public_booking_slots\(/);
   assert.match(slotIntegrity, /\(requested_start at time zone selected_time_zone\)::date/);
   assert.match(slotIntegrity, /available_slot\.staff_id = target_staff_id/);
   assert.match(slotIntegrity, /available_slot\.slot_start = requested_start/);
   assert.ok(
-    slotIntegrity.indexOf("public_booking_request_key = request_key")
+    requestLookups[1].index
       < slotIntegrity.indexOf("from public.get_public_booking_slots("),
-    "idempotency lookup must precede slot validation",
+    "authoritative request-key lookup must precede staff and slot validation",
   );
   assert.ok(
     slotIntegrity.indexOf("from public.get_public_booking_slots(")
-      < slotIntegrity.indexOf("pg_advisory_xact_lock"),
-    "slot validation must precede the appointment lock",
+      < slotIntegrity.lastIndexOf("pg_advisory_xact_lock"),
+    "slot validation must precede the separate resource lock",
   );
   assert.ok(
-    slotIntegrity.indexOf("pg_advisory_xact_lock")
+    slotIntegrity.lastIndexOf("pg_advisory_xact_lock")
       < slotIntegrity.lastIndexOf("private.public_resource_available("),
     "resource conflicts must be rechecked after the lock",
   );

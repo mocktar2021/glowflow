@@ -12,10 +12,11 @@ working hours when no appointment or station conflict happened to block it.
 
 - A new public appointment must use a start returned by
   `get_public_booking_slots` for the same service, staff member, and tenant-local date.
-- The idempotency lookup remains before slot validation so retrying a successful
-  request returns its stored appointment after that appointment consumes the slot.
-- The advisory lock and the resource check after the lock remain in place to reject a
-  conflict created between availability lookup and confirmation.
+- A fast idempotency lookup remains before slot validation. A dedicated
+  tenant/request-key transaction lock and authoritative second lookup make
+  simultaneous retries converge even when their requested starts differ.
+- The separate tenant/start resource lock and the resource check after it remain in
+  place to reject a conflict created between availability lookup and confirmation.
 - Staff eligibility, owner publication, tenant boundaries, trusted service duration,
   sanitation buffer, station, locale, and server-only RPC permissions remain intact.
 
@@ -31,7 +32,8 @@ or replay older migrations.
 With disposable records in the approved salon, verify:
 
 1. A start currently returned for the selected service and staff confirms normally.
-2. Retrying the same request key returns the same appointment and creates no duplicate.
+2. Sequential and simultaneous retries with the same request key return the same
+   appointment and create no duplicate, including when the retry start drifts.
 3. A start shifted by 15 minutes returns `public_time_unavailable`.
 4. A start outside the staff schedule returns `public_time_unavailable`.
 5. Station hours, duration, sanitation buffer, and an existing conflict remove the
@@ -53,5 +55,6 @@ the six checks above and record that exposure before using the rollback.
 
 `tests/public-booking-slot-integrity.sql` runs against a fresh disposable PostgreSQL
 database after the baseline and every ordered migration. It covers a valid exposed
-slot, idempotency, forged off-grid and outside-hours starts, station/duration/buffer
-boundaries, an existing station conflict, and cross-tenant denial.
+slot, sequential and concurrent idempotency, forged off-grid and outside-hours starts,
+station/duration/buffer boundaries, an existing station conflict, and cross-tenant
+denial.
