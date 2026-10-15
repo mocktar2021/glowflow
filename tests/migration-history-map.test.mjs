@@ -17,6 +17,13 @@ function normalizedSha256(value) {
     .digest("hex");
 }
 
+test("migration fingerprints are stable across platform line endings", () => {
+  const lf = "first line\nsecond line\n";
+
+  assert.equal(normalizedSha256(lf.replaceAll("\n", "\r\n")), normalizedSha256(lf));
+  assert.equal(normalizedSha256(lf.replaceAll("\n", "\r")), normalizedSha256(lf));
+});
+
 test("migration history map covers immutable migration files", async () => {
   assert.equal(historyMap.organizationId, "goutxcrujaxjjssbjfsn");
   assert.equal(historyMap.projectRef, "rfwhqutkiztxkagbhevp");
