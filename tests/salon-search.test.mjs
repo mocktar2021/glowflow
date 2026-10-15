@@ -9,13 +9,13 @@ const migrationPath = path.join(
   root,
   "supabase",
   "migrations",
-  "20260905014500_add_public_salon_search.sql",
+  "20260905021732_add_public_salon_search.sql",
 );
 const publicGrantMigrationPath = path.join(
   root,
   "supabase",
   "migrations",
-  "20260924183024_restrict_public_salon_profile_columns.sql",
+  "20260924183507_restrict_public_salon_profile_columns.sql",
 );
 const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/page.tsx"), "utf8");
 

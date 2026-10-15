@@ -1,0 +1,4 @@
+-- GLOW-11 migration-history reconciliation marker.
+-- Production records this version for the historical schema bootstrap.
+-- Fresh installations load supabase/schema.sql before this migration directory,
+-- so replaying the bootstrap here would duplicate existing objects.

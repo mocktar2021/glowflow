@@ -5,11 +5,11 @@ import test from "node:test";
 
 const root = process.cwd();
 const migration = await readFile(
-  path.join(root, "supabase/migrations/20260905231500_add_public_availability_booking.sql"),
+  path.join(root, "supabase/migrations/20260905234045_add_public_availability_booking.sql"),
   "utf8",
 );
 const rpcPermissions = await readFile(
-  path.join(root, "supabase/migrations/20260905234500_restrict_public_booking_rpcs.sql"),
+  path.join(root, "supabase/migrations/20260905234226_restrict_public_booking_rpcs.sql"),
   "utf8",
 );
 const route = await readFile(path.join(root, "app/api/public-booking/route.ts"), "utf8");

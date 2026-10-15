@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(
-  path.join(root, "supabase/migrations/20260905200000_add_resource_availability.sql"),
+  path.join(root, "supabase/migrations/20260905200056_add_resource_availability.sql"),
   "utf8",
 );
 const page = await readFile(path.join(root, "app/[locale]/dashboard/availability/page.tsx"), "utf8");

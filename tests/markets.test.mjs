@@ -11,7 +11,7 @@ const migrationPath = path.join(
   root,
   "supabase",
   "migrations",
-  "20260905011500_add_multi_country_markets.sql",
+  "20260905012356_add_multi_country_markets.sql",
 );
 const ownerWorkspaceFixPath = path.join(
   root,

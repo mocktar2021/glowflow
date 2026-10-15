@@ -32,8 +32,8 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
  assert.match(url.pathname,/^\/glowflow_sandbox_test[0-9_]*$/,'dedicated disposable database required');
  assert.equal(sql("select count(*) from pg_tables where schemaname='public'"),'0','database must be empty');
  sql(readFileSync(new URL('tests/sandbox-database-fixture.sql',root),'utf8'));
- sql(readFileSync(new URL('supabase/migrations/20260906161330_add_stripe_sandbox_connections.sql',root),'utf8'));
- const original=readFileSync(new URL('supabase/migrations/20260905231500_add_public_availability_booking.sql',root),'utf8');
+ sql(readFileSync(new URL('supabase/migrations/20260906225417_add_stripe_sandbox_connections.sql',root),'utf8'));
+ const original=readFileSync(new URL('supabase/migrations/20260905234045_add_public_availability_booking.sql',root),'utf8');
  sql(original.slice(original.indexOf('create or replace function private.public_resource_available'),original.indexOf('create or replace function public.get_public_booking_slots')));
  const migration=readdirSync(new URL('supabase/migrations/',root)).find(f=>f.endsWith('_add_stripe_sandbox_reservations.sql'));assert.ok(migration);
  sql(readFileSync(new URL('supabase/migrations/'+migration,root),'utf8'));
@@ -42,7 +42,7 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
  // Reproduce the deployed failure before applying the forward migration.
  sql(`update public.salon_public_profiles set is_published=false where tenant_id='${tenant}'`);
  assert.throws(()=>sql('set role service_role;'+reserve(key)),/sandbox_payments_unavailable/);
- sql(readFileSync(new URL('supabase/migrations/20260913160600_allow_unpublished_sandbox_reservations.sql',root),'utf8'));
+ sql(readFileSync(new URL('supabase/migrations/20260913161823_allow_unpublished_sandbox_reservations.sql',root),'utf8'));
  const r=JSON.parse(sql('set role service_role;'+reserve(key)) .split('\n').at(-1));
  assert.equal(sql(`select is_published from public.salon_public_profiles where tenant_id='${tenant}'`),'f');
  assert.equal(JSON.parse(sql(reserve(key))).id,r.id);

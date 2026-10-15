@@ -1,0 +1,4 @@
+-- GLOW-11 migration-history reconciliation marker.
+-- Production records a separate historical SECURITY INVOKER hardening step.
+-- The preceding checked-in create_owner_workspace migration already creates the
+-- function as SECURITY INVOKER, so no additional statement is required here.

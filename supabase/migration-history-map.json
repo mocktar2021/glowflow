@@ -1,0 +1,203 @@
+{
+  "organizationId": "goutxcrujaxjjssbjfsn",
+  "projectRef": "rfwhqutkiztxkagbhevp",
+  "baseline": "supabase/schema.sql",
+  "entries": [
+    {
+      "version": "20260904204343",
+      "name": "initial_glowflow_schema",
+      "sourceVersion": null,
+      "marker": true,
+      "normalizedSha256": "fc7990c3e3b1fa60c83ffdd1c591b8dfd304be0f9996829d8f766923e897280c"
+    },
+    {
+      "version": "20260904204729",
+      "name": "add_foreign_key_indexes",
+      "sourceVersion": null,
+      "marker": true,
+      "normalizedSha256": "c0df4efd1442a04d5828e99a6fe1e2563081d5d01eb7cba164cc4c176f9631a6"
+    },
+    {
+      "version": "20260904234418",
+      "name": "create_owner_workspace",
+      "sourceVersion": "20260904235000",
+      "marker": false,
+      "normalizedSha256": "611bea88794fe930bd422402bd55c311bcfc43709175d3d573b987ba1e270a1c"
+    },
+    {
+      "version": "20260904234702",
+      "name": "owner_workspace_security_invoker",
+      "sourceVersion": null,
+      "marker": true,
+      "normalizedSha256": "e3b85c4d6b5b8e7aadd9a71a5b94efedeed7530b62b0577e014c376dac04be6f"
+    },
+    {
+      "version": "20260905001048",
+      "name": "owner_workspace_use_jwt_email",
+      "sourceVersion": "20260905001000",
+      "marker": false,
+      "normalizedSha256": "29a799250c00e849d6cf01a36055f9cbe6054ade387d7aebc9f8742440e80bc7"
+    },
+    {
+      "version": "20260905002346",
+      "name": "owner_workspace_avoid_returning_rls",
+      "sourceVersion": "20260905002500",
+      "marker": false,
+      "normalizedSha256": "a8099994f12a0a45fbf8e5b84cd0983ba4163b8572b9d72d7f3a8dd8fbe2cea0"
+    },
+    {
+      "version": "20260905012356",
+      "name": "add_multi_country_markets",
+      "sourceVersion": "20260905011500",
+      "marker": false,
+      "normalizedSha256": "530255f361651e7bab70c8d542465fce308ffa334db31108b3b153ecd985778b"
+    },
+    {
+      "version": "20260905021732",
+      "name": "add_public_salon_search",
+      "sourceVersion": "20260905014500",
+      "marker": false,
+      "normalizedSha256": "b2480e71eb3495b90fef165b287109b4aa8491a059ab1c94995871f789ea627d"
+    },
+    {
+      "version": "20260905025931",
+      "name": "add_complete_public_salon_profiles",
+      "sourceVersion": "20260905023000",
+      "marker": false,
+      "normalizedSha256": "8ae8cc0d106f8d3f30830277e0c7939ea6fbae970932388ce070cc68f11acdb2"
+    },
+    {
+      "version": "20260905174753",
+      "name": "add_service_catalog_management",
+      "sourceVersion": "20260905170000",
+      "marker": false,
+      "normalizedSha256": "e884ae774265cfee78d916ad8643a0ef3316c4b67cbe83a84317d96bee0b9028"
+    },
+    {
+      "version": "20260905180706",
+      "name": "add_service_staff_foreign_key_indexes",
+      "sourceVersion": "20260905175500",
+      "marker": false,
+      "normalizedSha256": "1a6347bf70d40907cfdfaf42dbe2d8cc6588cc532e20c94daddf2e0e680b9faf"
+    },
+    {
+      "version": "20260905190710",
+      "name": "add_appointment_conflict_guards",
+      "sourceVersion": "20260905191500",
+      "marker": false,
+      "normalizedSha256": "4a52d252269e93ef206b91cd171ad3bfce7ae6a3d3113097c6ab8ac2fcc32316"
+    },
+    {
+      "version": "20260905193908",
+      "name": "move_btree_gist_to_extensions",
+      "sourceVersion": "20260905193000",
+      "marker": false,
+      "normalizedSha256": "0e2bf8bcb29b2c352e68993fc03f5c0a7c59d532bd6b786614de422516e8d009"
+    },
+    {
+      "version": "20260905200056",
+      "name": "add_resource_availability",
+      "sourceVersion": "20260905200000",
+      "marker": false,
+      "normalizedSha256": "fa7e86f9c64bbd069102dc1ce740113bc5a606742c616b52c2b5a2e554abb2cd"
+    },
+    {
+      "version": "20260905203507",
+      "name": "add_calendar_appointment_actions",
+      "sourceVersion": "20260905201500",
+      "marker": false,
+      "normalizedSha256": "aaddd2869f693f84493c7ef6445a5cbe5bb0e6729af5adefa41a8f441ba27462"
+    },
+    {
+      "version": "20260905211021",
+      "name": "fix_station_hours_fallback",
+      "sourceVersion": "20260905210500",
+      "marker": false,
+      "normalizedSha256": "3e8bdcd0431c560034f1359d5dab92cd4d22410000af353660503d306715d0f4"
+    },
+    {
+      "version": "20260905224654",
+      "name": "add_walk_in_queue",
+      "sourceVersion": "20260905222000",
+      "marker": false,
+      "normalizedSha256": "78fe2080bbea266f8ba480fcd5c65acffe16cb7dbcaf8135ac0081884a31aaa2"
+    },
+    {
+      "version": "20260905234045",
+      "name": "add_public_availability_booking",
+      "sourceVersion": "20260905231500",
+      "marker": false,
+      "normalizedSha256": "371acd75942daab7926297faca4c3e0a9eb00b99a056cf13b68f09799e9b0cb6"
+    },
+    {
+      "version": "20260905234226",
+      "name": "restrict_public_booking_rpcs",
+      "sourceVersion": "20260905234500",
+      "marker": false,
+      "normalizedSha256": "b46c1d6dd6e35a02135ee44b1217036014e31ce909ed92d496baae4fad41638a"
+    },
+    {
+      "version": "20260906225417",
+      "name": "add_stripe_sandbox_connections",
+      "sourceVersion": "20260906161330",
+      "marker": false,
+      "normalizedSha256": "eb29c5fe9b51943706f580b1ea83851dcfcdf53d7ef02c58dd760d8d5868c39b"
+    },
+    {
+      "version": "20260913000239",
+      "name": "add_stripe_sandbox_reservations",
+      "sourceVersion": "20260910232219",
+      "marker": false,
+      "normalizedSha256": "bfd8542468574768bc3876afe89dc9a6922cc10d61e79d525298c086a9c3c401"
+    },
+    {
+      "version": "20260913161823",
+      "name": "allow_unpublished_sandbox_reservations",
+      "sourceVersion": "20260913160600",
+      "marker": false,
+      "normalizedSha256": "13851c57c36fa42065f94d0b53d9b8e2065eb9806f9e8f7ad5e4b985e289bcc1"
+    },
+    {
+      "version": "20260924183507",
+      "name": "restrict_public_salon_profile_columns",
+      "sourceVersion": "20260924183024",
+      "marker": false,
+      "normalizedSha256": "4c3608a7a43c64cb7c32ddd2ddd974503a1ec325315aa631434dae0c12e8d8a3"
+    },
+    {
+      "version": "20260924213044",
+      "name": "fix_owner_workspace_market_permissions",
+      "sourceVersion": "20260924213044",
+      "marker": false,
+      "normalizedSha256": "43287cda3ee7fc3002f8d424a1f5139dcf05ccd7895dc422d3037132683dcb4c"
+    },
+    {
+      "version": "20260925143324",
+      "name": "add_immutable_payment_ledger",
+      "sourceVersion": "20260925143324",
+      "marker": false,
+      "normalizedSha256": "c791ef3ba0b5419cc2831fab4632325ba5cfc499562b4ebd30bc4cda7ea23d92"
+    },
+    {
+      "version": "20260925184222",
+      "name": "require_published_salon_for_public_booking",
+      "sourceVersion": "20260925184222",
+      "marker": false,
+      "normalizedSha256": "013d75423d85c4f2b4c9dc66feaa88d7f577dbe54a6e663418bb482690d82a6b"
+    },
+    {
+      "version": "20260925194709",
+      "name": "add_trusted_appointment_payment_recording",
+      "sourceVersion": "20260925194709",
+      "marker": false,
+      "normalizedSha256": "58cabbc8a0e6cd00598fc17bdb8017881a80487b4cf21bdb27074925b86440c4"
+    },
+    {
+      "version": "20260925213000",
+      "name": "add_notification_persistence",
+      "sourceVersion": "20260925213000",
+      "marker": false,
+      "normalizedSha256": "829a044161dbb237aaf15c8c7234d7a8fd1bdf2a22628ba29b42cbd6c3f302c2"
+    }
+  ]
+}

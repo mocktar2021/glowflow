@@ -6,7 +6,7 @@ Regression coverage reproduces the old failure, applies the fix, creates a reser
 
 Validation: 26 targeted Node tests passed. PostgreSQL 14 database assertions passed; its Windows runner then failed during disposable database cleanup. Linux CI must verify the complete runner. No UI code changed.
 
-Apply only 20260913160600_allow_unpublished_sandbox_reservations.sql. Rollback: restore the reservation function from 20260910232219_add_stripe_sandbox_reservations.sql using CREATE OR REPLACE, preserving grants and ledger rows. Never replay the migration directory.
+Apply only `20260913161823_allow_unpublished_sandbox_reservations.sql`. Rollback: restore the reservation function from `20260913000239_add_stripe_sandbox_reservations.sql` using `CREATE OR REPLACE`, preserving grants and ledger rows. Never replay the migration directory.
 
 Preview setup and unsigned/signed non-payment probes are verified. On September 13, 2026, the function update was applied and PR 35 merged. Linux CI validation, booking browser checks, and database authorization checks passed.
 

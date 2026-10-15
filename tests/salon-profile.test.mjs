@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const migration = await readFile(path.join(root, "supabase/migrations/20260905023000_add_complete_public_salon_profiles.sql"), "utf8");
+const migration = await readFile(path.join(root, "supabase/migrations/20260905025931_add_complete_public_salon_profiles.sql"), "utf8");
 const publicPage = await readFile(path.join(root, "app/[locale]/salons/[slug]/page.tsx"), "utf8");
 const ownerPage = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/actions.ts"), "utf8");

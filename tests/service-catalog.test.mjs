@@ -5,12 +5,12 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const migration = await readFile(path.join(root, "supabase/migrations/20260905170000_add_service_catalog_management.sql"), "utf8");
-const indexMigration = await readFile(path.join(root, "supabase/migrations/20260905175500_add_service_staff_foreign_key_indexes.sql"), "utf8");
+const migration = await readFile(path.join(root, "supabase/migrations/20260905174753_add_service_catalog_management.sql"), "utf8");
+const indexMigration = await readFile(path.join(root, "supabase/migrations/20260905180706_add_service_staff_foreign_key_indexes.sql"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/dashboard/services/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/services/actions.ts"), "utf8");
 const checkout = await readFile(path.join(root, "app/api/checkout/route.ts"), "utf8");
-const reservations = await readFile(path.join(root, "supabase/migrations/20260910232219_add_stripe_sandbox_reservations.sql"), "utf8");
+const reservations = await readFile(path.join(root, "supabase/migrations/20260913000239_add_stripe_sandbox_reservations.sql"), "utf8");
 
 test("stores service currency and tenant-scoped eligible staff", () => {
   assert.match(migration, /add column if not exists currency text/);
