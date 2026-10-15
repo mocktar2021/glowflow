@@ -37,6 +37,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   // Test the actual migrated application objects, never recreated policy fixtures.
   sql(readFileSync(new URL('tests/schema-authorization.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-booking-service-staff.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/public-booking-slot-integrity.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {
