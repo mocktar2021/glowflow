@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(
-  path.join(root, "supabase/migrations/20260905191500_add_appointment_conflict_guards.sql"),
+  path.join(root, "supabase/migrations/20260905190710_add_appointment_conflict_guards.sql"),
   "utf8",
 );
 const messages = await readFile(path.join(root, "lib/bookings/conflicts.ts"), "utf8");
 const extensionMigration = await readFile(
-  path.join(root, "supabase/migrations/20260905193000_move_btree_gist_to_extensions.sql"),
+  path.join(root, "supabase/migrations/20260905193908_move_btree_gist_to_extensions.sql"),
   "utf8",
 );
 

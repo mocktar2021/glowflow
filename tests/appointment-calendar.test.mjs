@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(
-  path.join(root, "supabase/migrations/20260905201500_add_calendar_appointment_actions.sql"),
+  path.join(root, "supabase/migrations/20260905203507_add_calendar_appointment_actions.sql"),
   "utf8",
 );
 const stationHoursMigration = await readFile(
-  path.join(root, "supabase/migrations/20260905210500_fix_station_hours_fallback.sql"),
+  path.join(root, "supabase/migrations/20260905211021_fix_station_hours_fallback.sql"),
   "utf8",
 );
 const page = await readFile(path.join(root, "app/[locale]/dashboard/calendar/page.tsx"), "utf8");

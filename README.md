@@ -31,7 +31,7 @@ Supported locales are `fr`, `en`, and `es`. Language preferences stay separate f
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and add your sandbox values.
-2. For a fresh project, run the historical baseline `supabase/schema.sql`, then **every** file in `supabase/migrations` in timestamp order. The baseline alone is not the current schema. For an existing project, reconcile its migration history before applying only pending migrations; never replay the baseline against an existing database.
+2. For a fresh project, run the historical baseline `supabase/schema.sql`, then **every** file in `supabase/migrations` in timestamp order. The baseline alone is not the current schema. For an existing project, reconcile its migration history before applying only pending migrations; never replay the baseline against an existing database. The production metadata procedure is documented in `docs/GLOW-11-migration-ledger-reconciliation.md`, and `supabase/migration-history-map.json` protects the deployed migration inventory.
 3. Set each salon's Stripe connected account ID in `tenants.stripe_account_id` from trusted server code.
 4. Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` for the interactive deposit preview. Change it to `true` after the Supabase and Stripe sandbox setup works.
 5. Run `npm run dev`.
@@ -68,7 +68,7 @@ The first delivery uses Stripe-hosted Accounts v2 onboarding with full dashboard
 Stripe fee collection, and Stripe negative-balance responsibility. A fresh capability
 read determines readiness. Returning from onboarding never marks the account ready.
 
-Apply `20260906161330_add_stripe_sandbox_connections.sql` before enabling this flow,
+Apply `20260906225417_add_stripe_sandbox_connections.sql` before enabling this flow,
 including on a fresh installation. The table stores test mappings separately from
 `tenants.stripe_account_id`, with owner-only reads and server-only writes.
 No existing payment destinations are modified or backfilled.

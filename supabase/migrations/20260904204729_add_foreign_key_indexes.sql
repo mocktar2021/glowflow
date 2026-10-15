@@ -1,0 +1,3 @@
+-- GLOW-11 migration-history reconciliation marker.
+-- Production records this version for indexes already present in the checked-in
+-- supabase/schema.sql baseline. Fresh installations load that baseline first.

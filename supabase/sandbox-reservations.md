@@ -1,6 +1,6 @@
 # Sandbox reservation migration
 
-`20260910232219_add_stripe_sandbox_reservations.sql` creates isolated sandbox reservation and event tables. It never writes live clients, appointments, invoices, or payment destinations. No backfill is required. Keep the feature flag off until migration and preview verification are complete. Only server-side service-role calls may mutate the sandbox state; owners may read their own reservations.
+`20260913000239_add_stripe_sandbox_reservations.sql` creates isolated sandbox reservation and event tables. It never writes live clients, appointments, invoices, or payment destinations. No backfill is required. Keep the feature flag off until migration and preview verification are complete. Only server-side service-role calls may mutate the sandbox state; owners may read their own reservations.
 
 Sandbox resource exclusion protects other sandbox holds, including sanitation buffers. Live availability is checked at reservation and verified payment success. Sandbox reservations do not block the real calendar; these are simulations and must never be described as real confirmed appointments. A late payment or lost live capacity requires reconciliation, without automatic refund or appointment creation.
 

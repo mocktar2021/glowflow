@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(
-  path.join(root, "supabase/migrations/20260905222000_add_walk_in_queue.sql"),
+  path.join(root, "supabase/migrations/20260905224654_add_walk_in_queue.sql"),
   "utf8",
 );
 const page = await readFile(path.join(root, "app/[locale]/dashboard/walk-ins/page.tsx"), "utf8");
