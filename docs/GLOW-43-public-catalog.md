@@ -85,8 +85,8 @@ checked-in version. Immediately after it returns:
    version:
 
 ```powershell
-supabase migration repair --linked --status reverted <generated-version>
-supabase migration repair --linked --status applied 20261015003325
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status reverted <generated-version>
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status applied 20261015003325
 ```
 
 These two repair commands change migration metadata only; the migration SQL
@@ -106,8 +106,9 @@ for recovery rather than retrying the schema change.
 6. Re-run security advisors and the focused local database authorization test.
 7. Run `supabase migration list --linked` and require all 29 repository and
    remote versions to align, including `20261015003325` on both sides. A
-   `supabase db push --linked --dry-run` may be used only as a read-only final
-   check and must report no pending migrations.
+   `supabase db push --linked --project-ref rfwhqutkiztxkagbhevp --dry-run --skip-vault`
+   may be used only as a read-only final check and must report no pending
+   migrations.
 
 ## Rollback
 
@@ -124,8 +125,8 @@ restored, and the public profile again hides service rows, return the ledger to
 the pre-change pending state:
 
 ```powershell
-supabase migration repair --linked --status reverted <generated-rollback-version>
-supabase migration repair --linked --status reverted 20261015003325
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status reverted <generated-rollback-version>
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status reverted 20261015003325
 ```
 
 The first command removes only the generated rollback marker and the second
