@@ -212,6 +212,13 @@
       "sourceVersion": "20261015004638",
       "marker": false,
       "normalizedSha256": "8bc75405a10415e303733819c2ee1fa5499c7f6613ed4cd5c93e154c7b041220"
+    },
+    {
+      "version": "20261015011001",
+      "name": "enforce_public_booking_slot_integrity",
+      "sourceVersion": "20261015011001",
+      "marker": false,
+      "normalizedSha256": "fda0106677a3e3e84e174fa8aca04eb81ea7b2e6787018bd201da4bb7c389d2b"
     }
   ]
 }
