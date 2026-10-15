@@ -33,8 +33,12 @@ test("protects salon media writes by authenticated tenant owners", () => {
 
 test("keeps publication owner-controlled and validates image uploads", () => {
   assert.match(actions, /owner\.role !== "owner"/);
-  assert.match(actions, /formData\.get\("is_published"\) === "on"/);
+  assert.match(actions, /field\(formData, "publication_action"\)/);
+  assert.match(actions, /publicationAction === "publish"/);
+  assert.match(actions, /invalid_publication_action/);
   assert.match(actions, /published_at: publish/);
+  assert.match(directUploadForm, /SubmitEvent/);
+  assert.match(directUploadForm, /formData\.set\(submitter\.name, submitter\.value\)/);
   assert.match(directUploadForm, /allowedImageTypes/);
   assert.match(directUploadForm, /maximumImageBytes/);
   assert.match(actions, /galleryUrls\.length > 8/);
@@ -55,6 +59,17 @@ test("owner editor exposes multilingual content and cash payment settings", () =
   assert.match(ownerPage, /\["cash", labels\.cash\]/);
   assert.match(photoUploadControls, /gallery_photos/);
   assert.match(ownerPage, /opening hours|Horaires|Horarios/i);
+});
+
+test("owner editor explains publication and provides explicit private and public actions", () => {
+  assert.match(ownerPage, /name="publication_action"/);
+  assert.match(ownerPage, /value="private"/);
+  assert.match(ownerPage, /value="publish"/);
+  assert.match(ownerPage, /Enregistrer en privé/);
+  assert.match(ownerPage, /Save and publish/);
+  assert.match(ownerPage, /Guardar como privado/);
+  assert.doesNotMatch(ownerPage, /name="is_published"/);
+  assert.doesNotMatch(ownerPage, /textarea required name=/);
 });
 
 test("uploads photos directly without sending files through the Server Action", () => {

@@ -71,12 +71,13 @@ export function marketName(market: Market, locale: Locale) {
   return market.name_json[locale] ?? market.name_json[market.default_locale] ?? market.country_code;
 }
 
-export function formatMoney(amount: number, currency: string, locale: Locale) {
+export function formatMoney(amountInCents: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amountInCents / 100);
 }
 
 export function formatLocalDateTime(value: Date | string, locale: Locale, timeZone: string) {

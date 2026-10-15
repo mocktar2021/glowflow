@@ -4,6 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { formatMoney } from "../lib/markets.ts";
+
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
   root,
@@ -61,3 +63,9 @@ test("owner onboarding reads only market columns granted to authenticated users"
 });
 
 // Fresh-install compatibility is executed against PostgreSQL in schema-database.test.mjs.
+
+test("formats persisted catalog cents as major currency amounts", () => {
+  assert.equal(formatMoney(4500, "USD", "en"), "$45");
+  assert.equal(formatMoney(4599, "USD", "en"), "$45.99");
+  assert.equal(formatMoney(4500, "EUR", "es"), "45 €");
+});
