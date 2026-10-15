@@ -51,6 +51,8 @@ test("public route requires a published profile and localizes sharing metadata",
   assert.match(publicPage, /if \(!profile\) notFound\(\)/);
   assert.match(publicPage, /openGraph:/);
   assert.match(publicPage, /application\/ld\+json/);
+  assert.match(publicPage, /formatMinorMoney\(service\.price/);
+  assert.match(publicPage, /formatMinorMoney\(service\.deposit_amount/);
   assert.match(publicPage, /\/book\/\$\{profile\.slug\}/);
 });
 
