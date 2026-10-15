@@ -74,6 +74,22 @@ insert into storage.objects(id,bucket_id,name) values
 ('64000000-0000-0000-0000-000000000001','salon-public-media','10000000-0000-0000-0000-000000000001/a.webp'),
 ('64000000-0000-0000-0000-000000000002','salon-public-media','10000000-0000-0000-0000-000000000002/b.webp');
 
+-- Anonymous catalog reads support the public profile but preserve publication.
+set role anon;
+select public.test_assert(
+  has_column_privilege('anon','public.services','is_active','select'),
+  'anonymous profile query can filter active services'
+);
+select public.test_assert(
+  (select count(*) from public.services where tenant_id='10000000-0000-0000-0000-000000000001' and is_active=true)=1,
+  'published salon exposes its active service'
+);
+select public.test_assert(
+  (select count(*) from public.services where tenant_id='10000000-0000-0000-0000-000000000002' and is_active=true)=0,
+  'unpublished salon catalog remains private'
+);
+reset role;
+
 -- Public availability and appointment creation require an owner-published profile.
 set role service_role;
 select public.test_assert(
