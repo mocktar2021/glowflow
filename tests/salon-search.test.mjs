@@ -17,6 +17,7 @@ const publicGrantMigrationPath = path.join(
   "migrations",
   "20260924183024_restrict_public_salon_profile_columns.sql",
 );
+const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/page.tsx"), "utf8");
 
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -60,6 +61,10 @@ test("returns an explicit public search field set", async () => {
   assert.doesNotMatch(signature, /owner_id/);
   assert.doesNotMatch(signature, /email/);
   assert.doesNotMatch(signature, /phone/);
+});
+
+test("formats discovery prices from persisted catalog cents", () => {
+  assert.match(discoveryPage, /formatMinorMoney\(salon\.starting_price/);
 });
 
 test("limits anonymous profile reads to explicit public columns", async () => {

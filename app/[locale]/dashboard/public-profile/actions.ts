@@ -78,7 +78,9 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
       role: field(formData, `team_${index}_role`),
     }))
     .filter((member) => member.name);
-  const publish = formData.get("is_published") === "on";
+  const publicationAction = field(formData, "publication_action");
+  if (!["private", "publish"].includes(publicationAction)) fail(locale, "invalid_publication_action");
+  const publish = publicationAction === "publish";
 
   if (businessName.length < 2 || !city || !postalCode || !addressLine1) fail(locale, "required_fields");
   if (publish && (!categories.length || !paymentMethods.length || !Object.values(descriptionJson).every(Boolean))) {

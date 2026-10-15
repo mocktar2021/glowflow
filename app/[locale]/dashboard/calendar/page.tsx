@@ -14,7 +14,7 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
-import { formatMoney } from "@/lib/markets";
+import { formatMinorMoney } from "@/lib/markets";
 import { CalendarDateTimeFields } from "./date-time-fields";
 import {
   cancelAppointment,
@@ -233,7 +233,7 @@ export default async function CalendarPage({
                         <div>
                           <p className="text-lg font-semibold">{formatter.format(new Date(appointment.start_time))} · {clientName.get(appointment.client_id) ?? labels.client}</p>
                           <p className="mt-1 text-sm text-slate-600 dark:text-stone-300">{service?.title_json[locale] ?? service?.title_json.fr} · {staffName.get(appointment.staff_id)}</p>
-                          <p className="mt-1 text-xs text-slate-500">{appointment.station_name ?? ""} {service ? `· ${formatMoney(service.price, service.currency, locale)}` : ""}</p>
+                          <p className="mt-1 text-xs text-slate-500">{appointment.station_name ?? ""} {service ? `· ${formatMinorMoney(service.price, service.currency, locale)}` : ""}</p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${appointment.status === "confirmed" ? "bg-emerald-100 text-emerald-800" : appointment.status === "canceled" ? "bg-rose-100 text-rose-800" : "bg-stone-100 text-stone-700"}`}>{labels[appointment.status]}</span>

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { isLocale, type Locale } from "@/lib/i18n";
-import { fallbackMarkets, formatLocalDateTime, formatMoney, marketName } from "@/lib/markets";
+import { fallbackMarkets, formatLocalDateTime, formatMinorMoney, marketName } from "@/lib/markets";
 import {
   isSalonCategory,
   localizedDescription,
@@ -367,7 +367,7 @@ export default async function SalonSearchPage({
                     <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#eee4d8] pt-4 text-sm dark:border-white/10">
                       <span>
                         <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.from}</span>
-                        <strong>{salon.starting_price === null ? "—" : formatMoney(salon.starting_price, salon.currency, locale)}</strong>
+                        <strong>{salon.starting_price === null ? "—" : formatMinorMoney(salon.starting_price, salon.currency, locale)}</strong>
                       </span>
                       <span>
                         <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.next}</span>

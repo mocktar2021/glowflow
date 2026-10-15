@@ -39,7 +39,11 @@ export function DirectUploadProfileForm({ action, children, tenantId, messages }
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const publish = formData.get("is_published") === "on";
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    if (submitter instanceof HTMLButtonElement && submitter.name) {
+      formData.set(submitter.name, submitter.value);
+    }
+    const publish = formData.get("publication_action") === "publish";
     if (
       publish
       && (

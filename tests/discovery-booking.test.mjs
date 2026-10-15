@@ -65,7 +65,7 @@ test("localized profile service links carry only active services for this salon"
     "@/lib/supabase/server": { createClient: async () => db },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
-    "@/lib/markets": { formatMoney: (amount, currency) => `${currency} ${amount}`, formatLocalDateTime: () => "" },
+    "@/lib/markets": { formatMinorMoney: (amount, currency) => `${currency} ${amount / 100}`, formatLocalDateTime: () => "" },
   });
   for (const [locale, label] of [["fr", "Réserver cette prestation"], ["en", "Book this service"], ["es", "Reservar este servicio"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });

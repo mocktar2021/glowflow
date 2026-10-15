@@ -75,8 +75,13 @@ export function formatMoney(amount: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(amount);
+}
+
+export function formatMinorMoney(amountInCents: number, currency: string, locale: Locale) {
+  return formatMoney(amountInCents / 100, currency, locale);
 }
 
 export function formatLocalDateTime(value: Date | string, locale: Locale, timeZone: string) {
