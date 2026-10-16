@@ -37,6 +37,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   // Test the actual migrated application objects, never recreated policy fixtures.
   sql(readFileSync(new URL('tests/schema-authorization.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-booking-service-staff.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/public-booking-slot-integrity.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {
@@ -51,6 +52,41 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
       child.stdin.end(input);
     });
   }
+
+  const duplicateBooking = (startTime, holdSeconds) => `
+    begin;
+    set local role service_role;
+    select appointment_id from public.create_public_appointment(
+      'fixture-a',
+      '40000000-0000-0000-0000-000000000005',
+      '20000000-0000-0000-0000-000000000005',
+      (current_date + (8 - extract(dow from current_date)::integer) + time '${startTime}')
+        at time zone 'America/New_York',
+      'Concurrent Retry Fixture',
+      null,
+      'concurrent-retry@example.invalid',
+      'en',
+      '70000000-0000-0000-0000-000000000015'
+    );
+    select pg_sleep(${holdSeconds});
+    commit;
+  `;
+  const concurrentBookings = await Promise.all([
+    concurrentSql(duplicateBooking('12:00', 1)),
+    // A drifted retry proves serialization is keyed by request key, not start.
+    concurrentSql(duplicateBooking('12:30', 0)),
+  ]);
+  assert.equal(concurrentBookings.filter(result => result.status === 0).length, 2,
+    'concurrent duplicate booking requests must both return successfully');
+  const returnedAppointmentIds = concurrentBookings.map(result => {
+    const match = result.stdout.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    assert.ok(match, `concurrent booking did not return an appointment id: ${result.stderr}`);
+    return match[0];
+  });
+  assert.equal(returnedAppointmentIds[0], returnedAppointmentIds[1],
+    'concurrent duplicate booking requests must converge on one appointment');
+  assert.equal(sql("select count(*) from public.appointments where public_booking_request_key='70000000-0000-0000-0000-000000000015'"), '1');
+  assert.equal(sql("select count(*) from public.clients where email='concurrent-retry@example.invalid'"), '1');
 
   const refund = idempotencyKey => `
     begin;

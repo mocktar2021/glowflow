@@ -17,6 +17,8 @@ const page = await readFile(path.join(root, "app/[locale]/book/[slug]/page.tsx")
 const flow = await readFile(path.join(root, "components/glowflow/live-booking-flow.tsx"), "utf8");
 const staffEligibility = await readFile(path.join(root, "supabase/migrations/20261015004638_enforce_public_service_staff_eligibility.sql"), "utf8");
 const staffEligibilityRollback = await readFile(path.join(root, "supabase/rollbacks/20261015004638_restore_unrestricted_public_service_staff.sql"), "utf8");
+const slotIntegrity = await readFile(path.join(root, "supabase/migrations/20261015011001_enforce_public_booking_slot_integrity.sql"), "utf8");
+const slotIntegrityRollback = await readFile(path.join(root, "supabase/rollbacks/20261015011001_restore_public_booking_resource_only_check.sql"), "utf8");
 const publicationGuard = await readFile(
   path.join(root, "supabase/migrations/20260925184222_require_published_salon_for_public_booking.sql"),
   "utf8",
@@ -69,6 +71,42 @@ test("public availability and booking honor optional service staff assignments",
   assert.match(staffEligibility, /grant execute on function public\.create_public_appointment[\s\S]*to service_role/);
   assert.doesNotMatch(staffEligibility, /to anon, authenticated/);
   assert.doesNotMatch(staffEligibilityRollback, /public_staff_not_eligible/);
+});
+
+test("appointment creation accepts only an exposed service, staff, and local-date slot", () => {
+  const requestLookups = [...slotIntegrity.matchAll(/public_booking_request_key = request_key/g)];
+  assert.equal(requestLookups.length, 2, "fast and authoritative idempotency reads must remain");
+  assert.match(slotIntegrity, /:public-booking-request:/);
+  assert.ok(
+    slotIntegrity.indexOf("pg_advisory_xact_lock") < requestLookups[1].index,
+    "authoritative idempotency read must follow the request-key lock",
+  );
+  assert.ok(
+    requestLookups[1].index < slotIntegrity.indexOf("select 1 from public.users"),
+    "authoritative idempotency read must precede staff validation",
+  );
+  assert.match(slotIntegrity, /from public\.get_public_booking_slots\(/);
+  assert.match(slotIntegrity, /\(requested_start at time zone selected_time_zone\)::date/);
+  assert.match(slotIntegrity, /available_slot\.staff_id = target_staff_id/);
+  assert.match(slotIntegrity, /available_slot\.slot_start = requested_start/);
+  assert.ok(
+    requestLookups[1].index
+      < slotIntegrity.indexOf("from public.get_public_booking_slots("),
+    "authoritative request-key lookup must precede staff and slot validation",
+  );
+  assert.ok(
+    slotIntegrity.indexOf("from public.get_public_booking_slots(")
+      < slotIntegrity.lastIndexOf("pg_advisory_xact_lock"),
+    "slot validation must precede the separate resource lock",
+  );
+  assert.ok(
+    slotIntegrity.lastIndexOf("pg_advisory_xact_lock")
+      < slotIntegrity.lastIndexOf("private.public_resource_available("),
+    "resource conflicts must be rechecked after the lock",
+  );
+  assert.match(slotIntegrity, /public_time_unavailable/);
+  assert.doesNotMatch(slotIntegrityRollback, /from public\.get_public_booking_slots\(/);
+  assert.match(slotIntegrityRollback, /public_staff_not_eligible/);
 });
 
 test("requires owner publication for public slots and appointment creation", () => {
