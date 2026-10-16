@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migration = await readFile(path.join(root, "supabase/migrations/20260905025931_add_complete_public_salon_profiles.sql"), "utf8");
+const publicCatalogMigration = await readFile(path.join(root, "supabase/migrations/20261015003325_expose_active_services_to_public_profiles.sql"), "utf8");
 const publicPage = await readFile(path.join(root, "app/[locale]/salons/[slug]/page.tsx"), "utf8");
 const ownerPage = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/page.tsx"), "utf8");
 const actions = await readFile(path.join(root, "app/[locale]/dashboard/public-profile/actions.ts"), "utf8");
@@ -54,6 +55,13 @@ test("public route requires a published profile and localizes sharing metadata",
   assert.match(publicPage, /formatMinorMoney\(service\.price/);
   assert.match(publicPage, /formatMinorMoney\(service\.deposit_amount/);
   assert.match(publicPage, /\/book\/\$\{profile\.slug\}/);
+});
+
+test("anonymous catalog access is limited to active services from published salons", () => {
+  assert.match(publicCatalogMigration, /grant select \(is_active\) on public\.services to anon/);
+  assert.match(publicCatalogMigration, /salon_public_profiles\.tenant_id = tenants\.id/);
+  assert.match(publicCatalogMigration, /salon_public_profiles\.is_published = true/);
+  assert.match(publicCatalogMigration, /is_active = true/);
 });
 
 test("owner editor exposes multilingual content and cash payment settings", () => {

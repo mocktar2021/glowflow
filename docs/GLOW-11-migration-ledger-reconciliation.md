@@ -8,7 +8,7 @@ This procedure reconciles migration metadata only. It must not execute migration
 - GlowFlow project: `rfwhqutkiztxkagbhevp` (`glowflow`)
 - Region: `us-east-1`
 - Production application: `https://glowflow.mocktar.com`
-- Audited application revision: `651196845892f816346dcde17750773e532466e2`
+- Audited application revision: `07a3791a3e0fb0d72ec7d72cecb0521ee74b9d62`
 
 Never use this procedure for MowFlow or another project. Stop if the organization, project reference, project name, or region differs.
 
@@ -40,7 +40,7 @@ Link only the verified GlowFlow project when the operator environment is not alr
 
 ```powershell
 supabase link --project-ref rfwhqutkiztxkagbhevp
-supabase migration list --linked
+supabase migration list --linked --project-ref rfwhqutkiztxkagbhevp
 ```
 
 The migration list must show all 28 local versions, the first 23 versions aligned with remote, and exactly these five local-only versions:
@@ -94,7 +94,7 @@ The five missing versions must also retain their reviewed schema footprints befo
 After the preflight matches exactly, apply only the five ledger markers. This command updates migration history and does not execute the SQL files:
 
 ```powershell
-supabase migration repair --linked --status applied 20260924213044 20260925143324 20260925184222 20260925194709 20260925213000
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status applied 20260924213044 20260925143324 20260925184222 20260925194709 20260925213000
 ```
 
 Do not run `supabase db push`, replay `supabase/schema.sql`, or apply any migration file during this operation.
@@ -102,8 +102,8 @@ Do not run `supabase db push`, replay `supabase/schema.sql`, or apply any migrat
 ## Post-repair verification
 
 ```powershell
-supabase migration list --linked
-supabase db push --linked --dry-run
+supabase migration list --linked --project-ref rfwhqutkiztxkagbhevp
+supabase db push --linked --project-ref rfwhqutkiztxkagbhevp --dry-run --skip-vault
 ```
 
 Require all 28 local and remote versions to align and the dry run to report no pending migrations. Re-run the read-only function, RLS, grants, triggers, and schema-footprint queries. The schema fingerprints and application row counts must be unchanged because this is metadata-only. Record this database operation separately from Vercel deployment status; no application deployment is required.
@@ -113,10 +113,13 @@ Require all 28 local and remote versions to align and the dry run to report no p
 If the repair records an unexpected version or the postcheck is not exact, remove only the five added ledger records:
 
 ```powershell
-supabase migration repair --linked --status reverted 20260924213044 20260925143324 20260925184222 20260925194709 20260925213000
+supabase migration repair --linked --project-ref rfwhqutkiztxkagbhevp --status reverted 20260924213044 20260925143324 20260925184222 20260925194709 20260925213000
 ```
 
-Then re-run `supabase migration list --linked`. This rollback changes migration metadata only. It must not run the checked-in SQL rollbacks because the production schema was already present before reconciliation.
+Then re-run
+`supabase migration list --linked --project-ref rfwhqutkiztxkagbhevp`.
+This rollback changes migration metadata only. It must not run the checked-in SQL
+rollbacks because the production schema was already present before reconciliation.
 
 ## Required approval
 

@@ -198,6 +198,13 @@
       "sourceVersion": "20260925213000",
       "marker": false,
       "normalizedSha256": "829a044161dbb237aaf15c8c7234d7a8fd1bdf2a22628ba29b42cbd6c3f302c2"
+    },
+    {
+      "version": "20261015003325",
+      "name": "expose_active_services_to_public_profiles",
+      "sourceVersion": "20261015003325",
+      "marker": false,
+      "normalizedSha256": "fc507cd33aa6fb0420b452704d85db1ad6fcd4a0c9a1e9372f5fde3f56c85992"
     }
   ]
 }
