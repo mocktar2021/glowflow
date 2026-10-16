@@ -17,7 +17,7 @@ const publicGrantMigrationPath = path.join(
   "migrations",
   "20260924183507_restrict_public_salon_profile_columns.sql",
 );
-const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/page.tsx"), "utf8");
+const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/(search)/page.tsx"), "utf8");
 
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");

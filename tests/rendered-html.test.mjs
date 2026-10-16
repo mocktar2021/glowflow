@@ -75,15 +75,19 @@ test("renders localized authentication and booking routes in production", { time
     });
     assert.equal(response.status, 200, route);
     assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-    assert.match(await response.text(), /GlowFlow/);
+    const html = await response.text();
+    assert.match(html, /GlowFlow/);
+    assert.match(html, new RegExp(`<html lang="${route.split("/")[1]}"`), route);
   }
 
-  const unpublished = await fetch(`${origin}/fr/salons/unpublished-profile`, {
-    headers: { accept: "text/html" },
-    signal: AbortSignal.timeout(5000),
-  });
-  assert.equal(unpublished.status, 200);
-  assert.match(await unpublished.text(), /This page could not be found|404/i);
+  for (const locale of ["fr", "en", "es"]) {
+    const unpublished = await fetch(`${origin}/${locale}/salons/unpublished-profile`, {
+      headers: { accept: "text/html" },
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(unpublished.status, 404);
+    assert.match(await unpublished.text(), /This page could not be found|404/i);
+  }
 
   const frenchRegistration = await fetch(`${origin}/fr/register`);
   const frenchRegistrationHtml = await frenchRegistration.text();
