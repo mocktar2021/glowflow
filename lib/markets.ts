@@ -84,6 +84,10 @@ export function formatMinorMoney(amountInCents: number, currency: string, locale
   return formatMoney(amountInCents / 100, currency, locale);
 }
 
+export function formatMinorMoneyWithCurrencyPrecision(amountInCents: number, currency: string, locale: Locale) {
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amountInCents / 100);
+}
+
 export function formatLocalDateTime(value: Date | string, locale: Locale, timeZone: string) {
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
