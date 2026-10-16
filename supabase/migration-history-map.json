@@ -205,6 +205,13 @@
       "sourceVersion": "20261015003325",
       "marker": false,
       "normalizedSha256": "fc507cd33aa6fb0420b452704d85db1ad6fcd4a0c9a1e9372f5fde3f56c85992"
+    },
+    {
+      "version": "20261015004638",
+      "name": "enforce_public_service_staff_eligibility",
+      "sourceVersion": "20261015004638",
+      "marker": false,
+      "normalizedSha256": "8bc75405a10415e303733819c2ee1fa5499c7f6613ed4cd5c93e154c7b041220"
     }
   ]
 }

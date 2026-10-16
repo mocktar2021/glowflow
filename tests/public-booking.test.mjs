@@ -15,6 +15,8 @@ const rpcPermissions = await readFile(
 const route = await readFile(path.join(root, "app/api/public-booking/route.ts"), "utf8");
 const page = await readFile(path.join(root, "app/[locale]/book/[slug]/page.tsx"), "utf8");
 const flow = await readFile(path.join(root, "components/glowflow/live-booking-flow.tsx"), "utf8");
+const staffEligibility = await readFile(path.join(root, "supabase/migrations/20261015004638_enforce_public_service_staff_eligibility.sql"), "utf8");
+const staffEligibilityRollback = await readFile(path.join(root, "supabase/rollbacks/20261015004638_restore_unrestricted_public_service_staff.sql"), "utf8");
 const publicationGuard = await readFile(
   path.join(root, "supabase/migrations/20260925184222_require_published_salon_for_public_booking.sql"),
   "utf8",
@@ -57,6 +59,16 @@ test("keeps public booking RPCs behind the server boundary", () => {
   assert.match(rpcPermissions, /from public, anon, authenticated/);
   assert.match(rpcPermissions, /to service_role/g);
   assert.doesNotMatch(rpcPermissions, /to anon/);
+});
+
+test("public availability and booking honor optional service staff assignments", () => {
+  assert.match(staffEligibility, /not exists \([\s\S]+from public\.service_staff as configured_staff/);
+  assert.match(staffEligibility, /eligible_staff\.staff_id = hours\.staff_id/);
+  assert.match(staffEligibility, /eligible_staff\.staff_id = target_staff_id/);
+  assert.match(staffEligibility, /public_staff_not_eligible/);
+  assert.match(staffEligibility, /grant execute on function public\.create_public_appointment[\s\S]*to service_role/);
+  assert.doesNotMatch(staffEligibility, /to anon, authenticated/);
+  assert.doesNotMatch(staffEligibilityRollback, /public_staff_not_eligible/);
 });
 
 test("requires owner publication for public slots and appointment creation", () => {
