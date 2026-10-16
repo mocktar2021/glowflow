@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { formatMinorMoney, formatMoney } from "../lib/markets.ts";
+import { formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney } from "../lib/markets.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -69,4 +69,14 @@ test("formats persisted catalog cents as major currency amounts", () => {
   assert.equal(formatMinorMoney(4599, "USD", "en"), "$45.99");
   assert.equal(formatMinorMoney(4500, "EUR", "es"), "45 €");
   assert.equal(formatMoney(1248, "USD", "en"), "$1,248");
+});
+
+test("formats profile service amounts with booking currency precision", () => {
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "en"), "$45.00");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "en"), "$25.00");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "fr"), "45,00 $US");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "fr"), "25,00 $US");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "es"), "45,00 US$");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "es"), "25,00 US$");
+  assert.equal(formatMinorMoneyWithCurrencyPrecision(4599, "EUR", "fr"), "45,99 €");
 });

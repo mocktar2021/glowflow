@@ -21,7 +21,7 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true } = {}) {
+function database({ profilePublished = true, tenantCurrency = tenant.currency } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
@@ -29,7 +29,7 @@ function database({ profilePublished = true } = {}) {
     function result(single) {
       queries.push({ table, filters });
       const profiles = [{ ...profile, is_published: profilePublished }];
-      const rows = (table === "tenants" ? [tenant] : table === "services" ? catalog : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
+      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
     return query;
@@ -60,12 +60,13 @@ function nodes(tree) {
   return [tree, ...nodes(tree.props?.children)];
 }
 test("localized profile service links carry only active services for this salon", async () => withConfiguration(async () => {
-  const db = database();
+  const db = database({ tenantCurrency: "USD" });
+  const markets = await load("../lib/markets.ts");
   const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
     "@/lib/supabase/server": { createClient: async () => db },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
-    "@/lib/markets": { formatMinorMoney: (amount, currency) => `${currency} ${amount / 100}`, formatLocalDateTime: () => "" },
+    "@/lib/markets": markets,
   });
   for (const [locale, label] of [["fr", "Réserver cette prestation"], ["en", "Book this service"], ["es", "Reservar este servicio"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
@@ -73,6 +74,8 @@ test("localized profile service links carry only active services for this salon"
     assert.deepEqual(links.map(link => link.props.href), [first, chosen].map(id => `/${locale}/book/${tenant.slug}?service=${id}`));
     assert.equal(links[1].props.children, label);
     assert.ok(links[1].props["aria-label"].includes(catalog[1].title_json[locale]));
+    assert.ok(nodes(tree).some(node => node.type === "strong" && node.props.children === markets.formatMinorMoneyWithCurrencyPrecision(4200, "EUR", locale)));
+    assert.ok(nodes(tree).some(node => node.type === "span" && Array.isArray(node.props.children) && node.props.children.includes(markets.formatMinorMoneyWithCurrencyPrecision(500, "EUR", locale))));
   }
 }));
 test("booking route preserves selected service, locale and trusted salon currency/time zone", async () => withConfiguration(async () => {
