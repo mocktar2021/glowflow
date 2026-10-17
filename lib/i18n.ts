@@ -6,6 +6,16 @@ export function isLocale(value: string): value is Locale {
   return locales.includes(value as Locale);
 }
 
+export function salonProfileLocale(
+  countryDefaultLocale: string | null | undefined,
+  visitorPreference: string | null | undefined,
+  marketplaceLocale: Locale,
+): Locale {
+  if (visitorPreference && isLocale(visitorPreference)) return visitorPreference;
+  if (countryDefaultLocale && isLocale(countryDefaultLocale)) return countryDefaultLocale;
+  return marketplaceLocale;
+}
+
 export const messages = {
   fr: {
     common: {

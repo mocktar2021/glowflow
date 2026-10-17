@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { localizedProductText, productDefaultLocale } from "../lib/product-localization.ts";
+
 const migration = await readFile(new URL("../supabase/migrations/20261017162411_add_salon_product_catalog.sql", import.meta.url), "utf8");
+const optionalTranslationsMigration = await readFile(new URL("../supabase/migrations/20261017174506_optional_product_translations.sql", import.meta.url), "utf8");
 const ownerPage = await readFile(new URL("../app/[locale]/dashboard/products/page.tsx", import.meta.url), "utf8");
 const actions = await readFile(new URL("../app/[locale]/dashboard/products/actions.ts", import.meta.url), "utf8");
 const form = await readFile(new URL("../app/[locale]/dashboard/products/product-form.tsx", import.meta.url), "utf8");
@@ -32,14 +35,28 @@ test("owner can manage localized names, descriptions, alt text, image, price, cu
   assert.match(actions, /image_alt_required/);
   assert.match(form, /maxImageBytes = 1024 \* 1024/);
   assert.match(form, /salon-public-media/);
+  assert.doesNotMatch(ownerPage, /<input required name={`name_\$\{language\}`}/);
+  assert.match(actions, /name_required/);
+  assert.match(optionalTranslationsMigration, /greatest\([\s\S]*name_json->>'fr'[\s\S]*name_json->>'es'/);
 });
 
 test("public profile groups published products with localized copy and responsive accessible images, without a purchase action", () => {
   assert.match(publicPage, /from\("salon_products"\)/);
   assert.match(publicPage, /\.eq\("is_published", true\)/);
   assert.match(publicPage, /productCategories\.map/);
-  assert.match(publicPage, /alt={localized\(product\.image_alt_json, locale\)}/);
+  assert.match(publicPage, /alt={localizedProductText\(product\.image_alt_json, locale, productFallbackLocale\)}/);
   assert.match(publicPage, /sizes="\(max-width: 640px\) 100vw/);
   assert.match(publicPage, /online purchasing is not available/i);
   assert.doesNotMatch(publicPage, /\/checkout.*product|addToCart|buyProduct/);
+});
+
+test("product copy follows the selected language, then the country default, then an entered translation", () => {
+  assert.equal(productDefaultLocale("en"), "en");
+  assert.equal(productDefaultLocale("es"), "es");
+  assert.equal(productDefaultLocale("unknown"), "fr");
+  const names = { fr: "", en: "English name", es: "Nombre español" };
+  assert.equal(localizedProductText(names, "es", "en"), "Nombre español");
+  assert.equal(localizedProductText(names, "fr", "en"), "English name");
+  assert.equal(localizedProductText({ fr: "", en: "", es: "Nombre español" }, "en", "fr"), "Nombre español");
+  assert.equal(localizedProductText({ fr: "  ", en: "  ", es: "" }, "es", "fr"), "");
 });

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { salonProfileLocale } from "../lib/i18n.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -65,6 +66,18 @@ test("returns an explicit public search field set", async () => {
 
 test("formats discovery prices from persisted catalog cents", () => {
   assert.match(discoveryPage, /formatMinorMoney\(salon\.starting_price/);
+});
+
+test("salon country sets the profile language unless the visitor chooses one", () => {
+  assert.equal(salonProfileLocale("en", undefined, "fr"), "en");
+  assert.equal(salonProfileLocale("es", undefined, "fr"), "es");
+  assert.equal(salonProfileLocale("en", "fr", "fr"), "fr");
+  assert.equal(salonProfileLocale("es", "en", "fr"), "en");
+  assert.equal(salonProfileLocale("unknown", undefined, "fr"), "fr");
+  assert.equal(salonProfileLocale("en", "unknown", "fr"), "en");
+  assert.match(discoveryPage, /get\("glowflow_locale"\)/);
+  assert.match(discoveryPage, /from\("markets"\)/);
+  assert.match(discoveryPage, /salonProfileLocale\(countryDefaultLocales\.get\(salon\.country_code\)/);
 });
 
 test("limits anonymous profile reads to explicit public columns", async () => {

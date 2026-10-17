@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { CalendarDays, MapPin, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
-import { isLocale, type Locale } from "@/lib/i18n";
+import { isLocale, salonProfileLocale, type Locale } from "@/lib/i18n";
 import { fallbackMarkets, formatLocalDateTime, formatMinorMoney, marketName } from "@/lib/markets";
 import {
   isSalonCategory,
@@ -210,6 +211,8 @@ export default async function SalonSearchPage({
 
   let results: SalonSearchResult[] = [];
   let loadError = false;
+  let countryDefaultLocales = new Map<string, string>();
+  const visitorPreference = (await cookies()).get("glowflow_locale")?.value;
 
   if (
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -230,6 +233,14 @@ export default async function SalonSearchPage({
 
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
+    if (results.length && !isLocale(visitorPreference ?? "")) {
+      const countryCodes = [...new Set(results.map((salon) => salon.country_code))];
+      const { data: markets } = await supabase
+        .from("markets")
+        .select("country_code, default_locale")
+        .in("country_code", countryCodes);
+      countryDefaultLocales = new Map((markets ?? []).map((market) => [market.country_code, market.default_locale]));
+    }
   }
 
   const total = Number(results[0]?.total_count ?? 0);
@@ -379,7 +390,7 @@ export default async function SalonSearchPage({
                         </strong>
                       </span>
                     </div>
-                    <Link href={`/${locale}/salons/${salon.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950">
+                    <Link href={`/${salonProfileLocale(countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950">
                       {labels.book}
                     </Link>
                   </div>

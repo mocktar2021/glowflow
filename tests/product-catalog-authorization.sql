@@ -28,3 +28,24 @@ reset role;
 reset request.jwt.claim.sub;
 
 select public.test_assert((select count(*) from information_schema.columns where table_schema='public' and table_name='salon_products' and column_name in ('stock_count','quantity_on_hand','inventory_notes'))=0,'catalog has no private inventory columns');
+
+select public.test_rejected(
+  'insert into public.salon_products(tenant_id,name_json,category,price,currency) values(''10000000-0000-0000-0000-000000000001'',''{"fr":"","en":"","es":""}'',''hair'',1,''USD'')',
+  '23514'
+);
+select public.test_rejected(
+  'insert into public.salon_products(tenant_id,name_json,image_url,category,price,currency) values(''10000000-0000-0000-0000-000000000001'',''{"fr":"","en":"Single language","es":""}'',''https://example.invalid/product.jpg'',''hair'',1,''USD'')',
+  '23514'
+);
+
+set role authenticated;
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+insert into public.salon_products(id,tenant_id,name_json,description_json,image_alt_json,image_url,category,price,currency,is_published) values
+('81000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','{"fr":"","en":"Single language","es":""}','{"fr":"","en":"Only this description","es":""}','{"fr":"","en":"Product image","es":""}','https://example.invalid/product.jpg','hair',1500,'USD',true);
+select public.test_assert((select count(*) from public.salon_products where id='81000000-0000-0000-0000-000000000004')=1,'owner can publish a product with one language');
+reset role;
+reset request.jwt.claim.sub;
+
+set role anon;
+select public.test_assert((select name_json->>'en' from public.salon_products where id='81000000-0000-0000-0000-000000000004')='Single language','anonymous visitor sees the published single-language product');
+reset role;
