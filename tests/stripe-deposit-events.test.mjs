@@ -86,6 +86,32 @@ test("route verifies exact raw bytes with dedicated secret and calls only atomic
   }
   assert.equal(calls.length, 1);
 });
+test("signed sandbox success and failure events reach only their matching settlement state", async () => {
+  process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
+  calls = [];
+  for (const type of [
+    "checkout.session.completed",
+    "checkout.session.async_payment_succeeded",
+    "checkout.session.async_payment_failed",
+    "checkout.session.expired",
+  ]) {
+    const value = event(type);
+    if (type.endsWith("failed") || type.endsWith("expired")) {
+      value.data.object.payment_status = "unpaid";
+      value.data.object.payment_intent = null;
+    }
+    assert.equal((await POST(request(value))).status, 200, type);
+    assert.equal(calls.at(-1)[0], "process_stripe_sandbox_event");
+    assert.equal(calls.at(-1)[1].target_event_type, type);
+    assert.equal(calls.at(-1)[1].target_payment_intent_id,
+      value.data.object.payment_intent);
+  }
+  assert.equal(calls.length, 4);
+  const unpaidCompletion = event();
+  unpaidCompletion.data.object.payment_status = "unpaid";
+  assert.equal((await POST(request(unpaidCompletion))).status, 200);
+  assert.equal(calls.length, 4, "an unpaid completion cannot settle a deposit");
+});
 test("disabled preview configuration rejects processing and ignores unrelated signed events", async () => {
   calls = [];
   enabled = false;
