@@ -12,7 +12,7 @@ const markets = await import("../lib/markets.ts");
 const migration = await readFile(new URL("../supabase/migrations/20261017220612_add_public_salon_sorting.sql", import.meta.url), "utf8");
 const rollback = await readFile(new URL("../supabase/rollbacks/20261017220612_drop_public_salon_sorting.sql", import.meta.url), "utf8");
 
-async function loadPage(rpc) {
+async function loadPage(rpc, configured = true) {
   const source = await readFile(new URL("../app/[locale]/salons/(search)/page.tsx", import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
@@ -21,6 +21,7 @@ async function loadPage(rpc) {
     "next/headers": { cookies: async () => ({ get: () => ({ value: "en" }) }) },
     "next/navigation": { notFound() { throw new Error("not-found"); } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/components/glowflow/distance-search": { DistanceSearch: ({ children }) => children },
     "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: ({ salon }) => React.createElement("article", null, salon.business_name) },
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (_country, visitor, fallback) => visitor ?? fallback },
     "@/lib/markets": markets,
@@ -28,7 +29,7 @@ async function loadPage(rpc) {
     "@/lib/salon-search": search,
     "@/lib/supabase/server": { createClient: async () => ({ rpc }) },
   };
-  new Function("require", "exports", "process", js)(name => dependencies[name] ?? require(name), loaded.exports, { env: { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" } });
+  new Function("require", "exports", "process", js)(name => dependencies[name] ?? require(name), loaded.exports, { env: configured ? { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" } : {} });
   return loaded.exports.default;
 }
 
@@ -107,4 +108,37 @@ test("missing sorted RPC falls back visibly without breaking discovery", async (
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "es" }), searchParams: Promise.resolve({ sort: "availability" }) }));
   assert.deepEqual(calls, ["search_public_salons_sorted", "search_public_salons"]);
   assert.match(html, /La ordenación no está disponible temporalmente/);
+});
+
+test("maximum price uses selected country's minor units and warns without a country", async () => {
+  const calls = [];
+  const Page = await loadPage(async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; });
+  await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: "US", maxPrice: "45.50" }) });
+  assert.equal(calls[0].args.maximum_price, 4550);
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ maxPrice: "45" }) }));
+  assert.equal(calls[1].args.maximum_price, null);
+  assert.match(html, /Choose a country to filter prices in its currency/);
+});
+
+test("invalid or out-of-range pages show first-page results instead of an empty state", async () => {
+  const calls = [];
+  const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 1 };
+  const Page = await loadPage(async (_name, args) => {
+    calls.push(args.page_offset);
+    return { data: args.page_offset === 0 ? [result] : [], error: null };
+  });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ page: "2" }) }));
+  assert.deepEqual(calls, [9, 0]);
+  assert.match(html, /That page does not exist/);
+  assert.match(html, /Example Salon/);
+  calls.length = 0;
+  await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ page: "9999999999999999999999" }) });
+  assert.deepEqual(calls, [0]);
+});
+
+test("missing Supabase configuration shows an error rather than an empty marketplace", async () => {
+  const Page = await loadPage(async () => { throw new Error("should not query"); }, false);
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({}) }));
+  assert.match(html, /Search is unavailable/);
+  assert.doesNotMatch(html, /The first salons are coming soon/);
 });

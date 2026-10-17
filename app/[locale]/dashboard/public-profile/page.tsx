@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
 import { savePublicSalonProfile } from "./actions";
 import { DirectUploadProfileForm } from "./direct-upload-form";
+import { MapPointControl } from "./map-point-control";
 import { PhotoRemovalControl } from "./photo-removal-control";
 import { PhotoUploadControls } from "./photo-upload-controls";
 
@@ -27,6 +28,12 @@ const bookingCopy = {
   es: { account: "Cuenta de reservas", displayOnly: "Solo presentación", help: "El nombre será una opción de reserva si lo vinculas a una cuenta de este salón, el servicio está disponible para esa cuenta y publicas el perfil." },
 } as const;
 
+const mapPointWarnings = {
+  fr: { unavailable: "Le profil a été enregistré, mais le point sur la carte n’a pas été enregistré. Réessayez plus tard.", review: "L’adresse du salon a changé. Vérifiez que le point sur la carte correspond toujours à la nouvelle adresse." },
+  en: { unavailable: "The profile was saved, but the map point was not saved. Please try again later.", review: "The salon address changed. Check that the map point still matches the new address." },
+  es: { unavailable: "Se guardó el perfil, pero no el punto en el mapa. Inténtalo de nuevo más tarde.", review: "La dirección del salón cambió. Comprueba que el punto en el mapa corresponde a la nueva dirección." },
+} as const;
+
 const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 const inputClass = "mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus:border-[#b77a42] focus:ring-2 focus:ring-[#b77a42]/20 dark:border-white/15 dark:bg-white/5";
@@ -34,7 +41,7 @@ const sectionClass = "rounded-[1.75rem] border border-[#e4d6c5] bg-white p-5 sha
 
 export default async function PublicProfileSettingsPage({ params, searchParams }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; mapPoint?: string }>;
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
@@ -44,13 +51,17 @@ export default async function PublicProfileSettingsPage({ params, searchParams }
   const { data: user } = await supabase.from("users").select("tenant_id, role").eq("id", userId).single();
   if (!user?.tenant_id || user.role !== "owner") notFound();
 
-  const [{ data: tenant }, { data: profile }, { data: staff, error: staffError }] = await Promise.all([
+  const [{ data: tenant }, { data: profile }, { data: staff, error: staffError }, { data: mapPoint, error: mapPointError }] = await Promise.all([
     supabase.from("tenants").select("name, slug, country_code, address_line1, city, postal_code, administrative_area").eq("id", user.tenant_id).single(),
     supabase.from("salon_public_profiles").select("*").eq("tenant_id", user.tenant_id).maybeSingle(),
     supabase.from("users").select("id,full_name").eq("tenant_id", user.tenant_id).order("full_name"),
+    supabase.from("salon_public_profiles").select("map_latitude, map_longitude").eq("tenant_id", user.tenant_id).maybeSingle(),
   ]);
   if (!tenant) notFound();
   if (staffError) throw new Error("Unable to load booking accounts.");
+
+  // Hide the opt-in map editor until its migration reaches this project.
+  const mapPointSupported = !mapPointError;
 
   const descriptions = (profile?.description_json ?? {}) as Record<string, string>;
   const policies = (profile?.policies_json ?? {}) as Record<string, string>;
@@ -74,6 +85,7 @@ export default async function PublicProfileSettingsPage({ params, searchParams }
         </div>
 
         {query.saved ? <p role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{labels.saved}</p> : null}
+        {query.mapPoint === "unavailable" || query.mapPoint === "review" ? <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{mapPointWarnings[locale][query.mapPoint]}</p> : null}
         {query.error ? <p role="alert" className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{query.error === "image_batch_too_large" ? labels.batchError : labels.error}</p> : null}
 
         <DirectUploadProfileForm
@@ -109,6 +121,7 @@ export default async function PublicProfileSettingsPage({ params, searchParams }
               <label className="text-sm font-medium">{labels.area}<input name="administrative_area" defaultValue={profile?.administrative_area ?? tenant.administrative_area} className={inputClass} /></label>
               <label className="text-sm font-medium">{labels.postal}<input required name="postal_code" defaultValue={profile?.postal_code ?? tenant.postal_code} className={inputClass} /></label>
             </div>
+            {mapPointSupported ? <MapPointControl locale={locale} initialLatitude={mapPoint?.map_latitude ?? null} initialLongitude={mapPoint?.map_longitude ?? null} /> : null}
             {profile?.image_url ? <PhotoRemovalControl inputName="remove_cover" removeLabel={labels.remove} undoLabel={labels.undo} pendingLabel={labels.removalPending} className="mt-5 rounded-2xl border border-[#dfd2c1] p-3"><span className="relative block size-20 overflow-hidden rounded-xl"><Image src={profile.image_url} alt="" fill sizes="80px" className="object-cover" /></span></PhotoRemovalControl> : null}
             {galleryUrls.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{galleryUrls.map((url, index) => <PhotoRemovalControl key={url} inputName="remove_gallery_urls" inputValue={url} removeLabel={labels.remove} undoLabel={labels.undo} pendingLabel={labels.removalPending} className="rounded-2xl border border-[#dfd2c1] p-2"><span className="relative block h-24 overflow-hidden rounded-xl"><Image src={url} alt={`${labels.gallery} ${index + 1}`} fill sizes="160px" className="object-cover" /></span></PhotoRemovalControl>)}</div> : null}
             <div className="mt-6 border-t border-[#eadfce] pt-5 dark:border-white/10">

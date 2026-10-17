@@ -240,6 +240,13 @@
       "sourceVersion": "20261017220612",
       "marker": false,
       "normalizedSha256": "ec836a9ff632735fc285c91d26bb28813e6469085d53aba715069e7adbb5f27b"
+    },
+    {
+      "version": "20261017230138",
+      "name": "add_public_salon_distance_sorting",
+      "sourceVersion": "20261017230138",
+      "marker": false,
+      "normalizedSha256": "e89975924ef4381c121d8a4781902942d2ba20f804fe2ce087c208123d1faa7d"
     }
   ]
 }

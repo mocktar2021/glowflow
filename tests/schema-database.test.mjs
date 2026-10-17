@@ -39,6 +39,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   sql(readFileSync(new URL('tests/product-catalog-authorization.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-booking-service-staff.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-booking-slot-integrity.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/public-salon-distance.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {

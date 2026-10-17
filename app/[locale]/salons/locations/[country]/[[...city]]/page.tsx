@@ -126,7 +126,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
           {location.city ? <><Link href={marketplaceLocationHref(locale, country)} className="underline underline-offset-4">{countryName}</Link><span aria-hidden="true">/</span><span aria-current="page">{location.city}</span></> : <span aria-current="page">{countryName}</span>}
         </nav>
         <section className="mt-8 rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e] sm:p-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#a56d37] dark:text-[#efc992]">{location.city ? labels.city : labels.country}</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8c5728] dark:text-[#efc992]">{location.city ? labels.city : labels.country}</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">{title}</h1>
           <p className="mt-4 text-slate-600 dark:text-stone-300">{labels.intro}</p>
           <Link href={`/${locale}/salons?${searchQuery.toString()}`} className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">{labels.browse}</Link>

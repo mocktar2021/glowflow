@@ -96,7 +96,7 @@ test("uploads photos directly without sending files through the Server Action", 
 });
 
 test("keeps successful uploads when the profile action completes", () => {
-  assert.match(actions, /return \{ saved: true as const \}/);
+  assert.match(actions, /return hasMapPoint \? \{ saved: true as const, mapPointSaved, reviewMapPoint \} : \{ saved: true as const \}/);
   assert.doesNotMatch(actions, /public-profile\?saved=1/);
   assert.match(directUploadForm, /const result = await action\(formData\)/);
   assert.match(directUploadForm, /window\.location\.assign/);
