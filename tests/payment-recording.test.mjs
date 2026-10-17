@@ -32,6 +32,10 @@ test("uses the selected service title with a French fallback", () => {
   const title = { fr: "Coupe", en: "Cut" };
   assert.equal(localizedServiceTitle(title, "en"), "Cut");
   assert.equal(localizedServiceTitle(title, "es"), "Coupe");
+  assert.equal(localizedServiceTitle({ en: "Cut" }, "es"), "Cut");
+  for (const [locale, expected] of [["fr", "Prestation non renseignée"], ["en", "Service name unavailable"], ["es", "Servicio no especificado"]]) {
+    assert.equal(localizedServiceTitle({}, locale), expected);
+  }
 });
 
 test("migration enforces trusted snapshots, ownership, idempotency, and payment bounds", async () => {

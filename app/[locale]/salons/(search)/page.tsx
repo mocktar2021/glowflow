@@ -41,6 +41,8 @@ const copy = {
     results: "salons trouvés",
     oneResult: "salon trouvé",
     from: "À partir de",
+    price: "Prix",
+    priceUnavailable: "Tarif indisponible",
     next: "Prochain créneau",
     availabilityUnknown: "Disponibilité sur la page du salon",
     book: "Voir et réserver",
@@ -81,6 +83,8 @@ const copy = {
     results: "salons found",
     oneResult: "salon found",
     from: "From",
+    price: "Price",
+    priceUnavailable: "Price unavailable",
     next: "Next opening",
     availabilityUnknown: "Availability on the salon page",
     book: "View and book",
@@ -121,6 +125,8 @@ const copy = {
     results: "salones encontrados",
     oneResult: "salón encontrado",
     from: "Desde",
+    price: "Precio",
+    priceUnavailable: "Precio no disponible",
     next: "Próxima disponibilidad",
     availabilityUnknown: "Disponibilidad en la página del salón",
     book: "Ver y reservar",
@@ -377,8 +383,8 @@ export default async function SalonSearchPage({
                     ) : null}
                     <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#eee4d8] pt-4 text-sm dark:border-white/10">
                       <span>
-                        <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.from}</span>
-                        <strong>{salon.starting_price === null ? "—" : formatMinorMoney(salon.starting_price, salon.currency, locale)}</strong>
+                        <span className="block text-xs text-slate-500 dark:text-stone-400">{salon.starting_price === null ? labels.price : labels.from}</span>
+                        <strong>{salon.starting_price === null ? labels.priceUnavailable : formatMinorMoney(salon.starting_price, salon.currency, locale)}</strong>
                       </span>
                       <span>
                         <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.next}</span>

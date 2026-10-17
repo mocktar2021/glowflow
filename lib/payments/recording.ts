@@ -37,8 +37,13 @@ export function localizedServiceTitle(
   title: Record<string, unknown>,
   locale: "fr" | "en" | "es",
 ) {
-  const preferred = title[locale];
-  if (typeof preferred === "string" && preferred.trim()) return preferred;
-  const french = title.fr;
-  return typeof french === "string" && french.trim() ? french : "—";
+  for (const language of [locale, "fr", "en", "es"]) {
+    const value = title[language];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return {
+    fr: "Prestation non renseignée",
+    en: "Service name unavailable",
+    es: "Servicio no especificado",
+  }[locale];
 }

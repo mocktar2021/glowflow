@@ -82,7 +82,7 @@ for (const locale of ["fr", "en", "es"]) {
     await page.getByRole("status").filter({ hasText: headings[locale] }).waitFor();
     await page.locator("#notification-kind").selectOption("reminder2h");
     await page.locator("#notification-client").selectOption("es");
-    await page.getByRole("status").filter({ hasText: "Recordatorio de cita — 2 horas" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Recordatorio: su cita es en 2 horas" }).waitFor();
     await context.clearCookies();
     await page.reload();
     await page.waitForURL(`${origin}/${locale}/login`);

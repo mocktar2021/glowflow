@@ -10,12 +10,16 @@ const { renderNotification } = loaded.exports;
 const base = { kind: "confirmation", salonName: "Atelier Belle", serviceName: "Coupe", startsAt: "2026-09-10T14:30:00Z", timeZone: "Europe/Paris", address: "12 rue des Fleurs, Paris" };
 
 test("all nine localized messages include validated booking details without unresolved variables", () => {
-  const headings = { fr: ["Rendez-vous confirmé", "24 heures", "2 heures"], en: ["Appointment confirmed", "24 hours", "2 hours"], es: ["Cita confirmada", "24 horas", "2 horas"] };
+  const headings = {
+    fr: ["Rendez-vous confirmé", "Rappel : votre rendez-vous est dans 24 heures", "Rappel : votre rendez-vous est dans 2 heures"],
+    en: ["Appointment confirmed", "Reminder: your appointment is in 24 hours", "Reminder: your appointment is in 2 hours"],
+    es: ["Cita confirmada", "Recordatorio: su cita es en 24 horas", "Recordatorio: su cita es en 2 horas"],
+  };
   for (const locale of ["fr", "en", "es"]) {
     for (const [index, kind] of ["confirmation", "reminder24h", "reminder2h"].entries()) {
       const result = renderNotification({ ...base, clientLocale: locale, kind });
       assert.equal(result.locale, locale);
-      assert.ok(result.text.includes(headings[locale][index]));
+      assert.equal(result.text.split("\n")[0], headings[locale][index]);
       for (const value of [base.salonName, base.serviceName, base.address, base.timeZone]) assert.ok(result.text.includes(value));
       assert.doesNotMatch(result.text, /[{}<>]|https?:\/\//);
       assert.equal(result.text.split("\n").length, 6);
@@ -54,6 +58,8 @@ test("untrusted text cannot inject extra fields, markup or unresolved template t
     }
   }
   assert.ok(renderNotification({ ...base, salonName: "  L'Atelier & Beauté  " }).text.includes("L'Atelier & Beauté\n"));
+  const customerDash = `Salon ${String.fromCodePoint(0x2014)} beauté`;
+  assert.ok(renderNotification({ ...base, salonName: customerDash }).text.includes(customerDash));
   assert.throws(() => renderNotification({ ...base, kind: "Secret" }), { message: "Invalid notification data" });
   assert.throws(() => renderNotification(null), { message: "Invalid notification data" });
 });
