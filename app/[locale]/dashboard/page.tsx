@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarDays, CreditCard, Globe, LogOut, Package, Scissors, UsersRound } from "lucide-react";
+import { Bell, CalendarClock, CalendarDays, CreditCard, Globe, LogOut, Package, Scissors, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
@@ -9,9 +9,9 @@ import { signOut } from "../auth-actions";
 export const dynamic = "force-dynamic";
 
 const copy = {
-  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements" },
-  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", services: "Service catalog", products: "Products", availability: "Team and availability", profile: "Public profile", payments: "Payments" },
-  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos" },
+  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements", notifications: "Aperçu des notifications" },
+  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", services: "Service catalog", products: "Products", availability: "Team and availability", profile: "Public profile", payments: "Payments", notifications: "Notification preview" },
+  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos", notifications: "Vista previa de notificaciones" },
 } as const;
 
 export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -33,6 +33,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       { route: "availability", title: labels.availability, icon: CalendarClock },
       { route: "public-profile", title: labels.profile, icon: Globe },
       { route: "payments", title: labels.payments, icon: CreditCard },
+      { route: "notifications", title: labels.notifications, icon: Bell },
     ] : []),
   ];
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "full", timeZone: tenant.time_zone }).format(new Date());
