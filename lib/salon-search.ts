@@ -18,6 +18,12 @@ export type SalonSearchResult = {
 
 export const categoryValues = ["hair", "nails", "other"] as const;
 export type SalonCategory = (typeof categoryValues)[number];
+export const salonSortValues = ["relevance", "price_asc", "price_desc", "availability"] as const;
+export type SalonSort = (typeof salonSortValues)[number];
+
+export function salonSearchSort(value: string): SalonSort {
+  return salonSortValues.includes(value as SalonSort) ? value as SalonSort : "relevance";
+}
 
 export function isSalonCategory(value: string): value is SalonCategory {
   return categoryValues.includes(value as SalonCategory);
