@@ -7,6 +7,13 @@ import { isLocale, messages } from "@/lib/i18n";
 import "../globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.VERCEL_ENV === "production"
+      ? "https://glowflow.mocktar.com"
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000",
+  ),
   title: {
     default: "GlowFlow",
     template: "%s · GlowFlow",
@@ -14,8 +21,21 @@ export const metadata: Metadata = {
   description:
     "Booking, client records, deposits, reminders, and checkout for independent beauty professionals.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    siteName: "GlowFlow",
+    images: [{ url: "/og-glowflow.png", width: 1200, height: 630, alt: "GlowFlow" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og-glowflow.png"],
   },
 };
 
