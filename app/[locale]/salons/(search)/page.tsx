@@ -11,6 +11,7 @@ import { fallbackMarkets, marketName } from "@/lib/markets";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
 import {
   isSalonCategory,
+  salonSearchSort,
   type SalonSearchResult,
 } from "@/lib/salon-search";
 import { createClient } from "@/lib/supabase/server";
@@ -60,6 +61,13 @@ const copy = {
     page: "Page",
     marketplace: "Marketplace beauté",
     exploreCountries: "Explorer les salons par pays",
+    sort: "Trier par",
+    sortRelevance: "Pertinence",
+    sortPriceAsc: "Prix croissant",
+    sortPriceDesc: "Prix décroissant",
+    sortAvailability: "Prochain créneau",
+    sortUnavailable: "Le tri est momentanément indisponible. Les résultats sont affichés par pertinence.",
+    priceSortNeedsCountry: "Choisissez un pays pour comparer les prix dans une même devise. Les résultats sont affichés par pertinence.",
   },
   en: {
     eyebrow: "GlowFlow salons",
@@ -103,6 +111,13 @@ const copy = {
     page: "Page",
     marketplace: "Beauty marketplace",
     exploreCountries: "Explore salons by country",
+    sort: "Sort by",
+    sortRelevance: "Relevance",
+    sortPriceAsc: "Price: low to high",
+    sortPriceDesc: "Price: high to low",
+    sortAvailability: "Soonest available",
+    sortUnavailable: "Sorting is temporarily unavailable. Results are shown by relevance.",
+    priceSortNeedsCountry: "Choose a country to compare prices in one currency. Results are shown by relevance.",
   },
   es: {
     eyebrow: "Salones GlowFlow",
@@ -146,6 +161,13 @@ const copy = {
     page: "Página",
     marketplace: "Marketplace de belleza",
     exploreCountries: "Explorar salones por país",
+    sort: "Ordenar por",
+    sortRelevance: "Relevancia",
+    sortPriceAsc: "Precio: de menor a mayor",
+    sortPriceDesc: "Precio: de mayor a menor",
+    sortAvailability: "Próxima disponibilidad",
+    sortUnavailable: "La ordenación no está disponible temporalmente. Los resultados se muestran por relevancia.",
+    priceSortNeedsCountry: "Elige un país para comparar precios en una sola moneda. Los resultados se muestran por relevancia.",
   },
 } as const;
 
@@ -212,6 +234,9 @@ export default async function SalonSearchPage({
   const postalCode = value(filters, "postcode").trim();
   const categoryValue = value(filters, "category");
   const category = isSalonCategory(categoryValue) ? categoryValue : "";
+  const sortBy = salonSearchSort(value(filters, "sort"));
+  const priceSortNeedsCountry = (sortBy === "price_asc" || sortBy === "price_desc") && !country;
+  const effectiveSort = priceSortNeedsCountry ? "relevance" : sortBy;
   const maxPriceValue = value(filters, "maxPrice");
   const maximumPrice = maxPriceValue ? positiveInteger(maxPriceValue, 0) : null;
   const availableDate = value(filters, "availableBefore");
@@ -220,6 +245,7 @@ export default async function SalonSearchPage({
 
   let results: SalonSearchResult[] = [];
   let loadError = false;
+  let sortUnavailable = false;
   let countryDefaultLocales = new Map<string, string>();
   const visitorPreference = (await cookies()).get("glowflow_locale")?.value;
 
@@ -228,7 +254,7 @@ export default async function SalonSearchPage({
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   ) {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("search_public_salons", {
+    const rpcArgs = {
       search_text: searchText || null,
       filter_country_code: country || null,
       filter_city: city || null,
@@ -238,7 +264,15 @@ export default async function SalonSearchPage({
       available_before: availableDate ? `${availableDate}T23:59:59.999Z` : null,
       page_size: pageSize,
       page_offset: (page - 1) * pageSize,
-    });
+    };
+    let { data, error } = await supabase.rpc(
+      effectiveSort === "relevance" ? "search_public_salons" : "search_public_salons_sorted",
+      effectiveSort === "relevance" ? rpcArgs : { ...rpcArgs, sort_by: effectiveSort },
+    );
+    if (effectiveSort !== "relevance" && error?.code === "PGRST202") {
+      sortUnavailable = true;
+      ({ data, error } = await supabase.rpc("search_public_salons", rpcArgs));
+    }
 
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
@@ -336,7 +370,16 @@ export default async function SalonSearchPage({
               </div>
             </details>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="text-sm font-medium">
+                {labels.sort}
+                <select name="sort" defaultValue={sortBy} className="mt-2 h-12 min-w-48 rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-4 outline-none focus:border-[#b77a42] focus:ring-2 focus:ring-[#b77a42]/20 dark:border-white/15 dark:bg-white/5">
+                  <option value="relevance">{labels.sortRelevance}</option>
+                  <option value="price_asc">{labels.sortPriceAsc}</option>
+                  <option value="price_desc">{labels.sortPriceDesc}</option>
+                  <option value="availability">{labels.sortAvailability}</option>
+                </select>
+              </label>
               <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950" type="submit">{labels.submit}</button>
               <Link className="px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
             </div>
@@ -355,6 +398,8 @@ export default async function SalonSearchPage({
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
+        {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
+        {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
         {loadError ? (
           <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>

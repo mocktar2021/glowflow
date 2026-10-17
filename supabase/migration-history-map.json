@@ -233,6 +233,13 @@
       "sourceVersion": "20261017174506",
       "marker": false,
       "normalizedSha256": "0ca75005b07335b0fc7762ec807ad086fb2ce072822b5040dbfe5ecc82f393ae"
+    },
+    {
+      "version": "20261017220612",
+      "name": "add_public_salon_sorting",
+      "sourceVersion": "20261017220612",
+      "marker": false,
+      "normalizedSha256": "ec836a9ff632735fc285c91d26bb28813e6469085d53aba715069e7adbb5f27b"
     }
   ]
 }
