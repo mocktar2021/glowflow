@@ -115,3 +115,67 @@ test("offline unknown salon slugs fail closed while explicit atelier demo remain
     if (originalSecret === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecret;
   }
 });
+test("localized booking resolves only published tenant services and passes an explicit public field set", async () => {
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSecret = process.env.SUPABASE_SECRET_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://fixture.invalid";
+  process.env.SUPABASE_SECRET_KEY = "fixture-only";
+  const primary = "11111111-1111-4111-8111-111111111111";
+  const foreign = "22222222-2222-4222-8222-222222222222";
+  const tables = {
+    tenants: [
+      { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
+      { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
+    ],
+    salon_public_profiles: [{ tenant_id: "tenant-a", business_name: "Public Brand", is_published: true }, { tenant_id: "tenant-b", business_name: "Hidden Brand", is_published: false }],
+    services: [
+      { id: primary, tenant_id: "tenant-a", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR", is_active: true, internal_cost: 1200 },
+      { id: foreign, tenant_id: "tenant-b", title_json: { fr: "Secret" }, duration_minutes: 30, price: 4000, deposit_amount: 0, currency: "EUR", is_active: true },
+    ],
+  };
+  const selections = [];
+  const createAdminClient = () => ({ from(table) {
+    const filters = [];
+    let columns = [];
+    const query = {
+      select(value) { columns = value.split(","); selections.push({ table, columns }); return query; },
+      eq(column, value) { filters.push([column, value]); return query; },
+      order() { return Promise.resolve({ data: resolve() }); },
+      single() { return Promise.resolve({ data: resolve()[0] ?? null }); },
+      maybeSingle() { return Promise.resolve({ data: resolve()[0] ?? null }); },
+    };
+    function resolve() { return tables[table].filter(row => filters.every(([column, value]) => row[column] === value)).map(row => Object.fromEntries(columns.map(column => [column, row[column]]))); }
+    return query;
+  } });
+  try {
+    const { default: Page } = await load("../app/[locale]/book/[slug]/page.tsx", {
+      "next/navigation": { notFound: () => { throw new Error("not-found"); } },
+      "@/components/glowflow/booking-flow": { BookingFlow: "demo" },
+      "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
+      "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
+      "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+      "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
+      "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
+      "@/lib/supabase/admin": { createAdminClient },
+    });
+    const render = (locale, slug, service) => Page({ params: Promise.resolve({ locale, slug }), searchParams: Promise.resolve(service ? { service } : {}) });
+    for (const locale of ["fr", "en", "es"]) {
+      const result = await render(locale, "published", primary);
+      assert.equal(result.type, "live");
+      assert.equal(result.props.locale, locale);
+      assert.equal(result.props.initialServiceId, primary);
+      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", currency: "EUR", timeZone: "Europe/Paris" });
+      assert.deepEqual(result.props.services.map(service => service.id), [primary]);
+      assert.equal("private_note" in result.props.salon, false);
+      assert.equal("internal_cost" in result.props.services[0], false);
+    }
+    for (const [locale, slug, service] of [["fr", "hidden", null], ["en", "unknown", null], ["es", "published", foreign], ["de", "published", null]]) {
+      await assert.rejects(render(locale, slug, service), /not-found/);
+    }
+    assert.ok(selections.every(({ table, columns }) => table !== "tenants" || !columns.includes("private_note")));
+    assert.ok(selections.every(({ table, columns }) => table !== "services" || !columns.includes("internal_cost")));
+  } finally {
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalSecret === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecret;
+  }
+});

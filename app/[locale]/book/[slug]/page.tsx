@@ -57,14 +57,16 @@ export default async function BookingPage({
 
   if (!tenant) notFound();
   if (sandbox && tenant.id !== sandboxTenantId) notFound();
+  let publicSalonName = tenant.name;
   if (!sandbox) {
     const { data: publishedProfile } = await supabase
       .from("salon_public_profiles")
-      .select("tenant_id")
+      .select("tenant_id,business_name")
       .eq("tenant_id", tenant.id)
       .eq("is_published", true)
       .maybeSingle();
     if (!publishedProfile) notFound();
+    publicSalonName = publishedProfile.business_name;
   }
   if (sandbox && query.sandboxReservation) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.sandboxReservation)) notFound();
@@ -89,7 +91,7 @@ export default async function BookingPage({
       locale={locale}
       sandbox={sandbox}
       salon={{
-        name: tenant.name,
+        name: publicSalonName,
         slug: tenant.slug,
         city: tenant.city,
         currency: tenant.currency,

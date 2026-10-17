@@ -323,7 +323,7 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
           <p className="mt-2 text-sm">{formatter.format(new Date(confirmation.confirmed_start))} – {formatter.format(new Date(confirmation.confirmed_end))}</p>
           <p className="mt-1 text-sm text-slate-600 dark:text-stone-300">{labels.timeZone}: {details?.time_zone ?? salon.timeZone}</p>
           <dl className="mt-5 space-y-4 text-sm">
-            <div><dt className="font-semibold">{labels.salon}</dt><dd className="mt-1">{confirmation.salon_name}</dd></div>
+            <div><dt className="font-semibold">{labels.salon}</dt><dd className="mt-1">{confirmation.salon_name || salon.name}</dd></div>
             <div><dt className="font-semibold">{labels.address}</dt><dd className="mt-1 whitespace-pre-line">{details?.address || labels.addressMissing}</dd></div>
             <div><dt className="font-semibold">{labels.price}</dt><dd className="mt-1">{hasPrice ? `${money(details!.catalog_price!, details!.currency!, locale)} (${details!.currency})` : labels.priceMissing}</dd><dd className="mt-1 text-slate-600 dark:text-stone-300">{labels.priceNote}</dd></div>
             <div><dt className="font-semibold">{labels.payment}</dt><dd className="mt-1">{labels.noOnlinePayment}</dd></div>
@@ -331,10 +331,12 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
           </dl>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
-        <button type="button" onClick={() => { setConfirmation(null); reloadAvailability(); }} className="mt-6 h-12 rounded-full border border-[#d9c7b2] px-6 font-semibold">{labels.another}</button>
+        <button type="button" onClick={() => { setConfirmation(null); reloadAvailability(); }} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold">{labels.another}</button>
       </section>
     </main>;
   }
+
+  const contactError = error === labels.contact;
 
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
@@ -401,10 +403,10 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
             <legend className="mb-3 font-semibold">{labels.details}</legend>
             <p id="booking-contact-hint" className="text-sm text-slate-600 dark:text-stone-300 sm:col-span-2">{labels.contact}</p>
             <label className="sm:col-span-2">{labels.name}<input name="fullName" autoComplete="name" minLength={2} maxLength={120} required className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
-            <label>{labels.phone}<input ref={contactRef} name="phone" type="tel" autoComplete="tel" aria-invalid={error === labels.contact} aria-describedby="booking-contact-hint" maxLength={40} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
-            <label>{labels.email}<input name="email" type="email" autoComplete="email" aria-invalid={error === labels.contact} aria-describedby="booking-contact-hint" maxLength={160} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
+            <label>{labels.phone}<input ref={contactRef} name="phone" type="tel" autoComplete="tel" aria-invalid={contactError} aria-describedby={`booking-contact-hint${contactError ? " booking-contact-error" : ""}`} onChange={() => { if (contactError) setError(""); }} maxLength={40} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
+            <label>{labels.email}<input name="email" type="email" autoComplete="email" aria-invalid={contactError} aria-describedby={`booking-contact-hint${contactError ? " booking-contact-error" : ""}`} onChange={() => { if (contactError) setError(""); }} maxLength={160} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5" /></label>
           </fieldset>
-          {error ? <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</p> : null}
+          {error ? <p id={contactError ? "booking-contact-error" : undefined} role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</p> : null}
           <button type="submit" disabled={!slot || loadingSlots || submitting} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-slate-950 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
             <Clock3 className="size-5" />{submitting ? labels.saving : sandbox ? paymentLabels.pay : labels.reserve}
           </button>

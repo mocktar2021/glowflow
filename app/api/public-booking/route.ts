@@ -108,6 +108,7 @@ export async function POST(request: Request) {
   // Enrichment must never turn an already committed booking into a failed request.
   // Read the stored appointment, rather than trusting the service in a retried body.
   let details = null;
+  let publicSalonName = "";
   try {
     const { data: tenant, error: tenantError } = await supabase.from("tenants")
       .select("id,time_zone").eq("slug", parsed.data.salonSlug).single();
@@ -120,11 +121,12 @@ export async function POST(request: Request) {
           supabase.from("services").select("title_json,price,currency")
             .eq("id", appointment.service_id).eq("tenant_id", tenant.id).single(),
           supabase.from("salon_public_profiles")
-            .select("address_line1,city,administrative_area,postal_code,country_code,policies_json")
+            .select("business_name,address_line1,city,administrative_area,postal_code,country_code,policies_json")
             .eq("tenant_id", tenant.id).eq("is_published", true).maybeSingle(),
         ]);
         const service = serviceResult.error ? null : serviceResult.data;
         const profile = profileResult.error ? null : profileResult.data;
+        publicSalonName = profile?.business_name ?? "";
         details = {
           time_zone: validTimeZone(tenant.time_zone),
           address: typeof profile?.address_line1 === "string" && profile.address_line1.trim() ? [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code].filter((part) => typeof part === "string" && part.trim()).join(", ") || null : null,
@@ -139,7 +141,7 @@ export async function POST(request: Request) {
     // The booking reference remains usable even if optional public details cannot load.
   }
 
-  return NextResponse.json({ confirmation: { ...confirmation, details } }, {
+  return NextResponse.json({ confirmation: { ...confirmation, salon_name: publicSalonName, details } }, {
     status: 201, headers: { "cache-control": "private, no-store" },
   });
 }
