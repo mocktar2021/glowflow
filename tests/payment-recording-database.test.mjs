@@ -104,4 +104,35 @@ test("manual recording is idempotent and cannot concurrently exceed the appointm
   assert.equal(duplicate.filter(result => result.status === 0).length, 2);
   assert.equal(sql("select count(*) from public.payment_entries where idempotency_key='66000000-0000-0000-0000-000000000003'"), "1");
   assert.equal(sql("select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001')"), "4000");
+
+  const card = sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select public.record_manual_appointment_payment(
+      '50000000-0000-0000-0000-000000000001',
+      'external_card', 1000, '66000000-0000-0000-0000-000000000004'
+    );
+  `).split("\n").at(-1);
+  assert.match(card, /^[0-9a-f-]{36}$/);
+  assert.equal(sql(`
+    select string_agg(payment_method || ':' || amount, ',' order by payment_method, amount)
+    from public.payment_entries
+    where appointment_id='50000000-0000-0000-0000-000000000001'
+  `), "cash:1000,cash:3000,external_card:1000");
+  assert.equal(sql("select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001')"), "5000");
+
+  sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select public.cancel_calendar_appointment('50000000-0000-0000-0000-000000000001');
+  `);
+  assert.equal(sql("select status from public.appointments where id='50000000-0000-0000-0000-000000000001'"), "canceled");
+  assert.equal(sql("select net_paid_amount from public.get_appointment_payment_summary('50000000-0000-0000-0000-000000000001')"), "5000",
+    "canceling an appointment must not silently erase or refund its payment ledger");
+  assert.equal(sql("select count(*) from public.payment_entries where appointment_id='50000000-0000-0000-0000-000000000001' and entry_type='refund'"), "0");
+  assert.throws(() => sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select public.cancel_calendar_appointment('50000000-0000-0000-0000-000000000001');
+  `), /appointment_not_cancelable/);
 });

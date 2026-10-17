@@ -19,6 +19,33 @@ Real Supabase session authorization, Stripe Checkout, signed webhook settlement,
 isolation, cash/mixed checkout and cancellation require their respective integration
 checks. GLOW-35 is not complete solely from this suite.
 
+## GLOW-35 critical-flow integration checks
+
+`tests/critical-flow-actions.test.mjs` runs the production payment and calendar server
+actions against a controlled, in-memory owner/member database adapter. It covers
+French, English, and Spanish cash and externally processed card recording; invalid,
+unauthenticated, over-balance, and cross-tenant failure paths; and owner/staff
+cancellation success and denial. It verifies the trusted RPC payloads and localized
+redirects, but does not claim a real card charge or hosted authorization check.
+
+`tests/stripe-deposit-events.test.mjs` signs synthetic sandbox events with a fixture
+webhook secret, then sends the raw bytes to the production webhook handler. It
+checks paid completion, asynchronous success, asynchronous failure, expiration,
+unpaid completion, tampering, and retryable persistence errors without contacting
+Stripe. `tests/sandbox-database.test.mjs` covers event idempotency and reservation
+state in an opt-in disposable local PostgreSQL database.
+
+`tests/payment-recording-database.test.mjs` uses a separate opt-in disposable
+local database to prove concurrent payment bounds, idempotency, mixed cash and
+external-card settlement, and cancellation without an implicit refund. Set only
+`GLOWFLOW_PAYMENT_RECORDING_TEST_DATABASE_URL` to a fresh local database named
+`glowflow_payment_recording_test*` before running it. It applies the repository
+schema and migrations, so never point it at a shared or hosted database.
+
+CI preview screenshots and check results are release evidence for the isolated
+browser fixture, not proof of a live Stripe payment. A real sandbox Checkout
+round-trip and hosted owner/RLS verification remain separate launch gates.
+
 CI uses pinned Playwright 1.58.2 and its installed Chromium. Optional local overrides
 `GLOWFLOW_PLAYWRIGHT_PATH` (absolute module entry) and `GLOWFLOW_CHROMIUM_PATH`
 (executable) support existing runtimes. The local September 10, 2026 verification
