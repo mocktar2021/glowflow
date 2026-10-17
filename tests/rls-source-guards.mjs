@@ -60,3 +60,20 @@ export function assertClientBoundaries(sources) {
   }
   for (const [filename, source] of sources) if (directive(source, 'client')) visit(filename, [], new Set());
 }
+
+// Adding a privileged client call site requires an explicit security review.
+// The approved paths either validate the owner, verify a Stripe signature, or
+// call a server-side RPC that validates public booking inputs in PostgreSQL.
+export function assertTrustedAdminClientUsage(sources, approvedPaths) {
+  for (const filename of approvedPaths) {
+    if (!sources.has(filename)) throw new Error(`Approved privileged client path is missing: ${filename}`);
+  }
+  for (const [filename, raw] of sources) {
+    if (filename === 'lib/supabase/admin.ts') continue;
+    const source = withoutComments(raw);
+    if (/\bcreateAdminClient\b|\bSUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)\b|["'](?:@\/lib\/supabase\/admin|[^"']*\/supabase\/admin)(?:\.[cm]?[jt]s)?["']/.test(source)
+        && !approvedPaths.has(filename)) {
+      throw new Error(`Unreviewed privileged Supabase client use: ${filename}`);
+    }
+  }
+}

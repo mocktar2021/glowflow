@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { assertClientBoundaries, assertRlsDeclarations } from './rls-source-guards.mjs';
+import { assertClientBoundaries, assertRlsDeclarations, assertTrustedAdminClientUsage } from './rls-source-guards.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 function codeFiles(folder, map = new Map()) {
@@ -56,4 +56,24 @@ test('client guard catches alias, relative, re-export and dynamic credential pat
     ['app/panel.tsx', '"use client"; import { action } from "./actions";'],
     ['app/actions.ts', '"use server"; import { secret } from "@/lib/supabase/admin";'], admin,
   ]));
+});
+
+test('privileged Supabase client remains limited to reviewed server operations', () => {
+  const sources = codeFiles('app');
+  codeFiles('lib', sources);
+  const approved = new Set([
+    'app/[locale]/book/[slug]/page.tsx',
+    'app/api/checkout/route.ts',
+    'app/api/public-booking/route.ts',
+    'app/api/stripe/webhook/route.ts',
+    'lib/stripe-sandbox.ts',
+  ]);
+  assertTrustedAdminClientUsage(sources, approved);
+  for (const unreviewedSource of [
+    'import { createAdminClient } from "@/lib/supabase/admin";',
+    'const key = process.env.SUPABASE_SECRET_KEY;',
+    'const admin = import("@/lib/supabase/admin");',
+  ]) {
+    assert.throws(() => assertTrustedAdminClientUsage(new Map([...sources, ['app/api/unreviewed/route.ts', unreviewedSource]]), approved), /Unreviewed privileged Supabase client use/);
+  }
 });

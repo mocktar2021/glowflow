@@ -56,6 +56,16 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   assert.equal(sql("select has_table_privilege('authenticated','public.notification_outbox','select') and not has_table_privilege('authenticated','public.notification_outbox','insert')"), "t");
   assert.equal(sql("select has_function_privilege('authenticated','public.claim_notification_delivery(uuid,uuid,timestamptz)','execute')"), "f");
   assert.equal(sql("select has_function_privilege('service_role','public.claim_notification_delivery(uuid,uuid,timestamptz)','execute')"), "t");
+  for (const signature of [
+    "public.record_client_notification_consent(uuid,uuid,text,text,uuid,timestamptz)",
+    "public.schedule_appointment_notifications(uuid,text,uuid)",
+    "public.claim_notification_delivery(uuid,uuid,timestamptz)",
+    "public.record_notification_delivery_result(uuid,text,uuid,timestamptz,timestamptz,text,text)",
+  ]) {
+    assert.equal(sql(`select has_function_privilege('service_role','${signature}','execute')`), "t", `${signature} is callable by the trusted server`);
+    assert.equal(sql(`select has_function_privilege('authenticated','${signature}','execute')`), "f", `${signature} is not callable by signed-in users`);
+    assert.equal(sql(`select has_function_privilege('anon','${signature}','execute')`), "f", `${signature} is not callable anonymously`);
+  }
 
   const tenantA = "10000000-0000-0000-0000-000000000001";
   const tenantB = "10000000-0000-0000-0000-000000000002";
@@ -94,6 +104,11 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   assert.equal(new Set(concurrentConsentIds).size, 1);
   const consentId = concurrentConsentIds[0];
   assert.equal(sql(`set role service_role;${consentCall}`).split("\n").at(-1), consentId);
+  for (const uid of [ownerA, staffA]) {
+    assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${uid}';select count(*) from public.client_notification_consent_events`).split("\n").at(-1), "1");
+  }
+  assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerB}';select count(*) from public.client_notification_consent_events`).split("\n").at(-1), "0");
+  assert.throws(() => sql("set role anon;select count(*) from public.client_notification_consent_events"), /permission denied/);
   assert.throws(() => sql(`set role service_role;select public.record_client_notification_consent('${tenantA}','${clientA}','sms','consented','${consentKey}','${consentAt}')`), /notification_consent_request_mismatch/);
 
   const scheduleKey = "60000000-0000-0000-0000-000000000002";
@@ -120,6 +135,11 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   assert.equal(claims.filter((result) => result.status === "rejected").length, 1);
   assert.match(claims.find((result) => result.status === "rejected").reason.message, /notification_not_eligible/);
   const claimId = sql(`select id from public.notification_delivery_attempts where outbox_id='${confirmation}' and event_type='claimed'`);
+  for (const uid of [ownerA, staffA]) {
+    assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${uid}';select count(*) from public.notification_delivery_attempts`).split("\n").at(-1), "1");
+  }
+  assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerB}';select count(*) from public.notification_delivery_attempts`).split("\n").at(-1), "0");
+  assert.throws(() => sql("set role anon;select count(*) from public.notification_delivery_attempts"), /permission denied/);
 
   const resultAt = sql("select date_trunc('second',now())");
   const retryAt = sql("select date_trunc('second',now()) + interval '1 second'");

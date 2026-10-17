@@ -22,7 +22,11 @@ function command(query) {
     throw new Error('Local PostgreSQL setup or cleanup failed; check the local server and client configuration.');
   }
 }
-for (const suite of ['schema-database.test.mjs', 'sandbox-database.test.mjs']) {
+for (const suite of [
+  'schema-database.test.mjs',
+  'sandbox-database.test.mjs',
+  'notification-persistence-database.test.mjs',
+]) {
   const database = `glowflow_sandbox_test_${Date.now()}_${randomInt(1_000_000)}`;
   const testUrl = new URL(admin);
   testUrl.pathname = `/${database}`;
