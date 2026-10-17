@@ -38,7 +38,7 @@ test("signed-in dashboard shows actual salon identity and working localized dest
     assert.match(html, /Actual Salon/);
     assert.match(html, /America\/New_York/);
     assert.doesNotMatch(html, /Sofia|Nadia|Maya|1248|312|Mar\. 8|allerg/i);
-    for (const route of ["calendar", "walk-ins", "services", "availability", "public-profile", "payments"]) assert.ok(html.includes(`href="/${locale}/dashboard/${route}"`));
+    for (const route of ["calendar", "walk-ins", "services", "products", "availability", "public-profile", "payments"]) assert.ok(html.includes(`href="/${locale}/dashboard/${route}"`));
     assert.deepEqual(queries, [{ table: "users", filters: [["id", "signed-in-user"]] }, { table: "tenants", filters: [["id", "actual-tenant"]] }]);
   }
 });
@@ -47,5 +47,5 @@ test("staff dashboard offers team work and hides owner-only settings", async () 
   const { html } = await render("en", false);
   assert.match(html, /href="\/en\/dashboard\/calendar"/);
   assert.match(html, /href="\/en\/dashboard\/walk-ins"/);
-  for (const route of ["services", "availability", "public-profile", "payments"]) assert.ok(!html.includes(`/dashboard/${route}`));
+  for (const route of ["services", "products", "availability", "public-profile", "payments"]) assert.ok(!html.includes(`/dashboard/${route}`));
 });

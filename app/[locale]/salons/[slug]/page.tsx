@@ -1,4 +1,4 @@
-import { CalendarDays, Clock3, CreditCard, MapPin, Phone, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { CalendarDays, Clock3, CreditCard, MapPin, Phone, ShieldCheck, ShoppingBag, Sparkles, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -18,6 +18,20 @@ type PublicProfile = {
   next_available_at: string | null; opening_hours: Record<string, string>;
   team_json: Array<{ name?: string; role?: string }>; policies_json: Record<string, string>; payment_methods: string[];
 };
+
+type PublicProduct = {
+  id: string; name_json: Record<string, string>; description_json: Record<string, string>;
+  image_alt_json: Record<string, string>; category: string; image_url: string | null;
+  price: number; currency: string; stock_visibility: string;
+};
+
+const productCategories = ["hair", "nails", "skincare", "accessories", "other"] as const;
+
+const productCopy = {
+  fr: { heading: "Produits du salon", notice: "À découvrir au salon ; achat en ligne non disponible.", hair: "Cheveux", nails: "Ongles", skincare: "Soins de la peau", accessories: "Accessoires", other: "Autres", available: "Disponible", unavailable: "Indisponible" },
+  en: { heading: "Salon products", notice: "Explore at the salon; online purchasing is not available.", hair: "Hair", nails: "Nails", skincare: "Skincare", accessories: "Accessories", other: "Other", available: "Available", unavailable: "Unavailable" },
+  es: { heading: "Productos del salón", notice: "Descúbrelos en el salón; la compra en línea no está disponible.", hair: "Cabello", nails: "Uñas", skincare: "Cuidado de la piel", accessories: "Accesorios", other: "Otros", available: "Disponible", unavailable: "No disponible" },
+} as const;
 
 const copy = {
   fr: { back: "Rechercher des salons", book: "Choisir une prestation", bookService: "Réserver cette prestation", about: "À propos", services: "Prestations", team: "Équipe", hours: "Horaires", policies: "Conditions", payments: "Paiements acceptés", location: "Adresse", map: "Ouvrir dans Maps", next: "Prochain créneau", duration: "Durée", deposit: "Acompte", card: "Carte", cash: "Espèces", mixed: "Paiement mixte", onlineDeposit: "Acompte en ligne", hair: "Coiffure", nails: "Ongles", other: "Autres", closed: "Fermé", noTeam: "Équipe présentée prochainement", noServices: "Prestations disponibles prochainement", days: ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"] },
@@ -64,10 +78,13 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
   if (!profile) notFound();
   const labels = copy[locale];
   const supabase = await createClient();
-  const [{ data: tenant }, { data: services }] = await Promise.all([
+  const [{ data: tenant }, { data: services }, { data: productRows }] = await Promise.all([
     supabase.from("tenants").select("time_zone").eq("id", profile.tenant_id).single(),
     supabase.from("services").select("id, title_json, duration_minutes, price, deposit_amount, currency, category").eq("tenant_id", profile.tenant_id).eq("is_active", true).order("price"),
+    supabase.from("salon_products").select("id, name_json, description_json, image_alt_json, category, image_url, price, currency, stock_visibility").eq("tenant_id", profile.tenant_id).eq("is_published", true).order("created_at"),
   ]);
+  const products = (productRows ?? []) as PublicProduct[];
+  const productLabels = productCopy[locale];
   const timeZone = tenant?.time_zone ?? "UTC";
   const address = [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code].filter(Boolean).join(", ");
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -87,6 +104,10 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
             <section><div className="flex flex-wrap gap-2">{profile.categories.map((category) => <span key={category} className="rounded-full bg-[#f3e8dc] px-3 py-1 text-xs font-semibold text-[#7b4b24]">{category === "hair" ? labels.hair : category === "nails" ? labels.nails : labels.other}</span>)}</div><h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{profile.business_name}</h1><p className="mt-3 flex items-center gap-2 text-slate-600 dark:text-stone-300"><MapPin className="size-4" />{profile.city}, {profile.country_code}</p></section>
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="text-xl font-semibold">{labels.about}</h2><p className="mt-3 whitespace-pre-line leading-7 text-slate-600 dark:text-stone-300">{localized(profile.description_json, locale)}</p></section>
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="text-xl font-semibold">{labels.services}</h2><div className="mt-4 divide-y divide-[#eee4d8] dark:divide-white/10">{services?.length ? services.map((service) => <div key={service.id} className="flex items-start justify-between gap-4 py-4"><div><h3 className="font-semibold">{localized(service.title_json as Record<string, string>, locale)}</h3><p className="mt-1 flex flex-wrap gap-3 text-sm text-slate-500"><span className="inline-flex items-center gap-1"><Clock3 className="size-4" />{service.duration_minutes} min</span>{service.deposit_amount > 0 ? <span>{labels.deposit}: {formatMinorMoneyWithCurrencyPrecision(service.deposit_amount, service.currency, locale)}</span> : null}</p></div><div className="shrink-0 text-right"><strong>{formatMinorMoneyWithCurrencyPrecision(service.price, service.currency, locale)}</strong><Link href={`/${locale}/book/${profile.slug}?service=${encodeURIComponent(service.id)}`} aria-label={`${labels.bookService}: ${localized(service.title_json as Record<string, string>, locale)}`} className="mt-3 block rounded-xl bg-slate-950 px-3 py-3 text-sm font-semibold text-white dark:bg-[#e7b779] dark:text-slate-950">{labels.bookService}</Link></div></div>) : <p className="py-4 text-sm text-slate-500">{labels.noServices}</p>}</div></section>
+            {products.length ? <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="flex items-center gap-2 text-xl font-semibold"><ShoppingBag className="size-5 text-[#a56d37]" />{productLabels.heading}</h2><p className="mt-2 text-sm text-slate-500">{productLabels.notice}</p>{productCategories.map((category) => {
+              const group = products.filter((product) => product.category === category);
+              return group.length ? <div key={category} className="mt-6"><h3 className="text-lg font-semibold">{productLabels[category]}</h3><div className="mt-3 grid gap-4 sm:grid-cols-2">{group.map((product) => <article key={product.id} className="overflow-hidden rounded-2xl border border-[#eee4d8] dark:border-white/10">{product.image_url ? <div className="relative aspect-[4/3] bg-[#f3e8dc]"><Image src={product.image_url} alt={localized(product.image_alt_json, locale)} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 45vw, 320px" className="object-cover" /></div> : null}<div className="p-4"><h4 className="font-semibold">{localized(product.name_json, locale)}</h4>{localized(product.description_json, locale) ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600 dark:text-stone-300">{localized(product.description_json, locale)}</p> : null}<p className="mt-3 font-semibold">{formatMinorMoneyWithCurrencyPrecision(product.price, product.currency, locale)}</p>{product.stock_visibility !== "not_shown" ? <p className="mt-1 text-xs text-slate-500">{product.stock_visibility === "available" ? productLabels.available : productLabels.unavailable}</p> : null}</div></article>)}</div></div> : null;
+            })}</section> : null}
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="flex items-center gap-2 text-xl font-semibold"><Users className="size-5 text-[#a56d37]" />{labels.team}</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{profile.team_json.length ? profile.team_json.map((member, index) => <div key={`${member.name}-${index}`} className="rounded-2xl bg-[#fbf6ef] p-4 dark:bg-white/5"><strong>{member.name}</strong><p className="mt-1 text-sm text-slate-500">{member.role}</p></div>) : <p className="text-sm text-slate-500">{labels.noTeam}</p>}</div></section>
           </div>
 

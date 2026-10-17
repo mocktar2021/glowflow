@@ -219,6 +219,13 @@
       "sourceVersion": "20261015011001",
       "marker": false,
       "normalizedSha256": "fda0106677a3e3e84e174fa8aca04eb81ea7b2e6787018bd201da4bb7c389d2b"
+    },
+    {
+      "version": "20261017162411",
+      "name": "add_salon_product_catalog",
+      "sourceVersion": "20261017162411",
+      "marker": false,
+      "normalizedSha256": "2f0d10e467473c778706c197790e1ac786d44af1a173e2ec8f34c2380a58db51"
     }
   ]
 }
