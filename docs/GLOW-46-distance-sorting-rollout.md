@@ -77,7 +77,12 @@ city, service, and text filters across at least 10,000 published salons and
 1,000 matching one query. Record `EXPLAIN (ANALYZE, BUFFERS)` and p95 latency;
 target p95 at or below 250 ms for page one and a later page. If it misses,
 optimize counting/pagination and retest before marking GLOW-46 complete. This
-gate has not yet been run.
+production-equivalent gate has not yet been run. The reproducible synthetic
+local benchmark and its limitations are recorded in
+`docs/GLOW-46-distance-performance.md`. It uses JIT off, matching the live
+GlowFlow PostgreSQL configuration, but different hardware and minor
+PostgreSQL/PostGIS versions. Keep GLOW-46 In Progress until the full gate is
+verified.
 
 ## Operational rollback
 
