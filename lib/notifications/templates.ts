@@ -68,9 +68,9 @@ export function renderNotification(input: NotificationInput): { locale: Notifica
     throw invalid();
   }
   const headings = {
-    fr: { confirmation: "Rendez-vous confirmé", reminder24h: "Rappel de rendez-vous — 24 heures", reminder2h: "Rappel de rendez-vous — 2 heures" },
-    en: { confirmation: "Appointment confirmed", reminder24h: "Appointment reminder — 24 hours", reminder2h: "Appointment reminder — 2 hours" },
-    es: { confirmation: "Cita confirmada", reminder24h: "Recordatorio de cita — 24 horas", reminder2h: "Recordatorio de cita — 2 horas" },
+    fr: { confirmation: "Rendez-vous confirmé", reminder24h: "Rappel : votre rendez-vous est dans 24 heures", reminder2h: "Rappel : votre rendez-vous est dans 2 heures" },
+    en: { confirmation: "Appointment confirmed", reminder24h: "Reminder: your appointment is in 24 hours", reminder2h: "Reminder: your appointment is in 2 hours" },
+    es: { confirmation: "Cita confirmada", reminder24h: "Recordatorio: su cita es en 24 horas", reminder2h: "Recordatorio: su cita es en 2 horas" },
   };
   const labels = {
     fr: { salon: "Salon", service: "Prestation", when: "Date et heure", address: "Adresse", zone: "Fuseau horaire" },

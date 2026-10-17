@@ -66,6 +66,10 @@ test("returns an explicit public search field set", async () => {
 
 test("formats discovery prices from persisted catalog cents", () => {
   assert.match(discoveryPage, /formatMinorMoney\(salon\.starting_price/);
+  for (const unavailable of ["Tarif indisponible", "Price unavailable", "Precio no disponible"]) {
+    assert.ok(discoveryPage.includes(unavailable));
+  }
+  assert.match(discoveryPage, /salon\.starting_price === null \? labels\.priceUnavailable/);
 });
 
 test("salon country sets the profile language unless the visitor chooses one", () => {

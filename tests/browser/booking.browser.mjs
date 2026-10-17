@@ -171,7 +171,7 @@ for (const locale of ["fr", "en", "es"]) {
     const initial = { fr: "Rendez-vous confirmé", en: "Appointment confirmed", es: "Cita confirmada" };
     await status.filter({ hasText: initial[locale] }).waitFor();
     await page.locator("#notification-kind").selectOption("reminder24h");
-    const reminders = { fr: "Rappel de rendez-vous — 24 heures", en: "Appointment reminder — 24 hours", es: "Recordatorio de cita — 24 horas" };
+    const reminders = { fr: "Rappel : votre rendez-vous est dans 24 heures", en: "Reminder: your appointment is in 24 hours", es: "Recordatorio: su cita es en 24 horas" };
     await status.filter({ hasText: reminders[locale] }).waitFor();
     await page.locator("#notification-client").selectOption("");
     await page.locator("#notification-salon").selectOption("es");
@@ -181,7 +181,7 @@ for (const locale of ["fr", "en", "es"]) {
     await status.filter({ hasText: reminders.fr }).waitFor();
     await page.locator("#notification-client").selectOption("en");
     await page.locator("#notification-kind").selectOption("reminder2h");
-    await status.filter({ hasText: "Appointment reminder — 2 hours" }).waitFor();
+    await status.filter({ hasText: "Reminder: your appointment is in 2 hours" }).waitFor();
     assert.deepEqual(mutations, [], "preview must not send messages or save settings");
   });
 }
