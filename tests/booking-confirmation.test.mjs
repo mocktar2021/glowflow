@@ -16,7 +16,7 @@ async function load(file, dependencies) {
 const serviceId = "11111111-1111-4111-8111-111111111111";
 const originalServiceId = "22222222-2222-4222-8222-222222222222";
 const requestKey = "33333333-3333-4333-8333-333333333333";
-const base = { appointment_id: "appointment-a", confirmed_start: "2030-06-15T23:30:00Z", confirmed_end: "2030-06-16T00:00:00Z", salon_name: "Salon A", service_title: { en: "Wrong retried service" }, currency: "EUR", saved_locale: "en" };
+const base = { appointment_id: "appointment-a", confirmed_start: "2030-06-15T23:30:00Z", confirmed_end: "2030-06-16T00:00:00Z", salon_name: "PRIVATE TENANT NAME", service_title: { en: "Wrong retried service" }, currency: "EUR", saved_locale: "en" };
 const body = { salonSlug: "salon-a", serviceId, staffId: serviceId, startTime: base.confirmed_start, fullName: "Example Client", phone: "5550100", email: "", locale: "en", requestKey, price: 1, address: "Forged", policies: { en: "Free cancellation" } };
 function database({ published = true, wrongTenant = false, fail = false, wrongKey = false, malformed = false, partial = false, queryError = false, currency = "USD" } = {}) {
   const queries = [];
@@ -24,7 +24,7 @@ function database({ published = true, wrongTenant = false, fail = false, wrongKe
     tenants: [{ id: "tenant-a", slug: "salon-a", time_zone: "Asia/Tokyo", address_line1: "PRIVATE TENANT ADDRESS" }],
     appointments: [{ id: base.appointment_id, tenant_id: "tenant-a", public_booking_request_key: wrongKey ? "other-key" : requestKey, service_id: originalServiceId }],
     services: [{ id: originalServiceId, tenant_id: "tenant-a", title_json: { fr: "Soin original", en: "Original service", es: "Servicio original" }, price: 4200, currency }],
-    salon_public_profiles: [{ tenant_id: wrongTenant ? "tenant-b" : "tenant-a", is_published: published, address_line1: "12 Public Street", city: "Tokyo", country_code: "JP", policies_json: { en: "Contact us 24 hours before your appointment." }, private_note: "SECRET" }],
+    salon_public_profiles: [{ tenant_id: wrongTenant ? "tenant-b" : "tenant-a", is_published: published, business_name: "Public Brand", address_line1: "12 Public Street", city: "Tokyo", country_code: "JP", policies_json: { en: "Contact us 24 hours before your appointment." }, private_note: "SECRET" }],
   };
   return { queries, rpc: async () => ({ data: [base], error: null }), from(table) {
     if (fail) throw Error("private database error");
@@ -51,6 +51,7 @@ test("confirmation uses stored service and a published tenant-scoped profile, ig
   const { response, value } = await post(db);
   assert.equal(response.status, 201);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.equal(value.confirmation.salon_name, "Public Brand");
   assert.deepEqual(value.confirmation.details, { time_zone: "Asia/Tokyo", address: "12 Public Street, Tokyo, JP", policies: { en: "Contact us 24 hours before your appointment." }, catalog_price: 4200, currency: "USD", service_title: { fr: "Soin original", en: "Original service", es: "Servicio original" } });
   assert.ok(db.queries.find(q => q.table === "appointments").filters.some(([key, value]) => key === "public_booking_request_key" && value === requestKey));
   assert.ok(db.queries.find(q => q.table === "services").filters.some(([key, value]) => key === "id" && value === originalServiceId));
@@ -61,6 +62,7 @@ test("unpublished and cross-tenant profiles never reveal address or policies", a
     const { value } = await post(database(options));
     assert.equal(value.confirmation.details.address, null);
     assert.equal(value.confirmation.details.policies, null);
+    assert.equal(value.confirmation.salon_name, "");
   }
 });
 test("committed booking stays successful if enrichment fails or request binding does not match", async () => {
@@ -69,23 +71,24 @@ test("committed booking stays successful if enrichment fails or request binding 
     assert.equal(response.status, 201);
     assert.equal(value.confirmation.appointment_id, base.appointment_id);
     assert.equal(value.confirmation.details, null);
+    assert.equal(value.confirmation.salon_name, "");
     assert.doesNotMatch(JSON.stringify(value), /private database error/);
   }
 });
-async function markup(locale, details) {
-  const confirmation = { ...base, details };
+async function markup(locale, details, salonName = base.salon_name) {
+  const confirmation = { ...base, salon_name: salonName, details };
   let stateIndex = 0;
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 7 ? confirmation : initial, () => {}]; } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
   });
-  return renderToStaticMarkup(React.createElement(LiveBookingFlow, { locale, salon: { name: "Stale name", slug: "salon-a", city: null, currency: "EUR", timeZone: "America/Los_Angeles" }, services: [{ id: serviceId, title_json: {}, duration_minutes: 30, price: 1, deposit_amount: 0, currency: "EUR" }] }));
+  return renderToStaticMarkup(React.createElement(LiveBookingFlow, { locale, salon: { name: "Published page name", slug: "salon-a", city: null, currency: "EUR", timeZone: "America/Los_Angeles" }, services: [{ id: serviceId, title_json: {}, duration_minutes: 30, price: 1, deposit_amount: 0, currency: "EUR" }] }));
 }
 test("confirmation localizes authoritative date, price and truthful payment copy in all three languages", async () => {
   const { value } = await post(database());
   for (const [locale, price, payment] of [["fr", "Tarif actuel de la prestation", "Aucun paiement en ligne"], ["en", "Current service price", "No online payment"], ["es", "Precio actual del servicio", "No se ha cobrado"]]) {
-    const html = await markup(locale, value.confirmation.details);
+    const html = await markup(locale, value.confirmation.details, value.confirmation.salon_name);
     assert.match(html, new RegExp(price));
     assert.match(html, new RegExp(payment));
     assert.match(html, /Asia\/Tokyo/);
@@ -93,10 +96,16 @@ test("confirmation localizes authoritative date, price and truthful payment copy
     assert.match(html, /42/);
     assert.match(html, /USD/);
     assert.match(html, /12 Public Street/);
-    assert.match(html, /Salon A/);
+    assert.match(html, /Public Brand/);
     assert.match(html, /lang="en"/);
-    assert.doesNotMatch(html, /Wrong retried service|Stale name|Los_Angeles/);
+    assert.doesNotMatch(html, /Wrong retried service|Published page name|PRIVATE TENANT NAME|Los_Angeles/);
   }
+});
+test("missing confirmation enrichment falls back to the published booking-page name", async () => {
+  const { value } = await post(database({ fail: true }));
+  const html = await markup("en", value.confirmation.details, value.confirmation.salon_name);
+  assert.match(html, /Published page name/);
+  assert.doesNotMatch(html, /PRIVATE TENANT NAME/);
 });
 test("missing policy and address are explicit, and published text is escaped", async () => {
   for (const [locale, missing] of [["fr", "Adresse non publiée"], ["en", "Address not published"], ["es", "Dirección no publicada"]]) {

@@ -72,12 +72,27 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
     es: field(formData, "policies_es"),
   };
   const openingHours = Object.fromEntries(days.map((day) => [day, field(formData, `hours_${day}`)]));
-  const teamJson = [1, 2, 3]
+  const teamRows = [1, 2, 3]
     .map((index) => ({
       name: field(formData, `team_${index}_name`),
       role: field(formData, `team_${index}_role`),
-    }))
-    .filter((member) => member.name);
+      booking_staff_id: field(formData, `team_${index}_staff_id`),
+    }));
+  const linked = teamRows.filter((member) => member.booking_staff_id);
+  const linkedIds = linked.map((member) => member.booking_staff_id);
+  if (teamRows.some((member) => member.name.length > 120 || member.role.length > 120 || (member.booking_staff_id && (member.name.length < 2 || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(member.booking_staff_id))))
+    || new Set(linkedIds).size !== linkedIds.length
+    || new Set(linked.map((member) => member.name.toLocaleLowerCase())).size !== linked.length) fail(locale, "invalid_booking_staff");
+  if (linkedIds.length) {
+    const { data: ownedStaff, error: staffError } = await supabase.from("users")
+      .select("id").eq("tenant_id", owner.tenant_id).in("id", linkedIds);
+    if (staffError || ownedStaff?.length !== linkedIds.length) fail(locale, "invalid_booking_staff");
+  }
+  const teamJson = teamRows.filter((member) => member.name).map((member) => ({
+    name: member.name,
+    role: member.role,
+    ...(member.booking_staff_id ? { booking_staff_id: member.booking_staff_id } : {}),
+  }));
   const publicationAction = field(formData, "publication_action");
   if (!["private", "publish"].includes(publicationAction)) fail(locale, "invalid_publication_action");
   const publish = publicationAction === "publish";
@@ -155,6 +170,7 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
 
   revalidatePath(`/${locale}/dashboard/public-profile`);
   revalidatePath(`/${locale}/salons/${tenant.slug}`);
+  revalidatePath(`/${locale}/book/${tenant.slug}`);
   revalidatePath(`/${locale}/salons`);
   return { saved: true as const };
 }

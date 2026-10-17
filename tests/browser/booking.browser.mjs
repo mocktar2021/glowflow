@@ -94,12 +94,17 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   });
   return { page, writes, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
 }
+async function selectBookingTime(page, start = slot.slot_start) {
+  const radio = page.locator(`[name="bookingTime"][value="${start}"]`);
+  await radio.locator("..").click();
+  assert.equal(await radio.isChecked(), true);
+}
 for (const locale of ["fr", "en", "es"]) {
   test(`${locale} sandbox booking submits exact fixture and displays authoritative pending`, async t => {
     const { page, writes } = await pageFor(t, locale);
     await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1`);
     await page.getByRole("heading", { name: labels[locale].title }).waitFor();
-    await page.locator('[name="bookingTime"][value="2030-01-15T10:00:00Z"]').check();
+    await selectBookingTime(page);
     await page.locator('[name="fullName"]').fill("Fictional Browser Client");
     await page.locator('[name="email"]').fill("browser@example.invalid");
     await page.getByRole("button", { name: labels[locale].pay, exact: true }).click();
@@ -146,7 +151,7 @@ test("unavailable status hides stale checkout continuation", async t => {
 test("unavailable checkout stays in sandbox and never confirms a booking", async t => {
   const { page, writes } = await pageFor(t, "en", { unavailable: true });
   await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
-  await page.locator('[name="bookingTime"][value="2030-01-15T10:00:00Z"]').check();
+  await selectBookingTime(page);
   await page.locator('[name="fullName"]').fill("Fictional Browser Client");
   await page.locator('[name="phone"]').fill("0000000000");
   await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
@@ -187,8 +192,8 @@ for (const locale of ["fr", "en", "es"]) {
     const selected = "44444444-4444-4444-8444-444444444444";
     await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1&service=${selected}`);
     await page.getByRole("heading", { name: labels[locale].title }).waitFor();
-    assert.equal(await page.locator("select").inputValue(), selected);
-    await page.locator(`input[type="radio"][value="${slot.slot_start}"]`).check();
+    assert.equal(await page.locator('[name="bookingService"]').inputValue(), selected);
+    await selectBookingTime(page);
     await page.locator('[name="fullName"]').fill("Fictional Browser Client");
     await page.locator('[name="email"]').fill("browser@example.invalid");
     await page.getByRole("button", { name: labels[locale].pay, exact: true }).click();
@@ -206,13 +211,13 @@ test("changing service then language preserves the current service and sandbox q
   const second = "44444444-4444-4444-8444-444444444444";
   await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1&service=${second}#booking`);
   await page.getByRole("heading", { name: labels.fr.title }).waitFor();
-  await page.locator("select").selectOption(first);
+  await page.locator('[name="bookingService"]').selectOption(first);
   assert.equal(new URL(page.url()).searchParams.get("service"), first);
   await page.getByRole("button", { name: "Changer de langue" }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
   await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1&service=${first}#booking`);
-  assert.equal(await page.locator("select").inputValue(), first);
-  await page.locator(`input[type="radio"][value="${slot.slot_start}"]`).check();
+  assert.equal(await page.locator('[name="bookingService"]').inputValue(), first);
+  await selectBookingTime(page);
   await page.locator('[name="fullName"]').fill("Fictional Browser Client");
   await page.locator('[name="email"]').fill("browser@example.invalid");
   await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
@@ -221,10 +226,51 @@ test("changing service then language preserves the current service and sandbox q
   assert.equal(writes[0].locale, "en");
 });
 
+test("named professional filters available times and submits that professional", async t => {
+  const ben = { slot_start: "2030-01-15T11:00:00Z", staff_id: "66666666-6666-4666-8666-666666666666" };
+  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot, ben] } });
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en", ben.slot_start) } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 2);
+  await selectBookingTime(page);
+  await page.locator('[name="bookingStaff"]').selectOption(ben.staff_id);
+  assert.equal(await page.locator('[name="bookingTime"]:checked').count(), 0);
+  assert.equal(await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).count(), 0);
+  await fillBooking(page, "en", ben.slot_start);
+  await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].staffId, ben.staff_id);
+  assert.equal(writes[0].startTime, ben.slot_start);
+});
+
+test("unavailable preferred professional never silently changes and can return to all", async t => {
+  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en") } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor();
+  await page.locator('[name="bookingStaff"]').selectOption("66666666-6666-4666-8666-666666666666");
+  await page.getByText("This professional has no times on this date.").waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.equal(writes.length, 0);
+  await page.getByRole("button", { name: "Show all professionals" }).click();
+  assert.equal(await page.locator('[name="bookingStaff"]').inputValue(), "");
+  await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor();
+  await page.locator('[name="bookingStaff"]').selectOption(slot.staff_id);
+  await page.locator('[name="bookingService"]').selectOption("44444444-4444-4444-8444-444444444444");
+  assert.equal(await page.locator('[name="bookingStaff"]').inputValue(), "");
+});
+
 const confirmationLabels = {
-  fr: { submit: "Confirmer le rendez-vous", success: "Rendez-vous confirmé", conflict: "Ce créneau vient d’être réservé. Choisissez un autre horaire." },
-  en: { submit: "Confirm appointment", success: "Appointment confirmed", conflict: "Someone booked this time. Choose another time." },
-  es: { submit: "Confirmar cita", success: "Cita confirmada", conflict: "Otra persona reservó esta hora. Elige otra." },
+  fr: { submit: "Confirmer le rendez-vous", success: "Rendez-vous confirmé", conflict: "Ce créneau vient d’être réservé. Choisissez un autre horaire.", contact: "Ajoutez un téléphone ou un e-mail." },
+  en: { submit: "Confirm appointment", success: "Appointment confirmed", conflict: "Someone booked this time. Choose another time.", contact: "Add a phone number or email." },
+  es: { submit: "Confirmar cita", success: "Cita confirmada", conflict: "Otra persona reservó esta hora. Elige otra.", contact: "Añade un teléfono o correo." },
 };
 function confirmedBooking(locale, start = slot.slot_start) {
   return {
@@ -240,10 +286,43 @@ function confirmedBooking(locale, start = slot.slot_start) {
   };
 }
 async function fillBooking(page, locale, start = slot.slot_start) {
-  await page.locator(`input[type="radio"][value="${start}"]`).check();
+  await selectBookingTime(page, start);
   await page.locator('[name="fullName"]').fill("Fictional Browser Client");
   await page.locator('[name="email"]').fill("browser@example.invalid");
   await page.getByRole("button", { name: confirmationLabels[locale].submit, exact: true }).click();
+}
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} narrow-screen booking supports keyboard time choice and accessible contact recovery`, async t => {
+    const { page, writes } = await pageFor(t, locale, { publicBooking: async (route, writes) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: { confirmation: confirmedBooking(locale) } });
+    } });
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    const radio = page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`);
+    await radio.waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "booking must not scroll horizontally");
+    await radio.focus();
+    await page.keyboard.press("Space");
+    assert.equal(await radio.isChecked(), true);
+    await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+    await page.getByRole("button", { name: confirmationLabels[locale].submit, exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: confirmationLabels[locale].contact }).waitFor();
+    const phone = page.locator('[name="phone"]');
+    assert.equal(await phone.evaluate(element => document.activeElement === element), true);
+    assert.equal(await phone.getAttribute("aria-invalid"), "true");
+    assert.match(await phone.getAttribute("aria-describedby"), /booking-contact-error/);
+    await page.locator('[name="email"]').fill("browser@example.invalid");
+    await page.locator("#booking-contact-error").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#booking-contact-error").count(), 0);
+    assert.equal(await phone.getAttribute("aria-invalid"), "false");
+    await page.getByRole("button", { name: confirmationLabels[locale].submit, exact: true }).click();
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "confirmation must not scroll horizontally");
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].locale, locale);
+  });
 }
 for (const locale of ["fr", "en", "es"]) {
   test(`${locale} public booking confirmation uses returned salon details and local time`, async t => {
