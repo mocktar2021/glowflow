@@ -8,7 +8,7 @@ const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "ima
 const maximumImageBytes = 1024 * 1024;
 
 type Props = {
-  action: (formData: FormData) => Promise<{ saved: true }>;
+  action: (formData: FormData) => Promise<{ saved: true; mapPointSaved?: boolean; reviewMapPoint?: boolean }>;
   children: ReactNode;
   tenantId: string;
   messages: {
@@ -96,7 +96,10 @@ export function DirectUploadProfileForm({ action, children, tenantId, messages }
 
         const result = await action(formData);
         if (result.saved) {
-          window.location.assign(`${window.location.pathname}?saved=1`);
+          const query = new URLSearchParams({ saved: "1" });
+          if (result.mapPointSaved === false) query.set("mapPoint", "unavailable");
+          if (result.reviewMapPoint) query.set("mapPoint", "review");
+          window.location.assign(`${window.location.pathname}?${query}`);
         }
       } catch {
         if (uploadedPaths.length) {

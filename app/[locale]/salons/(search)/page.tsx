@@ -5,12 +5,15 @@ import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
 import { isLocale, salonProfileLocale, type Locale } from "@/lib/i18n";
 import { fallbackMarkets, marketName } from "@/lib/markets";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
 import {
   isSalonCategory,
+  maximumPriceMinorUnits,
+  salonSearchPage,
   salonSearchSort,
   type SalonSearchResult,
 } from "@/lib/salon-search";
@@ -173,21 +176,24 @@ const copy = {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+const extraCopy = {
+  fr: { priceNeedsCountry: "Choisissez un pays pour filtrer le prix dans sa devise. Le filtre de prix n’a pas été appliqué.", pageAdjusted: "Cette page n’existe pas. Les premiers résultats sont affichés." },
+  en: { priceNeedsCountry: "Choose a country to filter prices in its currency. The price filter was not applied.", pageAdjusted: "That page does not exist. Showing the first results." },
+  es: { priceNeedsCountry: "Elige un país para filtrar precios en su moneda. No se aplicó el filtro de precio.", pageAdjusted: "Esa página no existe. Se muestran los primeros resultados." },
+} as const;
+
+const allowedQueryKeys = new Set(["q", "country", "city", "postcode", "category", "maxPrice", "availableBefore", "sort"]);
+
 function value(params: SearchParams, key: string) {
   const item = params[key];
   return Array.isArray(item) ? item[0] ?? "" : item ?? "";
-}
-
-function positiveInteger(input: string, fallback: number) {
-  const parsed = Number.parseInt(input, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function pageHref(locale: Locale, params: SearchParams, page: number) {
   const query = new URLSearchParams();
   for (const [key, raw] of Object.entries(params)) {
     const item = Array.isArray(raw) ? raw[0] : raw;
-    if (item && key !== "page") query.set(key, item);
+    if (item && allowedQueryKeys.has(key)) query.set(key, item);
   }
   if (page > 1) query.set("page", String(page));
   const suffix = query.toString();
@@ -235,43 +241,58 @@ export default async function SalonSearchPage({
   const categoryValue = value(filters, "category");
   const category = isSalonCategory(categoryValue) ? categoryValue : "";
   const sortBy = salonSearchSort(value(filters, "sort"));
-  const priceSortNeedsCountry = (sortBy === "price_asc" || sortBy === "price_desc") && !country;
+  const selectedMarket = fallbackMarkets.find((market) => market.country_code === country);
+  const priceSortNeedsCountry = (sortBy === "price_asc" || sortBy === "price_desc") && !selectedMarket;
   const effectiveSort = priceSortNeedsCountry ? "relevance" : sortBy;
   const maxPriceValue = value(filters, "maxPrice");
-  const maximumPrice = maxPriceValue ? positiveInteger(maxPriceValue, 0) : null;
+  const maxPriceNeedsCountry = Boolean(maxPriceValue && !selectedMarket);
+  const maximumPrice = maximumPriceMinorUnits(maxPriceValue, selectedMarket?.currency ?? null);
   const availableDate = value(filters, "availableBefore");
-  const page = positiveInteger(value(filters, "page"), 1);
+  const requestedPage = value(filters, "page");
+  let page = salonSearchPage(requestedPage);
+  let pageAdjusted = Boolean(requestedPage && page === 1 && requestedPage !== "1");
   const pageSize = 9;
 
   let results: SalonSearchResult[] = [];
-  let loadError = false;
+  const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  let loadError = !configured;
   let sortUnavailable = false;
   let countryDefaultLocales = new Map<string, string>();
   const visitorPreference = (await cookies()).get("glowflow_locale")?.value;
+  const rpcFilters = {
+    search_text: searchText || null,
+    filter_country_code: country || null,
+    filter_city: city || null,
+    filter_postal_code: postalCode || null,
+    filter_category: category || null,
+    maximum_price: maximumPrice,
+    available_before: availableDate ? `${availableDate}T23:59:59.999Z` : null,
+  };
 
-  if (
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ) {
+  if (configured) {
     const supabase = await createClient();
-    const rpcArgs = {
-      search_text: searchText || null,
-      filter_country_code: country || null,
-      filter_city: city || null,
-      filter_postal_code: postalCode || null,
-      filter_category: category || null,
-      maximum_price: maximumPrice,
-      available_before: availableDate ? `${availableDate}T23:59:59.999Z` : null,
-      page_size: pageSize,
-      page_offset: (page - 1) * pageSize,
-    };
-    let { data, error } = await supabase.rpc(
-      effectiveSort === "relevance" ? "search_public_salons" : "search_public_salons_sorted",
-      effectiveSort === "relevance" ? rpcArgs : { ...rpcArgs, sort_by: effectiveSort },
-    );
-    if (effectiveSort !== "relevance" && error?.code === "PGRST202") {
-      sortUnavailable = true;
-      ({ data, error } = await supabase.rpc("search_public_salons", rpcArgs));
+    async function searchAt(offset: number, useLegacyRpc: boolean) {
+      const rpcArgs = { ...rpcFilters, page_size: pageSize, page_offset: offset };
+      let { data, error } = await supabase.rpc(
+        effectiveSort === "relevance" || useLegacyRpc ? "search_public_salons" : "search_public_salons_sorted",
+        effectiveSort === "relevance" || useLegacyRpc ? rpcArgs : { ...rpcArgs, sort_by: effectiveSort },
+      );
+      if (effectiveSort !== "relevance" && error?.code === "PGRST202") {
+        ({ data, error } = await supabase.rpc("search_public_salons", rpcArgs));
+        return { data, error, fallback: true };
+      }
+      return { data, error, fallback: false };
+    }
+
+    let response = await searchAt((page - 1) * pageSize, false);
+    sortUnavailable = response.fallback;
+    let { data, error } = response;
+    if (!error && (!data || data.length === 0) && page > 1) {
+      response = await searchAt(0, sortUnavailable);
+      sortUnavailable ||= response.fallback;
+      ({ data, error } = response);
+      page = 1;
+      pageAdjusted = true;
     }
 
     loadError = Boolean(error);
@@ -360,8 +381,8 @@ export default async function SalonSearchPage({
                   </select>
                 </label>
                 <label className="text-sm font-medium">
-                  {labels.maximumPrice}
-                  <input name="maxPrice" type="number" min="1" step="1" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  {labels.maximumPrice}{selectedMarket ? ` (${selectedMarket.currency})` : ""}
+                  <input name="maxPrice" type="number" min="0.01" step="0.01" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <label className="text-sm font-medium">
                   {labels.availableBefore}
@@ -399,7 +420,10 @@ export default async function SalonSearchPage({
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
+        {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
+        {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
+        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} enabled={!loadError}>
         {loadError ? (
           <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>
@@ -437,6 +461,7 @@ export default async function SalonSearchPage({
             ) : null}
           </>
         )}
+        </DistanceSearch>
       </section>
     </main>
   );

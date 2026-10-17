@@ -59,6 +59,16 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   const city = field(formData, "city");
   const postalCode = field(formData, "postal_code");
   const addressLine1 = field(formData, "address_line1");
+  const hasMapPoint = formData.has("map_latitude") || formData.has("map_longitude");
+  if (hasMapPoint && (!formData.has("map_latitude") || !formData.has("map_longitude"))) fail(locale, "invalid_map_point");
+  const latitudeText = hasMapPoint ? field(formData, "map_latitude") : "";
+  const longitudeText = hasMapPoint ? field(formData, "map_longitude") : "";
+  const coordinatePattern = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/;
+  if (hasMapPoint && Boolean(latitudeText) !== Boolean(longitudeText)) fail(locale, "invalid_map_point");
+  if (latitudeText && (!coordinatePattern.test(latitudeText) || !coordinatePattern.test(longitudeText))) fail(locale, "invalid_map_point");
+  const mapLatitude = latitudeText ? Number(latitudeText) : null;
+  const mapLongitude = longitudeText ? Number(longitudeText) : null;
+  if (mapLatitude !== null && (mapLongitude === null || !Number.isFinite(mapLatitude) || !Number.isFinite(mapLongitude) || Math.abs(mapLatitude) > 90 || Math.abs(mapLongitude) > 180)) fail(locale, "invalid_map_point");
   const categories = list(formData, "categories").filter((item) => ["hair", "nails", "other"].includes(item));
   const paymentMethods = list(formData, "payment_methods").filter((item) => ["card", "cash", "deposit", "mixed"].includes(item));
   const descriptionJson = {
@@ -104,9 +114,10 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
 
   const { data: existing } = await supabase
     .from("salon_public_profiles")
-    .select("image_url, gallery_urls")
+    .select("image_url, gallery_urls, address_line1, city, postal_code")
     .eq("tenant_id", owner.tenant_id)
     .maybeSingle();
+  const addressChanged = Boolean(existing && (existing.address_line1 !== addressLine1 || existing.city !== city || existing.postal_code !== postalCode));
 
   const previousCoverUrl = existing?.image_url ?? null;
   const previousGalleryUrls = Array.isArray(existing?.gallery_urls) ? existing.gallery_urls : [];
@@ -161,6 +172,16 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
     fail(locale, "save_failed");
   }
 
+  let mapPointSaved = true;
+  let reviewMapPoint = false;
+  if (hasMapPoint) {
+    const { error: mapError } = await supabase.from("salon_public_profiles")
+      .update({ map_latitude: mapLatitude, map_longitude: mapLongitude })
+      .eq("tenant_id", owner.tenant_id);
+    mapPointSaved = !mapError;
+    reviewMapPoint = mapPointSaved && addressChanged && mapLatitude !== null && field(formData, "map_point_confirmed") !== "yes";
+  }
+
   const obsoleteUrls = [
     ...previousGalleryUrls.filter((url: string) => !galleryUrls.includes(url)),
     ...(previousCoverUrl && previousCoverUrl !== coverUrl ? [previousCoverUrl] : []),
@@ -172,5 +193,5 @@ export async function savePublicSalonProfile(locale: Locale, formData: FormData)
   revalidatePath(`/${locale}/salons/${tenant.slug}`);
   revalidatePath(`/${locale}/book/${tenant.slug}`);
   revalidatePath(`/${locale}/salons`);
-  return { saved: true as const };
+  return hasMapPoint ? { saved: true as const, mapPointSaved, reviewMapPoint } : { saved: true as const };
 }
