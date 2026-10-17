@@ -14,7 +14,7 @@ export function ProductForm({ action, children, tenantId, productId, messages }:
   children: ReactNode;
   tenantId: string;
   productId: string;
-  messages: { invalidImage: string; uploadFailed: string; saveFailed: string; saving: string; altRequired: string };
+  messages: { invalidImage: string; uploadFailed: string; saveFailed: string; saving: string; altRequired: string; nameRequired: string };
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -27,11 +27,15 @@ export function ProductForm({ action, children, tenantId, productId, messages }:
     if (submitter instanceof HTMLButtonElement && submitter.name) formData.set(submitter.name, submitter.value);
     const image = formData.get("product_image");
     const file = image instanceof File && image.size > 0 ? image : null;
+    if (!["fr", "en", "es"].some((locale) => String(formData.get(`name_${locale}`) ?? "").trim().length >= 2)) {
+      setError(messages.nameRequired);
+      return;
+    }
     if (file && (!allowedTypes[file.type] || file.size > maxImageBytes)) {
       setError(messages.invalidImage);
       return;
     }
-    if (file && ["fr", "en", "es"].some((locale) => !String(formData.get(`alt_${locale}`) ?? "").trim())) {
+    if (file && !["fr", "en", "es"].some((locale) => String(formData.get(`alt_${locale}`) ?? "").trim())) {
       setError(messages.altRequired);
       return;
     }
@@ -54,7 +58,7 @@ export function ProductForm({ action, children, tenantId, productId, messages }:
         const result = await action(formData);
         if (!result.saved) {
           if (uploadedPath) await supabase.storage.from("salon-public-media").remove([uploadedPath]);
-          setError(result.error === "image_alt_required" ? messages.altRequired : messages.saveFailed);
+          setError(result.error === "image_alt_required" ? messages.altRequired : result.error === "name_required" ? messages.nameRequired : messages.saveFailed);
           return;
         }
         window.location.assign(`${window.location.pathname}?saved=1`);

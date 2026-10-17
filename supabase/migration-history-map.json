@@ -226,6 +226,13 @@
       "sourceVersion": "20261017162411",
       "marker": false,
       "normalizedSha256": "2f0d10e467473c778706c197790e1ac786d44af1a173e2ec8f34c2380a58db51"
+    },
+    {
+      "version": "20261017174506",
+      "name": "optional_product_translations",
+      "sourceVersion": "20261017174506",
+      "marker": false,
+      "normalizedSha256": "0ca75005b07335b0fc7762ec807ad086fb2ce072822b5040dbfe5ecc82f393ae"
     }
   ]
 }

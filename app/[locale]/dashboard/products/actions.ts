@@ -8,10 +8,11 @@ import { requireUser } from "@/lib/auth";
 import type { Locale } from "@/lib/i18n";
 
 const productIdSchema = z.string().uuid();
+const optionalName = z.string().trim().max(120).refine((value) => value.length === 0 || value.length >= 2);
 const productSchema = z.object({
-  nameFr: z.string().trim().min(2).max(120),
-  nameEn: z.string().trim().min(2).max(120),
-  nameEs: z.string().trim().min(2).max(120),
+  nameFr: optionalName,
+  nameEn: optionalName,
+  nameEs: optionalName,
   descriptionFr: z.string().trim().max(1200),
   descriptionEn: z.string().trim().max(1200),
   descriptionEs: z.string().trim().max(1200),
@@ -82,8 +83,7 @@ export async function saveProduct(locale: Locale, formData: FormData): Promise<{
   const price = moneyToMinor(field(formData, "price"));
   if (!parsed.success || price === null) return { saved: false, error: "invalid_product" };
   const value = parsed.data;
-  const descriptions = [value.descriptionFr, value.descriptionEn, value.descriptionEs];
-  if (descriptions.some(Boolean) && !descriptions.every(Boolean)) return { saved: false, error: "incomplete_translation" };
+  if (![value.nameFr, value.nameEn, value.nameEs].some(Boolean)) return { saved: false, error: "name_required" };
 
   const { data: existing, error: readError } = await supabase.from("salon_products")
     .select("id, image_url").eq("tenant_id", tenantId).eq("id", productId).maybeSingle();
@@ -92,7 +92,7 @@ export async function saveProduct(locale: Locale, formData: FormData): Promise<{
   if (uploadedUrl && !ownedImagePath(uploadedUrl, tenantId, productId)) return { saved: false, error: "invalid_image" };
   const removeImage = field(formData, "remove_image") === "on";
   const imageUrl = uploadedUrl || (removeImage ? null : existing?.image_url ?? null);
-  if (imageUrl && ![value.altFr, value.altEn, value.altEs].every(Boolean)) return { saved: false, error: "image_alt_required" };
+  if (imageUrl && ![value.altFr, value.altEn, value.altEs].some(Boolean)) return { saved: false, error: "image_alt_required" };
 
   const values = {
     name_json: { fr: value.nameFr, en: value.nameEn, es: value.nameEs },

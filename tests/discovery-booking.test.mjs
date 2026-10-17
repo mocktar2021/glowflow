@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { localizedProductText, productDefaultLocale } from "../lib/product-localization.ts";
 const require = createRequire(import.meta.url);
 async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
@@ -21,7 +22,7 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, tenantCurrency = tenant.currency } = {}) {
+function database({ profilePublished = true, tenantCurrency = tenant.currency, products = [] } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
@@ -29,7 +30,7 @@ function database({ profilePublished = true, tenantCurrency = tenant.currency } 
     function result(single) {
       queries.push({ table, filters });
       const profiles = [{ ...profile, is_published: profilePublished }];
-      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
+      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : table === "markets" ? [{ country_code: "ES", default_locale: "es" }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
     return query;
@@ -69,6 +70,7 @@ test("localized profile service links carry only active services for this salon"
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
     "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
   });
   for (const [locale, label] of [["fr", "Réserver cette prestation"], ["en", "Book this service"], ["es", "Reservar este servicio"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
@@ -78,6 +80,22 @@ test("localized profile service links carry only active services for this salon"
     assert.ok(links[1].props["aria-label"].includes(catalog[1].title_json[locale]));
     assert.ok(nodes(tree).some(node => node.type === "strong" && node.props.children === markets.formatMinorMoneyWithCurrencyPrecision(4200, "EUR", locale)));
     assert.ok(nodes(tree).some(node => node.type === "span" && Array.isArray(node.props.children) && node.props.children.includes(markets.formatMinorMoneyWithCurrencyPrecision(500, "EUR", locale))));
+  }
+}));
+test("published product text follows selection and falls back to the salon country language", async () => withConfiguration(async () => {
+  const db = database({ products: [{ id: "product-1", tenant_id: tenant.id, is_published: true, category: "hair", name_json: { fr: "", en: "English product", es: "Producto español" }, description_json: { fr: "", en: "", es: "Descripción española" }, image_alt_json: { fr: "", en: "", es: "Imagen española" }, image_url: "https://example.invalid/product.jpg", price: 1500, currency: "EUR", stock_visibility: "not_shown" }] });
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+  });
+  for (const [locale, expectedName] of [["fr", "Producto español"], ["en", "English product"], ["es", "Producto español"]]) {
+    const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
+    assert.ok(nodes(tree).some(node => node.type === "h4" && node.props.children === expectedName));
+    assert.ok(nodes(tree).some(node => node.props?.alt === "Imagen española"));
   }
 }));
 test("booking route preserves selected service, locale and trusted salon currency/time zone", async () => withConfiguration(async () => {
