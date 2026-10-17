@@ -34,6 +34,14 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   }
   const unprotected = sql("select string_agg(c.relname, ',') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p') and not c.relrowsecurity");
   assert.equal(unprotected, '', 'every public table must have runtime RLS enabled');
+  const unprotectedTenantTables = sql(`
+    select string_agg(format('%I.%I', n.nspname, c.relname), ',' order by n.nspname, c.relname)
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_attribute a on a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped
+    where c.relkind in ('r', 'p') and n.nspname in ('public', 'private') and not c.relrowsecurity
+  `);
+  assert.equal(unprotectedTenantTables, '', 'every tenant-owned table in application schemas must have runtime RLS enabled');
   // Test the actual migrated application objects, never recreated policy fixtures.
   sql(readFileSync(new URL('tests/schema-authorization.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/product-catalog-authorization.sql', root), 'utf8'));
