@@ -13,6 +13,7 @@ async function load(path, dependencies = {}) {
   return loaded.exports;
 }
 const payment = await load("../lib/sandbox-payment-copy.ts");
+const bookingStaff = await load("../lib/public-booking-staff.ts");
 const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
 const slot = { slot_start: "2026-09-12T10:00:00Z", staff_id: "public-staff-id" };
 async function harness(initial = {}) {
@@ -86,6 +87,28 @@ test("availability error offers retry and stale selection is cleared when servic
   find(tree, (node) => node.type === "select").props.onChange({ target: { value: "other-service" } });
   assert.deepEqual(h.values[2], []); assert.equal(h.values[3], null);
 });
+test("named staff choice filters slots without losing the no-preference option", async () => {
+  const other = { ...slot, staff_id: "other-staff", slot_start: "2026-09-12T11:00:00Z" };
+  const sameTime = { ...slot, staff_id: "other-staff" };
+  const h = await harness({ 2: [slot, sameTime, other], 4: false });
+  const extra = { bookingStaffByService: { service: [{ id: "other-staff", name: "Ari" }] } };
+  let tree = h.render(extra);
+  const staffSelect = find(tree, (node) => node.type === "select" && node.props.value === "");
+  assert.ok(staffSelect);
+  assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
+  staffSelect.props.onChange({ target: { value: "other-staff" } });
+  assert.equal(h.values[10], "other-staff");
+  tree = h.render(extra);
+  assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
+  assert.ok(renderToStaticMarkup(tree).includes("Ari"));
+  h.values[2] = [slot];
+  tree = h.render(extra);
+  assert.ok(renderToStaticMarkup(tree).includes("Aucun créneau pour ce professionnel"));
+  find(tree, (node) => node.type === "button" && node.props.children === "Voir tous les professionnels").props.onClick();
+  assert.equal(h.values[10], "");
+  tree = h.render(extra);
+  assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 1);
+});
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
   const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
   const tree = h.render();
@@ -103,6 +126,7 @@ test("offline unknown salon slugs fail closed while explicit atelier demo remain
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: (locale) => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
       "@/lib/supabase/admin": { createAdminClient: () => { throw new Error("unexpected-admin"); } },
@@ -127,7 +151,9 @@ test("localized booking resolves only published tenant services and passes an ex
       { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
       { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
     ],
-    salon_public_profiles: [{ tenant_id: "tenant-a", business_name: "Public Brand", is_published: true }, { tenant_id: "tenant-b", business_name: "Hidden Brand", is_published: false }],
+    salon_public_profiles: [{ tenant_id: "tenant-a", business_name: "Public Brand", is_published: true, team_json: [{ name: "Ari", booking_staff_id: "33333333-3333-4333-8333-333333333333" }, { name: "Foreign", booking_staff_id: "44444444-4444-4444-8444-444444444444" }] }, { tenant_id: "tenant-b", business_name: "Hidden Brand", is_published: false }],
+    users: [{ id: "33333333-3333-4333-8333-333333333333", tenant_id: "tenant-a" }, { id: "44444444-4444-4444-8444-444444444444", tenant_id: "tenant-b" }],
+    service_staff: [{ service_id: primary, staff_id: "33333333-3333-4333-8333-333333333333", tenant_id: "tenant-a" }],
     services: [
       { id: primary, tenant_id: "tenant-a", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR", is_active: true, internal_cost: 1200 },
       { id: foreign, tenant_id: "tenant-b", title_json: { fr: "Secret" }, duration_minutes: 30, price: 4000, deposit_amount: 0, currency: "EUR", is_active: true },
@@ -135,16 +161,18 @@ test("localized booking resolves only published tenant services and passes an ex
   };
   const selections = [];
   const createAdminClient = () => ({ from(table) {
-    const filters = [];
+    const filters = [], included = [];
     let columns = [];
     const query = {
       select(value) { columns = value.split(","); selections.push({ table, columns }); return query; },
       eq(column, value) { filters.push([column, value]); return query; },
+      in(column, values) { included.push([column, values]); return query; },
       order() { return Promise.resolve({ data: resolve() }); },
       single() { return Promise.resolve({ data: resolve()[0] ?? null }); },
       maybeSingle() { return Promise.resolve({ data: resolve()[0] ?? null }); },
+      then(onFulfilled, onRejected) { return Promise.resolve({ data: resolve(), error: null }).then(onFulfilled, onRejected); },
     };
-    function resolve() { return tables[table].filter(row => filters.every(([column, value]) => row[column] === value)).map(row => Object.fromEntries(columns.map(column => [column, row[column]]))); }
+    function resolve() { return tables[table].filter(row => filters.every(([column, value]) => row[column] === value) && included.every(([column, values]) => values.includes(row[column]))).map(row => Object.fromEntries(columns.map(column => [column, row[column]]))); }
     return query;
   } });
   try {
@@ -154,6 +182,7 @@ test("localized booking resolves only published tenant services and passes an ex
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
       "@/lib/supabase/admin": { createAdminClient },
@@ -166,6 +195,7 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal(result.props.initialServiceId, primary);
       assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", currency: "EUR", timeZone: "Europe/Paris" });
       assert.deepEqual(result.props.services.map(service => service.id), [primary]);
+      assert.deepEqual(result.props.bookingStaffByService[primary], [{ id: "33333333-3333-4333-8333-333333333333", name: "Ari" }]);
       assert.equal("private_note" in result.props.salon, false);
       assert.equal("internal_cost" in result.props.services[0], false);
     }

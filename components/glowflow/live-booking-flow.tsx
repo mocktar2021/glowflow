@@ -40,6 +40,7 @@ type Props = {
   locale: Locale;
   salon: { name: string; slug: string; city: string | null; currency: string; timeZone: string };
   services: Service[];
+  bookingStaffByService?: Record<string, Array<{ id: string; name: string }>>;
   initialServiceId?: string;
   sandbox?: boolean;
 };
@@ -52,6 +53,8 @@ const copy = {
     date: "Date",
     staff: "Professionnel",
     anyStaff: "Sans préférence : un professionnel disponible",
+    preferredStaffUnavailable: "Aucun créneau pour ce professionnel à cette date.",
+    showAllStaff: "Voir tous les professionnels",
     timeZone: "Horaires du salon",
     availabilityError: "Impossible de charger les créneaux. Réessayez.",
     retry: "Réessayer",
@@ -92,6 +95,8 @@ const copy = {
     date: "Date",
     staff: "Professional",
     anyStaff: "No preference: an available professional",
+    preferredStaffUnavailable: "This professional has no times on this date.",
+    showAllStaff: "Show all professionals",
     timeZone: "Salon time zone",
     availabilityError: "Available times could not be loaded. Try again.",
     retry: "Try again",
@@ -132,6 +137,8 @@ const copy = {
     date: "Fecha",
     staff: "Profesional",
     anyStaff: "Sin preferencia: un profesional disponible",
+    preferredStaffUnavailable: "Este profesional no tiene horarios para esta fecha.",
+    showAllStaff: "Ver todos los profesionales",
     timeZone: "Zona horaria del salón",
     availabilityError: "No se pudieron cargar los horarios. Inténtalo de nuevo.",
     retry: "Reintentar",
@@ -179,7 +186,14 @@ function money(amount: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount / 100);
 }
 
-export function LiveBookingFlow({ locale, salon, services, initialServiceId, sandbox = false }: Props) {
+function availableTimes(slots: Slot[], preferredStaffId: string) {
+  if (preferredStaffId) return slots.filter((value) => value.staff_id === preferredStaffId);
+  const unique = new Map<string, Slot>();
+  for (const value of slots) if (!unique.has(value.slot_start)) unique.set(value.slot_start, value);
+  return [...unique.values()];
+}
+
+export function LiveBookingFlow({ locale, salon, services, bookingStaffByService = {}, initialServiceId, sandbox = false }: Props) {
   if (!services.length || (initialServiceId !== undefined && !services.some((service) => service.id === initialServiceId))) {
     throw new Error("Booking requires a service from this salon's catalog.");
   }
@@ -199,7 +213,10 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
+  const [preferredStaffId, setPreferredStaffId] = useState("");
   const service = services.find((item) => item.id === serviceId) ?? services[0];
+  const staffChoices = bookingStaffByService[serviceId] ?? [];
+  const visibleSlots = availableTimes(slots, preferredStaffId);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -211,9 +228,7 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
       })
       .then(({ slots: values }) => {
         if (controller.signal.aborted) return;
-        const unique = new Map<string, Slot>();
-        for (const value of values) if (!unique.has(value.slot_start)) unique.set(value.slot_start, value);
-        setSlots([...unique.values()]);
+        setSlots(values);
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted && (reason as { name?: string }).name !== "AbortError") setAvailabilityFailed(true);
@@ -360,7 +375,7 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
         </aside>
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
-            <select disabled={submitting} value={serviceId} onChange={(event) => {
+            <select name="bookingService" disabled={submitting} value={serviceId} onChange={(event) => {
                 if (typeof window !== "undefined") {
                   const url = new URL(window.location.href);
                   url.searchParams.set("service", event.target.value);
@@ -370,13 +385,19 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
                 setAvailabilityFailed(false);
                 setSlots([]);
                 setSlot(null);
+                setPreferredStaffId("");
                 setError("");
                 setServiceId(event.target.value);
               }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
               {services.map((item) => <option key={item.id} value={item.id}>{item.title_json[locale] ?? item.title_json.fr}</option>)}
             </select>
           </label>
-          <div><p className="font-semibold">{labels.staff}</p><p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.anyStaff}</p></div>
+          {staffChoices.length ? <label className="block font-semibold">{labels.staff}
+            <select name="bookingStaff" disabled={submitting} value={preferredStaffId} onChange={(event) => { setPreferredStaffId(event.target.value); setSlot(null); setError(""); }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
+              <option value="">{labels.anyStaff}</option>
+              {staffChoices.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </label> : <div><p className="font-semibold">{labels.staff}</p><p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.anyStaff}</p></div>}
           <label className="block font-semibold">{labels.date}
             <input type="date" disabled={submitting} min={today} value={date} onChange={(event) => {
               setLoadingSlots(true);
@@ -390,14 +411,14 @@ export function LiveBookingFlow({ locale, salon, services, initialServiceId, san
           <fieldset disabled={submitting || loadingSlots} aria-busy={loadingSlots} aria-describedby="booking-time-zone">
             <legend className="flex items-center gap-2 font-semibold"><CalendarDays aria-hidden="true" className="size-5 text-[#9a622f]" />{labels.time}</legend>
             <p id="booking-time-zone" className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.timeZone}: {salon.timeZone}</p>
-            {loadingSlots ? <p role="status" className="mt-3 text-sm text-slate-500">{labels.loading}</p> : availabilityFailed ? <div role="alert" className="mt-3"><p>{labels.availabilityError}</p><button type="button" onClick={reloadAvailability} className="mt-2 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.retry}</button></div> : slots.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {slots.map((value) => <label key={value.slot_start} className="cursor-pointer">
+            {loadingSlots ? <p role="status" className="mt-3 text-sm text-slate-500">{labels.loading}</p> : availabilityFailed ? <div role="alert" className="mt-3"><p>{labels.availabilityError}</p><button type="button" onClick={reloadAvailability} className="mt-2 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.retry}</button></div> : visibleSlots.length ? <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {visibleSlots.map((value) => <label key={value.slot_start} className="cursor-pointer">
                 <input type="radio" name="bookingTime" value={value.slot_start} checked={slot?.slot_start === value.slot_start} onChange={() => setSlot(value)} required className="peer sr-only" />
                 <span className="flex min-h-11 items-center justify-center rounded-xl bg-[#f4ece2] text-sm font-semibold peer-checked:bg-[#e7b779] peer-checked:text-slate-950 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-slate-950 dark:bg-white/5 dark:peer-focus-visible:outline-white">
                   {new Intl.DateTimeFormat(locale, { timeZone: salon.timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(value.slot_start))}
                 </span>
               </label>)}
-            </div> : <p role="status" className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5">{labels.noSlots}</p>}
+            </div> : <div role="status" className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5"><p>{preferredStaffId ? labels.preferredStaffUnavailable : labels.noSlots}</p>{preferredStaffId ? <button type="button" onClick={() => { setPreferredStaffId(""); setSlot(null); }} className="mt-3 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.showAllStaff}</button> : null}</div>}
           </fieldset>
           <fieldset disabled={submitting} aria-describedby="booking-contact-hint" className="grid gap-4 sm:grid-cols-2">
             <legend className="mb-3 font-semibold">{labels.details}</legend>

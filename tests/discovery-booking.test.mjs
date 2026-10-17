@@ -42,9 +42,11 @@ async function withConfiguration(fn) {
   try { await fn(); } finally { keys.forEach((key, i) => previous[i] === undefined ? delete process.env[key] : process.env[key] = previous[i]); }
 }
 async function booking(db, { sandbox = false, owner = true } = {}) {
+  const bookingStaff = await load("../lib/public-booking-staff.ts");
   return (await load("../app/[locale]/book/[slug]/page.tsx", {
     "next/navigation": { notFound() { throw new Error("not-found"); } },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/public-booking-staff": bookingStaff,
     "@/components/glowflow/booking-flow": { BookingFlow: "demo" },
     "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
     "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "status" },

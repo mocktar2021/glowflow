@@ -21,6 +21,12 @@ const copy = {
     title: "Perfil público del salón", subtitle: "Presenta tu salón y elige cuándo aparece en la búsqueda.", back: "Panel", view: "Ver perfil público", saved: "Perfil guardado.", status: "Publicación", published: "Publicado", draft: "Privado (sin publicar)", currentStatus: "Estado actual", publishHelp: "Elige cómo guardar este perfil.", privateHelp: "Guardar como privado elimina el salón de la búsqueda e impide nuevas reservas públicas.", publicHelp: "Guardar y publicar muestra el salón en la búsqueda y permite a los clientes iniciar una reserva.", identity: "Datos del salón", name: "Nombre público", phone: "Teléfono público", address: "Dirección", city: "Ciudad", area: "Estado o región", postal: "Código postal", descriptions: "Descripciones", categories: "Categorías", hair: "Cabello", nails: "Uñas", other: "Otros", keywords: "Productos y especialidades", keywordsHelp: "Separa los términos con comas.", media: "Fotos", cover: "Foto principal", gallery: "Galería, máximo 8 fotos", remove: "Eliminar", undo: "Deshacer", removalPending: "Esta foto se eliminará cuando guardes el perfil.", mediaHelp: "JPG, PNG, WebP o AVIF. Máximo 1 MB por foto. Las fotos se envían directamente a tu espacio seguro.", addCover: "Añadir foto principal", replaceCover: "Cambiar foto principal", addGallery: "Añadir fotos", remaining: "espacios disponibles", selected: "Selección", removeSelected: "Quitar de la selección", tooMany: "Puedes añadir un máximo de {count} foto(s).", hours: "Horarios", team: "Equipo", member: "Nombre", role: "Función", payments: "Pagos aceptados", card: "Tarjeta", cash: "Efectivo", deposit: "Depósito en línea", mixed: "Pago mixto", policies: "Políticas del salón", savePrivate: "Guardar como privado", savePublish: "Guardar y publicar", error: "Revisa los campos obligatorios y las fotos antes de intentarlo de nuevo.", batchError: "No se pudieron guardar las fotos nuevas.", invalidImage: "Cada foto debe ser JPG, PNG, WebP o AVIF y no superar 1 MB.", uploadFailed: "La carga de fotos falló. Inténtalo de nuevo.", publishIncomplete: "Para publicar, añade las tres descripciones, una categoría y un método de pago.", saving: "Subiendo fotos y guardando tu perfil…", days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"], locales: ["Français", "English", "Español"] },
 } as const;
 
+const bookingCopy = {
+  fr: { account: "Compte de réservation", displayOnly: "Présentation uniquement", help: "Le nom devient un choix de réservation si vous le reliez à un compte de ce salon, que le service lui est ouvert et que vous publiez le profil." },
+  en: { account: "Booking account", displayOnly: "Display only", help: "A name becomes a booking choice when you link it to an account in this salon, the service is open to that account, and you publish the profile." },
+  es: { account: "Cuenta de reservas", displayOnly: "Solo presentación", help: "El nombre será una opción de reserva si lo vinculas a una cuenta de este salón, el servicio está disponible para esa cuenta y publicas el perfil." },
+} as const;
+
 const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 
 const inputClass = "mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus:border-[#b77a42] focus:ring-2 focus:ring-[#b77a42]/20 dark:border-white/15 dark:bg-white/5";
@@ -38,16 +44,18 @@ export default async function PublicProfileSettingsPage({ params, searchParams }
   const { data: user } = await supabase.from("users").select("tenant_id, role").eq("id", userId).single();
   if (!user?.tenant_id || user.role !== "owner") notFound();
 
-  const [{ data: tenant }, { data: profile }] = await Promise.all([
+  const [{ data: tenant }, { data: profile }, { data: staff, error: staffError }] = await Promise.all([
     supabase.from("tenants").select("name, slug, country_code, address_line1, city, postal_code, administrative_area").eq("id", user.tenant_id).single(),
     supabase.from("salon_public_profiles").select("*").eq("tenant_id", user.tenant_id).maybeSingle(),
+    supabase.from("users").select("id,full_name").eq("tenant_id", user.tenant_id).order("full_name"),
   ]);
   if (!tenant) notFound();
+  if (staffError) throw new Error("Unable to load booking accounts.");
 
   const descriptions = (profile?.description_json ?? {}) as Record<string, string>;
   const policies = (profile?.policies_json ?? {}) as Record<string, string>;
   const hours = (profile?.opening_hours ?? {}) as Record<string, string>;
-  const team = Array.isArray(profile?.team_json) ? profile.team_json as Array<{ name?: string; role?: string }> : [];
+  const team = Array.isArray(profile?.team_json) ? profile.team_json as Array<{ name?: string; role?: string; booking_staff_id?: string }> : [];
   const categories = Array.isArray(profile?.categories) ? profile.categories : [];
   const payments = Array.isArray(profile?.payment_methods) ? profile.payment_methods : [];
   const galleryCount = Array.isArray(profile?.gallery_urls) ? profile.gallery_urls.length : 0;
@@ -143,7 +151,8 @@ export default async function PublicProfileSettingsPage({ params, searchParams }
 
           <section className={sectionClass}>
             <h2 className="text-xl font-semibold">{labels.team}</h2>
-            <div className="mt-5 space-y-3">{[0, 1, 2].map((index) => <div key={index} className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">{labels.member}<input name={`team_${index + 1}_name`} defaultValue={team[index]?.name ?? ""} className={inputClass} /></label><label className="text-sm font-medium">{labels.role}<input name={`team_${index + 1}_role`} defaultValue={team[index]?.role ?? ""} className={inputClass} /></label></div>)}</div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-stone-400">{bookingCopy[locale].help}</p>
+            <div className="mt-5 space-y-3">{[0, 1, 2].map((index) => <div key={index} className="grid gap-3 rounded-xl border border-[#eadfce] p-3 dark:border-white/10 sm:grid-cols-3"><label className="text-sm font-medium">{labels.member}<input name={`team_${index + 1}_name`} defaultValue={team[index]?.name ?? ""} maxLength={120} className={inputClass} /></label><label className="text-sm font-medium">{labels.role}<input name={`team_${index + 1}_role`} defaultValue={team[index]?.role ?? ""} maxLength={120} className={inputClass} /></label><label className="text-sm font-medium">{bookingCopy[locale].account}<select name={`team_${index + 1}_staff_id`} defaultValue={team[index]?.booking_staff_id ?? ""} className={inputClass}><option value="">{bookingCopy[locale].displayOnly}</option>{(staff ?? []).map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select></label></div>)}</div>
           </section>
 
           <section className={sectionClass}>

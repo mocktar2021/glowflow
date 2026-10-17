@@ -4,6 +4,7 @@ import { BookingFlow } from "@/components/glowflow/booking-flow";
 import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { isLocale } from "@/lib/i18n";
+import { bookingMembersByService, publishedBookingMembers } from "@/lib/public-booking-staff";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,15 +59,17 @@ export default async function BookingPage({
   if (!tenant) notFound();
   if (sandbox && tenant.id !== sandboxTenantId) notFound();
   let publicSalonName = tenant.name;
+  let publishedTeam: unknown = [];
   if (!sandbox) {
     const { data: publishedProfile } = await supabase
       .from("salon_public_profiles")
-      .select("tenant_id,business_name")
+      .select("tenant_id,business_name,team_json")
       .eq("tenant_id", tenant.id)
       .eq("is_published", true)
       .maybeSingle();
     if (!publishedProfile) notFound();
     publicSalonName = publishedProfile.business_name;
+    publishedTeam = publishedProfile.team_json;
   }
   if (sandbox && query.sandboxReservation) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.sandboxReservation)) notFound();
@@ -83,6 +86,15 @@ export default async function BookingPage({
   const services = (rawServices ?? []) as Service[];
   if (!services.length) notFound();
   if (initialServiceId && !services.some((service) => service.id === initialServiceId)) notFound();
+  let bookingStaffByService: Record<string, Array<{ id: string; name: string }>> = {};
+  const publishedMembers = publishedBookingMembers(publishedTeam);
+  if (publishedMembers.length) {
+    const [{ data: tenantStaff, error: staffError }, { data: assignments, error: assignmentError }] = await Promise.all([
+      supabase.from("users").select("id").eq("tenant_id", tenant.id).in("id", publishedMembers.map((member) => member.id)),
+      supabase.from("service_staff").select("service_id,staff_id").eq("tenant_id", tenant.id),
+    ]);
+    if (!staffError && !assignmentError) bookingStaffByService = bookingMembersByService(publishedMembers, (tenantStaff ?? []).map((member) => member.id), services, assignments ?? []);
+  }
 
   return (
     <LiveBookingFlow
@@ -98,6 +110,7 @@ export default async function BookingPage({
         timeZone: tenant.time_zone,
       }}
       services={services}
+      bookingStaffByService={bookingStaffByService}
     />
   );
 }
