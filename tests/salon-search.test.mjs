@@ -19,6 +19,7 @@ const publicGrantMigrationPath = path.join(
   "20260924183507_restrict_public_salon_profile_columns.sql",
 );
 const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/(search)/page.tsx"), "utf8");
+const resultCard = await readFile(path.join(root, "components/glowflow/marketplace-salon-card.tsx"), "utf8");
 
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -65,11 +66,11 @@ test("returns an explicit public search field set", async () => {
 });
 
 test("formats discovery prices from persisted catalog cents", () => {
-  assert.match(discoveryPage, /formatMinorMoney\(salon\.starting_price/);
+  assert.match(resultCard, /formatMinorMoney\(salon\.starting_price/);
   for (const unavailable of ["Tarif indisponible", "Price unavailable", "Precio no disponible"]) {
     assert.ok(discoveryPage.includes(unavailable));
   }
-  assert.match(discoveryPage, /salon\.starting_price === null \? labels\.priceUnavailable/);
+  assert.match(resultCard, /salon\.starting_price === null \? labels\.priceUnavailable/);
 });
 
 test("salon country sets the profile language unless the visitor chooses one", () => {

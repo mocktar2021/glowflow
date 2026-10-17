@@ -39,3 +39,16 @@ export function salonInitials(name: string) {
     .map((part) => part[0]?.toUpperCase())
     .join("");
 }
+
+export function publicSalonImageUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:"
+      && url.hostname.endsWith(".supabase.co")
+      && url.pathname.startsWith("/storage/v1/object/public/salon-public-media/")
+      ? value : null;
+  } catch {
+    return null;
+  }
+}
