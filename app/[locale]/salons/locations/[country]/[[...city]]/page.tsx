@@ -55,7 +55,13 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
         es: marketplaceLocationHref("es", country, location.city) + pageSuffix,
       },
     },
-    openGraph: { title, description: copy[locale].intro, type: "website", url: `https://glowflow.mocktar.com${pathname}${pageSuffix}` },
+    openGraph: {
+      title,
+      description: copy[locale].intro,
+      type: "website",
+      url: `https://glowflow.mocktar.com${pathname}${pageSuffix}`,
+      images: [{ url: "/og-glowflow.png", width: 1200, height: 630, alt: "GlowFlow" }],
+    },
   };
 }
 
