@@ -48,13 +48,19 @@ current alias, deployment ID and commit before changing anything. In the
 Vercel `glowflow` project, identify the last *known-good* `READY` production
 deployment and check that it is compatible with the current database schema,
 environment variables and external integrations. Do not assume the immediately
-previous build is healthy.
+previous build is healthy. Confirm that the target is eligible for rollback;
+Vercel's Hobby plan limits rollback to the immediately preceding production
+deployment. If the known-good deployment is not eligible, stop and plan a
+separately reviewed recovery instead of guessing at a target.
 
 Use Vercel's rollback control or this command to reassign the production alias:
 
 ```bash
 vercel rollback <known-good-deployment-url> --scope tairoumocktar-9966s-projects
 ```
+
+See the [Vercel rollback CLI reference](https://vercel.com/docs/cli/rollback)
+and [global `--scope` option](https://vercel.com/docs/cli/global-options).
 
 Then repeat the read-only checks above and record the new alias and deployment ID.
 Vercel rollback disables automatic domain assignment for later production
