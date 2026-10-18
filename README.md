@@ -48,6 +48,10 @@ Use a Supabase publishable key in the browser and a Supabase secret key only on 
 
 Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` until Stripe Connect sandbox onboarding and signed webhooks pass end-to-end verification.
 
+Use the [GLOW-36 launch gate record](docs/GLOW-36-launch-gates.md) for the
+evidence and owner decisions required before a supervised pilot or public paid
+launch. A green build or READY deployment alone is not launch approval.
+
 ## Payment model
 
 GlowFlow uses Stripe Connect direct charges. Each salon stays the merchant of record. The Checkout endpoint reads service price and deposit values from Supabase, creates the payment on the connected account, without a GlowFlow application fee. Salons pay Stripe processing fees separately. Webhook events must drive final payment state changes.
