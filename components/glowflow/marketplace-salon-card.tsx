@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { Locale } from "@/lib/i18n";
-import { fallbackMarkets, formatLocalDateTime, formatMinorMoney } from "@/lib/markets";
+import { formatLocalDateTime, formatMinorMoney } from "@/lib/markets";
 import { localizedDescription, publicSalonImageUrl, salonInitials, type SalonSearchResult } from "@/lib/salon-search";
 
 type CardLabels = {
@@ -19,18 +19,19 @@ type CardLabels = {
 };
 
 export function MarketplaceSalonCard({
-  salon, locale, href, cityHref, labels,
+  salon, locale, href, cityHref, labels, timeZone,
 }: {
   salon: SalonSearchResult;
   locale: Locale;
   href: string;
   cityHref?: string;
   labels: CardLabels;
+  timeZone?: string;
 }) {
   const description = localizedDescription(salon, locale);
   const imageUrl = publicSalonImageUrl(salon.image_url);
   const location = <><MapPin className="size-4" aria-hidden="true" />{salon.city}, {salon.postal_code} · {salon.country_code}</>;
-  const timeZone = fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_time_zone ?? "UTC";
+  const displayTimeZone = timeZone ?? "UTC";
 
   return (
     <article className="overflow-hidden rounded-[1.75rem] border border-[#e4d6c5] bg-white shadow-[0_12px_36px_rgba(48,32,18,0.08)] dark:border-white/10 dark:bg-[#17191e]">
@@ -67,8 +68,9 @@ export function MarketplaceSalonCard({
             <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.next}</span>
             <strong className="flex items-center gap-1">
               <CalendarDays className="size-3.5" aria-hidden="true" />
-              {salon.next_available_at ? formatLocalDateTime(salon.next_available_at, locale, timeZone) : labels.availabilityUnknown}
+              {salon.next_available_at ? formatLocalDateTime(salon.next_available_at, locale, displayTimeZone) : labels.availabilityUnknown}
             </strong>
+            {salon.next_available_at ? <span className="mt-1 block text-xs text-slate-500 dark:text-stone-400">{displayTimeZone}</span> : null}
           </span>
         </div>
         <Link href={href} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">

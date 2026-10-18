@@ -8,6 +8,7 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 const search = await import("../lib/salon-search.ts");
+const timeZones = await import("../lib/marketplace-time-zones.ts");
 const markets = await import("../lib/markets.ts");
 const migration = await readFile(new URL("../supabase/migrations/20261017220612_add_public_salon_sorting.sql", import.meta.url), "utf8");
 const rollback = await readFile(new URL("../supabase/rollbacks/20261017220612_drop_public_salon_sorting.sql", import.meta.url), "utf8");
@@ -23,10 +24,13 @@ async function loadPage(rpc, configured = true) {
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/components/glowflow/distance-search": { DistanceSearch: ({ children }) => children },
     "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: ({ salon }) => React.createElement("article", null, salon.business_name) },
+    "@/components/glowflow/visitor-time-zone-field": { VisitorTimeZoneField: ({ initialZone, label, help, detectBrowserZone }) => React.createElement("div", { "data-zone": initialZone, "data-detect": detectBrowserZone }, label, help) },
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (_country, visitor, fallback) => visitor ?? fallback },
+    "@/lib/marketplace-time-zones": timeZones,
     "@/lib/markets": markets,
     "@/lib/marketplace-locations": { marketplaceLocationHref: (locale, country) => `/${locale}/salons/locations/${country}`, marketplaceLocation: () => null },
     "@/lib/salon-search": search,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => ({ rpc }) },
   };
   new Function("require", "exports", "process", js)(name => dependencies[name] ?? require(name), loaded.exports, { env: configured ? { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" } : {} });
@@ -141,4 +145,35 @@ test("missing Supabase configuration shows an error rather than an empty marketp
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({}) }));
   assert.match(html, /Search is unavailable/);
   assert.doesNotMatch(html, /The first salons are coming soon/);
+});
+
+test("available-by date is converted from the chosen visitor zone before the RPC and retained on pagination", async () => {
+  const calls = [];
+  const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
+  const Page = await loadPage(async (name, args) => { calls.push({ name, args }); return { data: [result], error: null }; });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ availableBefore: "2026-03-08", timeZone: "America/New_York", page: "2" }) }));
+  assert.equal(calls[0].args.available_before, "2026-03-09T03:59:59.999999Z");
+  assert.match(html, /data-zone="America\/New_York" data-detect="false"/);
+  assert.match(html, /availableBefore=2026-03-08&amp;timeZone=America%2FNew_York/);
+  assert.match(html, /Times on salon cards use each salon/);
+});
+
+test("legacy date-only links retain UTC semantics without browser-zone detection", async () => {
+  const calls = [];
+  const Page = await loadPage(async (_name, args) => { calls.push(args); return { data: [], error: null }; });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "fr" }), searchParams: Promise.resolve({ availableBefore: "2026-11-15" }) }));
+  assert.equal(calls[0].available_before, "2026-11-15T23:59:59.999999Z");
+  assert.match(html, /data-zone="UTC" data-detect="false"/);
+  const emptyHtml = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "fr" }), searchParams: Promise.resolve({}) }));
+  assert.match(emptyHtml, /data-zone="UTC" data-detect="true"/);
+});
+
+test("invalid date and zone do not reach SQL as an invalid timestamp", async () => {
+  const calls = [];
+  const Page = await loadPage(async (_name, args) => { calls.push(args); return { data: [], error: null }; });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "es" }), searchParams: Promise.resolve({ availableBefore: "2026-02-30", timeZone: "Mars/Olympus" }) }));
+  assert.equal(calls[0].available_before, null);
+  assert.match(html, /No se reconoce esa zona horaria/);
+  assert.match(html, /La fecha no es válida/);
+  assert.match(html, /data-zone="UTC" data-detect="false"/);
 });

@@ -41,6 +41,7 @@ test("location metadata has localized headings, canonical URLs, and language alt
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value) },
     "@/lib/marketplace-locations": locations,
     "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => null },
   });
   for (const locale of ["fr", "en", "es"]) {
@@ -66,6 +67,7 @@ test("location page uses the public search boundary and links to a salon without
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (_country, visitor, fallback) => visitor ?? fallback },
     "@/lib/marketplace-locations": locations,
     "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => ({ rpc: async (name, args) => { calls.push({ name, args }); return { data: results, error: null }; } }) },
   }, { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en", country: "US", city: ["Greensboro"] }), searchParams: Promise.resolve({}) }));
@@ -90,6 +92,7 @@ test("country location uses its configured language when the visitor has no pref
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (country, visitor, fallback) => visitor ?? country ?? fallback },
     "@/lib/marketplace-locations": locations,
     "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => ({
       rpc: async () => ({ data: [{ slug: "example-salon", business_name: "Example Salon", city: "Greensboro", total_count: 1 }], error: null }),
       from: table => {
@@ -119,6 +122,11 @@ test("published cover image appears in result cards with an initials fallback", 
   assert.match(withCover, /Price unavailable/);
   const withoutCover = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: null } }));
   assert.match(withoutCover, /<div[^>]*>ES<\/div>/);
+  const localTime = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, timeZone: "America/Los_Angeles", salon: { ...salon, image_url: null, next_available_at: "2026-11-15T14:00:00Z" } }));
+  assert.match(localTime, /6:00 AM/);
+  assert.match(localTime, /America\/Los_Angeles/);
+  const utcTime = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: null, next_available_at: "2026-11-15T14:00:00Z" } }));
+  assert.match(utcTime, /UTC/);
   assert.equal(search.publicSalonImageUrl("https://example.com/photo.jpg"), null);
   assert.equal(search.publicSalonImageUrl("https://foo.supabase.co.evil.com/storage/v1/object/public/salon-public-media/photo.jpg"), null);
   assert.match(search.publicSalonImageUrl("https://fixture.supabase.co/storage/v1/object/public/salon-public-media/photo.jpg"), /fixture\.supabase\.co/);

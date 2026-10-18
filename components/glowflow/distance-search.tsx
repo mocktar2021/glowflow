@@ -7,6 +7,7 @@ import { salonProfileLocale, type Locale } from "@/lib/i18n";
 import { fallbackMarkets } from "@/lib/markets";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
 import { coarseVisitorOrigin, type SalonSearchResult } from "@/lib/salon-search";
+import { publicSalonTimeZones } from "@/lib/salon-time-zones";
 
 type SearchFilters = {
   search_text: string | null;
@@ -29,7 +30,7 @@ const copy = {
   es: { action: "Ordenar cerca de mí", clear: "Dejar de ordenar por distancia", requesting: "Buscando tu ubicación…", loading: "Ordenando por distancia…", denied: "Ubicación no disponible. Elige un país o una ciudad para buscar manualmente.", unavailable: "La ordenación por distancia no está disponible. Se mantienen los resultados actuales.", noPins: "Ningún salón coincidente tiene un punto en el mapa. Se mantienen los resultados actuales. Puedes buscar por país o ciudad.", active: "Salones ordenados por distancia aproximada. Los que no tienen punto en el mapa aparecen al final.", results: "salones encontrados", oneResult: "salón encontrado", previous: "Anterior", next: "Siguiente", page: "Página", empty: "Ningún salón coincide con estos filtros." },
 } as const;
 
-export function DistanceSearch({ children, locale, labels, filters, pageSize, visitorPreference, countryDefaultLocales, enabled }: {
+export function DistanceSearch({ children, locale, labels, filters, pageSize, visitorPreference, countryDefaultLocales, initialSalonTimeZones, enabled }: {
   children: ReactNode;
   locale: Locale;
   labels: CardLabels;
@@ -37,6 +38,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
   pageSize: number;
   visitorPreference: string | null;
   countryDefaultLocales: Record<string, string>;
+  initialSalonTimeZones: Record<string, string>;
   enabled: boolean;
 }) {
   const messages = copy[locale];
@@ -44,6 +46,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
   const [distanceResults, setDistanceResults] = useState<SalonSearchResult[] | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [salonTimeZones, setSalonTimeZones] = useState(initialSalonTimeZones);
   const [status, setStatus] = useState<"idle" | "requesting" | "loading" | "denied" | "unavailable" | "noPins" | "active">("idle");
   const requestId = useRef(0);
 
@@ -52,7 +55,8 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
     setStatus("loading");
     try {
       const { createClient } = await import("@/lib/supabase/client");
-      const { data, error } = await createClient().rpc("search_public_salons_by_distance", {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("search_public_salons_by_distance", {
         ...point,
         ...filters,
         page_size: pageSize,
@@ -70,6 +74,9 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
         setStatus("noPins");
         return;
       }
+      const zones = await publicSalonTimeZones(salons);
+      if (currentRequest !== requestId.current) return;
+      setSalonTimeZones((current) => ({ ...current, ...zones }));
       setDistanceResults(salons);
       setPage(requestedPage);
       setTotal(Number(salons[0]?.total_count ?? total));
@@ -126,6 +133,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
             locale={locale}
             href={`/${salonProfileLocale(countryDefaultLocales[salon.country_code] ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
             cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
+            timeZone={salonTimeZones[salon.slug]}
             labels={labels}
           />)}
         </div> : <p className="text-sm text-slate-600 dark:text-stone-300">{messages.empty}</p>}
