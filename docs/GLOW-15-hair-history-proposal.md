@@ -41,6 +41,15 @@ ties. Show a correction marker and allow authorized staff to inspect earlier
 versions. A `date` is a local calendar fact; never derive or display it by
 converting a UTC timestamp through the viewer's time zone.
 
+Store `performing_staff_id` and `created_by` as distinct identities on both
+record types. The former identifies who actually performed the service or
+test; the latter identifies the authenticated person who entered this version.
+They may differ, especially for a correction. A replacement must retain its
+own `created_by` while the original author and performer remain visible in
+the audit trail. Validate each identity against the same tenant using
+`public.users (id, tenant_id)`; do not infer the performer from an appointment's
+assigned staff or from editable Auth metadata.
+
 For patch tests, proposed observation statuses are `awaiting_observation`,
 `no_reaction_observed`, `reaction_observed` and `inconclusive`. Reading a test
 later appends a replacement record with the observation date and status. The
@@ -50,16 +59,22 @@ public search, booking confirmation, notifications or logs.
 
 ## Database authorization contract
 
-1. Enable RLS on both exposed `public` tables. Grant authenticated salon
-   members `SELECT` and `INSERT` only, using tenant membership and a
-   `created_by = auth.uid()` check. No anonymous access and no public RPC.
-   Do not use a service-role client for the staff workflow or trust editable
-   user metadata for authorization.
-2. Enforce `(client_id, tenant_id)` and `(performing_staff_id, tenant_id)` with
-   tenant-scoped keys. A nullable appointment reference must also enforce
-   `(appointment_id, tenant_id, client_id)` consistency, which requires a
-   supporting unique key on appointments or an equivalent database guard.
-   A correction reference must enforce the same tenant and client.
+1. Enable RLS on both exposed `public` tables. Revoke default access from
+   `PUBLIC`, `anon` and `authenticated`, then explicitly grant only `SELECT`
+   and `INSERT` to `authenticated`. Pair those grants with a tenant-member
+   `SELECT` policy and an `INSERT WITH CHECK` policy requiring tenant
+   membership and `created_by = auth.uid()`. Neither SQL grants nor the
+   authenticated role alone establish tenant authorization. There must be no
+   anonymous access or public RPC. Do not use a service-role client for the
+   staff workflow or trust editable user metadata for authorization.
+2. Enforce `(client_id, tenant_id)`, `(performing_staff_id, tenant_id)` and
+   `(created_by, tenant_id)` with tenant-scoped keys. A nullable appointment
+   reference must also enforce `(appointment_id, tenant_id, client_id)`.
+   Current appointments have `UNIQUE (id, tenant_id)`, not the required
+   three-column key. Coordinate one shared supporting `UNIQUE (id, tenant_id,
+   client_id)` or an equivalent database guard with GLOW-14 rather than
+   inventing separate, inconsistent appointment checks. A correction
+   reference must enforce the same tenant and client.
 3. Revoke application-role `UPDATE` and `DELETE` and add a database guard that
    rejects those operations, including accidental privileged writes. An
    insert-only policy alone does not protect against service-role or future
@@ -68,10 +83,11 @@ public search, booking confirmation, notifications or logs.
    filtered by both `tenant_id` and `client_id`. Fail closed on missing client,
    authorization or query errors. Do not expose the records through a public
    profile or booking endpoint.
-5. Decide retention, export, correction and erasure policy for allergy notes
-   and for former staff authors before migration. A hard FK to `public.users`
-   may block account deletion; silently nulling the author loses provenance.
-   This tradeoff needs an explicit choice.
+5. Decide retention, export, correction and erasure policy for allergy notes,
+   clients and former staff authors before migration, together with GLOW-14.
+   A hard FK to `public.users` may block account deletion; silently nulling
+   either identity loses provenance. Append-only audit needs an explicit
+   lawful erasure or retention path rather than an undocumented exception.
 
 Current Supabase RLS guidance requires RLS on exposed tables and stresses
 that SQL-created tables need explicit role grants. Tenant membership must be
@@ -83,10 +99,13 @@ history.
 
 - Local PostgreSQL tests: owner and staff can read and append in their own
   tenant; anonymous, non-member and other-tenant reads/inserts fail. Spoofed
-  `created_by`, cross-tenant client/staff, and appointment for another client
-  are rejected. Direct update/delete, including a privileged accidental
-  path, fail. Same-client corrections work; cross-client corrections and
-  competing replacements fail. No test should require hosted SQL.
+  `created_by`, cross-tenant performer or creator, and appointment for another
+  client are rejected. Assert both table grants and RLS policies so one cannot
+  conceal a missing or overly broad other. An existing appointment cannot be
+  reassigned to another client after a linked record is inserted. Direct
+  update/delete, including a privileged accidental path, fail. Same-client
+  corrections work; cross-client corrections and competing replacements fail.
+  No test should require hosted SQL.
 - Read-model tests: effective records exclude superseded versions; stable
   descending local-date order works across ties; pending and later observed
   patch tests preserve both entries; absent records show an honest empty
@@ -106,11 +125,19 @@ history.
   New entries should identify the actual performing staff member, not assume
   the appointment's assigned staff. Decide how to handle historical records
   with an unknown performer before any import.
-- Decide whether historical JSON entries are retained read-only, imported
-  after review with provenance labels, or excluded from the new history.
-- Approve the sensitive-note retention and staff-deletion policy. Do not
-  collect additional health information or store patch-test photos under this
-  story without a separate privacy and Storage contract.
+- Decide one coordinated legacy-data policy with GLOW-14. Keep the existing
+  hair JSON arrays untouched pending provenance review; `nail_preferences`
+  may remain a mutable preference summary but is never audited visit history.
+  Any reviewed historical import must carry explicit uncertain provenance,
+  or the legacy fields must be excluded from verified history. Never overwrite
+  them, invent an author or performer, or silently represent a booking as a
+  completed treatment.
+- Approve a shared retention/export/erasure and former-staff provenance
+  framework for hair, patch-test and nail records. Data-class rules may differ,
+  especially for allergy notes and photos, but client or staff deletion must
+  have a reviewed outcome for every linked record. Do not collect additional
+  health information or store patch-test photos under this story without a
+  separate privacy and Storage contract.
 
 The GLOW-14 nail-history proposal uses the same append-only, tenant-authorized
 correction pattern in separate files. GLOW-16 owns generic contact, notes and
