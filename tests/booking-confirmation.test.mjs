@@ -45,6 +45,7 @@ async function post(db) {
   const { POST } = await load("../app/api/public-booking/route.ts", {
     "@/lib/supabase/admin": { createAdminClient: () => db },
     "@/lib/application-diagnostics": { reportApplicationFailure: () => null },
+    "@/lib/bookings/analytics": { recordBookingOutcome: () => {} },
   });
   const response = await POST(new Request("http://localhost/api/public-booking", { method: "POST", body: JSON.stringify(body) }));
   return { response, value: await response.json() };
