@@ -26,7 +26,8 @@ end $$;
 insert into auth.users(id,email) values
 ('20000000-0000-0000-0000-000000000001','owner-a@example.invalid'),
 ('20000000-0000-0000-0000-000000000002','staff-a@example.invalid'),
-('20000000-0000-0000-0000-000000000003','owner-b@example.invalid');
+('20000000-0000-0000-0000-000000000003','owner-b@example.invalid'),
+('20000000-0000-0000-0000-000000000099','unaffiliated@example.invalid');
 insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone,stripe_account_id) values
 ('10000000-0000-0000-0000-000000000001','Fixture A','fixture-a','20000000-0000-0000-0000-000000000001','US','USD','America/New_York','acct_fixture_a'),
 ('10000000-0000-0000-0000-000000000002','Fixture B','fixture-b','20000000-0000-0000-0000-000000000003','US','USD','America/New_York','acct_fixture_b');
@@ -171,6 +172,21 @@ begin
     perform public.test_denied(format('update public.users set tenant_id=%L where id=auth.uid()',other_tenant));
   end loop;
 end $$;
+
+-- Existing membership policy must not let staff, foreign owners, or an
+-- unaffiliated identity attach a user to a tenant without its owner's authority.
+-- These checks do not model invitation consent or verified-email binding.
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Uninvited Staff'',''unaffiliated@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000002'',''Foreign Staff'',''unaffiliated@example.invalid'',''staff'')');
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Unapproved Owner'',''unaffiliated@example.invalid'',''owner'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000099';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Self Assigned'',''unaffiliated@example.invalid'',''staff'')');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000099')=0,
+  'denied membership inserts leave the unaffiliated identity unassigned'
+);
 
 -- Staff can read catalog but only the owner can manage it.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
