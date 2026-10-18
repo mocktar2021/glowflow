@@ -14,7 +14,7 @@ async function load(path, dependencies = {}) {
 }
 const payment = await load("../lib/sandbox-payment-copy.ts");
 const bookingStaff = await load("../lib/public-booking-staff.ts");
-const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
+const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
 const slot = { slot_start: "2026-09-12T10:00:00Z", staff_id: "public-staff-id" };
 async function harness(initial = {}) {
   const values = [], refs = [], effects = [];
@@ -148,10 +148,10 @@ test("localized booking resolves only published tenant services and passes an ex
   const foreign = "22222222-2222-4222-8222-222222222222";
   const tables = {
     tenants: [
-      { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
-      { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
+      { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", country_code: "FR", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
+      { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", country_code: "ES", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
     ],
-    salon_public_profiles: [{ tenant_id: "tenant-a", business_name: "Public Brand", is_published: true, team_json: [{ name: "Ari", booking_staff_id: "33333333-3333-4333-8333-333333333333" }, { name: "Foreign", booking_staff_id: "44444444-4444-4444-8444-444444444444" }] }, { tenant_id: "tenant-b", business_name: "Hidden Brand", is_published: false }],
+    salon_public_profiles: [{ tenant_id: "tenant-a", business_name: "Public Brand", country_code: "FR", is_published: true, team_json: [{ name: "Ari", booking_staff_id: "33333333-3333-4333-8333-333333333333" }, { name: "Foreign", booking_staff_id: "44444444-4444-4444-8444-444444444444" }] }, { tenant_id: "tenant-b", business_name: "Hidden Brand", country_code: "ES", is_published: false }],
     users: [{ id: "33333333-3333-4333-8333-333333333333", tenant_id: "tenant-a" }, { id: "44444444-4444-4444-8444-444444444444", tenant_id: "tenant-b" }],
     service_staff: [{ service_id: primary, staff_id: "33333333-3333-4333-8333-333333333333", tenant_id: "tenant-a" }],
     services: [
@@ -193,7 +193,7 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal(result.type, "live");
       assert.equal(result.props.locale, locale);
       assert.equal(result.props.initialServiceId, primary);
-      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", currency: "EUR", timeZone: "Europe/Paris" });
+      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" });
       assert.deepEqual(result.props.services.map(service => service.id), [primary]);
       assert.deepEqual(result.props.bookingStaffByService[primary], [{ id: "33333333-3333-4333-8333-333333333333", name: "Ari" }]);
       assert.equal("private_note" in result.props.salon, false);

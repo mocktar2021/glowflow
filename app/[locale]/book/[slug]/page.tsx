@@ -51,7 +51,7 @@ export default async function BookingPage({
   const supabase = createAdminClient();
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id,name,slug,city,currency,time_zone,is_booking_enabled")
+    .select("id,name,slug,city,country_code,currency,time_zone,is_booking_enabled")
     .eq("slug", slug)
     .eq("is_booking_enabled", true)
     .single();
@@ -63,11 +63,11 @@ export default async function BookingPage({
   if (!sandbox) {
     const { data: publishedProfile } = await supabase
       .from("salon_public_profiles")
-      .select("tenant_id,business_name,team_json")
+      .select("tenant_id,business_name,country_code,team_json")
       .eq("tenant_id", tenant.id)
       .eq("is_published", true)
       .maybeSingle();
-    if (!publishedProfile) notFound();
+    if (!publishedProfile || publishedProfile.country_code !== tenant.country_code) notFound();
     publicSalonName = publishedProfile.business_name;
     publishedTeam = publishedProfile.team_json;
   }
@@ -106,6 +106,7 @@ export default async function BookingPage({
         name: publicSalonName,
         slug: tenant.slug,
         city: tenant.city,
+        countryCode: tenant.country_code,
         currency: tenant.currency,
         timeZone: tenant.time_zone,
       }}

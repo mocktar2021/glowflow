@@ -215,6 +215,7 @@ for (const locale of ["fr", "en", "es"]) {
     const selected = "44444444-4444-4444-8444-444444444444";
     await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1&service=${selected}`);
     await page.getByRole("heading", { name: labels[locale].title }).waitFor();
+    await page.getByText("Paris, FR", { exact: true }).waitFor();
     assert.equal(await page.locator('[name="bookingService"]').inputValue(), selected);
     await selectBookingTime(page);
     await page.locator('[name="fullName"]').fill("Fictional Browser Client");
@@ -239,6 +240,7 @@ test("changing service then language preserves the current service and sandbox q
   await page.getByRole("button", { name: "Changer de langue" }).click();
   await page.getByRole("menuitemradio").filter({ hasText: "EN" }).click();
   await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1&service=${first}#booking`);
+  await page.getByText("Paris, FR", { exact: true }).waitFor();
   assert.equal(await page.locator('[name="bookingService"]').inputValue(), first);
   await selectBookingTime(page);
   await page.locator('[name="fullName"]').fill("Fictional Browser Client");
@@ -247,6 +249,7 @@ test("changing service then language preserves the current service and sandbox q
   await page.waitForURL(`**sandboxReservation=${reservationId}`);
   assert.equal(writes[0].serviceId, first);
   assert.equal(writes[0].locale, "en");
+  assert.equal("countryCode" in writes[0], false, "checkout derives country from the selected salon, not a browser field");
 });
 
 test("named professional filters available times and submits that professional", async t => {
