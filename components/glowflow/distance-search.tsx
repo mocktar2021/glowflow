@@ -74,7 +74,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
         setStatus("noPins");
         return;
       }
-      const zones = await publicSalonTimeZones(supabase, salons);
+      const zones = await publicSalonTimeZones(salons);
       if (currentRequest !== requestId.current) return;
       setSalonTimeZones((current) => ({ ...current, ...zones }));
       setDistanceResults(salons);

@@ -23,30 +23,40 @@ test("public salon time-zone lookup reads only granted fields and preserves each
       { id: "tenant-bad", time_zone: "Mars/Olympus" },
     ],
   };
-  const client = {
-    from(table) {
-      return { select(columns) {
-        return { in(key, values) {
-          calls.push({ table, columns, key, values });
-          return Promise.resolve({ data: fixtures[table], error: null });
-        } };
-      } };
-    },
+  const publicKey = "sb_publishable_fixture";
+  const fakeFetch = async (input, init) => {
+    const url = new URL(input.toString());
+    const table = url.pathname.split("/").at(-1);
+    const headers = new Headers(init?.headers);
+    calls.push({ table, columns: url.searchParams.get("select"), headers });
+    return new Response(JSON.stringify(fixtures[table]), { status: 200, headers: { "content-type": "application/json" } });
   };
-  const zones = await publicSalonTimeZones(client, [{ slug: "los-angeles" }, { slug: "new-york" }, { slug: "bad-zone" }]);
+  const zones = await publicSalonTimeZones([{ slug: "los-angeles" }, { slug: "new-york" }, { slug: "bad-zone" }], {
+    url: "https://fixture.supabase.co", key: publicKey, fetch: fakeFetch,
+  });
   assert.deepEqual(zones, { "los-angeles": "America/Los_Angeles", "new-york": "America/New_York" });
   assert.deepEqual(calls.map(({ table, columns }) => [table, columns]), [
-    ["salon_public_profiles", "slug, tenant_id"],
-    ["tenants", "id, time_zone"],
+    ["salon_public_profiles", "slug,tenant_id"],
+    ["tenants", "id,time_zone"],
   ]);
+  for (const { headers } of calls) {
+    assert.equal(headers.get("apikey"), publicKey);
+    assert.equal(headers.get("authorization"), `Bearer ${publicKey}`);
+    assert.equal(headers.has("cookie"), false);
+  }
   assert.match(publicProfileGrant, /tenant_id,/);
   assert.match(baseline, /grant select \(id, name, slug, primary_language, currency, time_zone, is_booking_enabled\) on public\.tenants to anon/);
 });
 
 test("time-zone lookup fails closed to UTC display when a public read is unavailable", async () => {
-  const client = { from() { return { select() { return { in: async () => ({ data: null, error: { code: "PGRST301" } }) }; } }; } };
-  assert.deepEqual(await publicSalonTimeZones(client, [{ slug: "example" }]), {});
-  assert.deepEqual(await publicSalonTimeZones(client, []), {});
+  const config = {
+    url: "https://fixture.supabase.co",
+    key: "sb_publishable_fixture",
+    fetch: async () => new Response(JSON.stringify({ message: "Forbidden" }), { status: 403, headers: { "content-type": "application/json" } }),
+  };
+  assert.deepEqual(await publicSalonTimeZones([{ slug: "example" }], config), {});
+  assert.deepEqual(await publicSalonTimeZones([], config), {});
+  assert.deepEqual(await publicSalonTimeZones([{ slug: "example" }], { ...config, url: "bad" }), {});
 });
 
 test("available-by date and filter-zone distinctions are explained in every language", () => {

@@ -91,7 +91,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
     });
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
-    const timeZonePromise = publicSalonTimeZones(supabase, results);
+    const timeZonePromise = publicSalonTimeZones(results);
     if (results.length && !isLocale(visitorPreference ?? "")) {
       const { data: market } = await supabase
         .from("markets")

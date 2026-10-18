@@ -321,7 +321,7 @@ export default async function SalonSearchPage({
 
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
-    const timeZonePromise = publicSalonTimeZones(supabase, results);
+    const timeZonePromise = publicSalonTimeZones(results);
     if (results.length && !isLocale(visitorPreference ?? "")) {
       const countryCodes = [...new Set(results.map((salon) => salon.country_code))];
       const { data: markets } = await supabase
