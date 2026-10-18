@@ -68,17 +68,20 @@ async function contextFor(t, locale, identity) {
     try {
       await page.screenshot({ path: path.join(artifacts, `${t.name.replace(/[^a-z0-9-]/gi, "-")}.png`), fullPage: true });
       assert.deepEqual(errors, [], "no runtime/hydration errors");
-      assert.deepEqual(mutations, [], "owner preview must not mutate data or send messages");
+      assert.deepEqual(mutations, [], "notification history must not mutate data or send messages");
     } finally { await context.close(); }
   });
   return { context, page };
 }
 const headings = { fr: "Rendez-vous confirmé", en: "Appointment confirmed", es: "Cita confirmada" };
 for (const locale of ["fr", "en", "es"]) {
-  test(`${locale} production notification route renders for fixture owner then redirects after sign-out`, async t => {
-    const { context, page } = await contextFor(t, locale, "owner");
+  for (const identity of ["owner", "staff"]) test(`${locale} production notification route shows read-only history to fixture ${identity} then redirects after sign-out`, async t => {
+    const { context, page } = await contextFor(t, locale, identity);
     const response = await page.goto(`${origin}/${locale}/dashboard/notifications`);
     assert.equal(response.status(), 200);
+    await page.getByText("Fixture Client").first().waitFor();
+    await page.getByText("consent-fixture").waitFor();
+    await page.getByText("attempt-fixture").waitFor();
     await page.getByRole("status").filter({ hasText: headings[locale] }).waitFor();
     await page.locator("#notification-kind").selectOption("reminder2h");
     await page.locator("#notification-client").selectOption("es");
@@ -89,7 +92,7 @@ for (const locale of ["fr", "en", "es"]) {
     await page.getByRole("heading", { name: "Fixture login destination" }).waitFor();
     assert.equal(await page.locator("#notification-kind").count(), 0);
   });
-  for (const identity of [null, "staff", "cross-tenant", "query-error"]) {
+  for (const identity of [null, "cross-tenant", "query-error"]) {
     test(`${locale} production notification route denies fixture ${identity || "anonymous"}`, async t => {
       const { page } = await contextFor(t, locale, identity);
       await page.goto(`${origin}/${locale}/dashboard/notifications?tenantId=tenant-b&owner_id=owner-b`);
