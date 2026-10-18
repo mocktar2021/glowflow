@@ -75,6 +75,7 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   const clientA = "30000000-0000-0000-0000-000000000001";
   const serviceA = "40000000-0000-0000-0000-000000000001";
   const appointmentA = "50000000-0000-0000-0000-000000000001";
+  const automaticKey = (generation) => sql(`select md5('glowflow:g27:email:${appointmentA}:${generation}')::uuid`);
   sql(`
     insert into auth.users(id,email) values
       ('${ownerA}','owner-a@example.test'),('${staffA}','staff-a@example.test'),('${ownerB}','owner-b@example.test');
@@ -166,7 +167,7 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   const oldReminder = sql(`select id from public.notification_outbox where appointment_id='${appointmentA}' and notification_kind='reminder24h'`);
   sql(`update public.appointments set start_time=start_time+interval '1 day' where id='${appointmentA}'`);
   assert.throws(() => sql(`set role service_role;select * from public.schedule_appointment_notifications('${appointmentA}','email','${scheduleKey}')`), /notification_schedule_request_mismatch/);
-  const rescheduleKey = "70000000-0000-0000-0000-000000000012";
+  const rescheduleKey = automaticKey(1);
   assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','${rescheduleKey}')`).split("\n").at(-1), "3");
   assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "6");
   assert.equal(sql(`select count(*) from public.notification_outbox o join public.appointments a on a.id=o.appointment_id and a.tenant_id=o.tenant_id where o.appointment_id='${appointmentA}' and o.schedule_generation=a.notification_schedule_generation and o.appointment_start_time=a.start_time and ((o.notification_kind='confirmation') or (o.notification_kind='reminder24h' and o.scheduled_for=a.start_time-interval '24 hours') or (o.notification_kind='reminder2h' and o.scheduled_for=a.start_time-interval '2 hours'))`), "3");
@@ -174,13 +175,13 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
 
   sql(`update public.appointments set start_time='${originalStart}' where id='${appointmentA}'`);
   assert.equal(sql(`select notification_schedule_generation from public.appointments where id='${appointmentA}'`), "2");
-  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','70000000-0000-0000-0000-000000000013')`).split("\n").at(-1), "3");
+  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','${automaticKey(2)}')`).split("\n").at(-1), "3");
   assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "9");
   assert.equal(sql(`select private.notification_delivery_eligible('${oldReminder}',now()+interval '20 days')`), "f");
 
   sql(`update public.appointments set status='canceled' where id='${appointmentA}'; update public.appointments set status='confirmed' where id='${appointmentA}'`);
   assert.equal(sql(`select notification_schedule_generation from public.appointments where id='${appointmentA}'`), "4");
-  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','70000000-0000-0000-0000-000000000014')`).split("\n").at(-1), "3");
+  assert.equal(sql(`set role service_role;select count(*) from public.schedule_appointment_notifications('${appointmentA}','email','${automaticKey(4)}')`).split("\n").at(-1), "3");
   assert.equal(sql(`select count(*) from public.notification_outbox where appointment_id='${appointmentA}'`), "12");
   assert.equal(sql(`select private.notification_delivery_eligible('${oldReminder}',now()+interval '20 days')`), "f");
   assert.throws(() => sql(`update public.notification_outbox set scheduled_for=now() where id='${confirmation}'`), /notification_history_is_append_only/);

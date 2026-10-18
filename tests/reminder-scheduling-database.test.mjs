@@ -50,6 +50,8 @@ test("confirmed appointments enqueue only consented email revisions without send
   const noConsent = "50000000-0000-0000-0000-000000000002";
   const noEmail = "50000000-0000-0000-0000-000000000003";
   const rolledBack = "50000000-0000-0000-0000-000000000004";
+  const threeHoursAway = "50000000-0000-0000-0000-000000000006";
+  const oneHourAway = "50000000-0000-0000-0000-000000000007";
 
   sql(`
     insert into auth.users(id,email) values
@@ -135,6 +137,15 @@ test("confirmed appointments enqueue only consented email revisions without send
   assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerB}';
     select count(*) from public.get_notification_status_rows('${tenantA}',100)`).split("\n").at(-1), "0");
   assert.throws(() => sql("set role anon;select count(*) from public.notification_outbox"), /permission denied/);
+
+  sql(`insert into public.appointments(id,tenant_id,client_id,service_id,staff_id,start_time,end_time,status)
+    values ('${threeHoursAway}','${tenantA}','${clientA}','${serviceA}','${staffA}',
+      now()+interval '3 hours',now()+interval '4 hours','confirmed')`);
+  assert.equal(count(threeHoursAway), 2, "only confirmation and future 2-hour reminder are queued");
+  sql(`insert into public.appointments(id,tenant_id,client_id,service_id,staff_id,start_time,end_time,status)
+    values ('${oneHourAway}','${tenantA}','${clientA}','${serviceA}','${staffA}',
+      now()+interval '1 hour',now()+interval '2 hours','confirmed')`);
+  assert.equal(count(oneHourAway), 1, "an imminent booking gets confirmation only");
 
   sql(`update public.appointments set start_time=start_time where id='${appointmentA}'`);
   assert.equal(generation(), 0);
