@@ -126,7 +126,9 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   assert.throws(() => sql("set role anon;select count(*) from public.notification_outbox"), /permission denied/);
   assert.throws(() => sql(`set role authenticated;set request.jwt.claim.sub='${ownerA}';insert into public.notification_outbox(tenant_id,appointment_id,client_id,notification_kind,channel,scheduled_for,request_key) values('${tenantA}','${appointmentA}','${clientA}','confirmation','sms',now(),'70000000-0000-0000-0000-000000000001')`), /permission denied/);
 
-  const claimAt = sql("select date_trunc('second',now())");
+  // Confirmation scheduling uses the full current timestamp. Truncating the
+  // claim time could put it before scheduled_for and reject both contenders.
+  const claimAt = sql("select now()");
   const claims = await Promise.allSettled([
     asyncSql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000002','${claimAt}')`),
     asyncSql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000003','${claimAt}')`),
@@ -141,20 +143,20 @@ test("notification consent, outbox, retries, immutability, and RLS", { skip: !co
   assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerB}';select count(*) from public.notification_delivery_attempts`).split("\n").at(-1), "0");
   assert.throws(() => sql("set role anon;select count(*) from public.notification_delivery_attempts"), /permission denied/);
 
-  const resultAt = sql("select date_trunc('second',now())");
-  const retryAt = sql("select date_trunc('second',now()) + interval '1 second'");
+  const resultAt = sql("select now()");
+  const retryAt = sql(`select '${resultAt}'::timestamptz + interval '1 second'`);
   const retryCall = `select public.record_notification_delivery_result('${claimId}','retryable','70000000-0000-0000-0000-000000000004','${resultAt}','${retryAt}','temporary_unavailable',null)`;
   const retryId = sql(`set role service_role;${retryCall}`).split("\n").at(-1);
   assert.equal(sql(`set role service_role;${retryCall}`).split("\n").at(-1), retryId);
   assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000005','${resultAt}')`), /notification_not_eligible/);
 
-  const optOutAt = sql("select date_trunc('second',now())");
+  const optOutAt = sql("select now()");
   sql(`set role service_role;select public.record_client_notification_consent('${tenantA}','${clientA}','email','opted_out','70000000-0000-0000-0000-000000000006','${optOutAt}')`);
   await new Promise((resolve) => setTimeout(resolve, 1100));
-  const afterRetry = sql("select date_trunc('second',now())");
+  const afterRetry = sql("select now()");
   assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000007','${afterRetry}')`), /notification_not_eligible/);
 
-  const reconsentAt = sql("select date_trunc('second',now())");
+  const reconsentAt = sql("select now()");
   sql(`set role service_role;select public.record_client_notification_consent('${tenantA}','${clientA}','email','consented','70000000-0000-0000-0000-000000000008','${reconsentAt}')`);
   const secondClaim = sql(`set role service_role;select public.claim_notification_delivery('${confirmation}','70000000-0000-0000-0000-000000000009','${reconsentAt}')`).split("\n").at(-1);
   sql(`set role service_role;select public.record_notification_delivery_result('${secondClaim}','delivered','70000000-0000-0000-0000-000000000010','${reconsentAt}',null,null,'provider-neutral-reference')`);
