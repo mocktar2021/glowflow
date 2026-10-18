@@ -2,6 +2,8 @@
  * Read model for a future, append-only nail-service record table.
  * `performed_on` is a salon-local SQL date, not an appointment timestamp.
  * A correction adds a new row that replaces the old row; it never edits history.
+ * A paginated slice cannot establish the last infill: callers must load the
+ * complete client history, including corrections, or use a database aggregate.
  */
 export type NailServiceRecord = {
   id: string;
@@ -10,7 +12,12 @@ export type NailServiceRecord = {
   replaces_record_id: string | null;
 };
 
-export function lastInfillDate(records: readonly NailServiceRecord[]): string | null {
+export function lastInfillDate(input: {
+  records: readonly NailServiceRecord[];
+  complete: true;
+}): string | null {
+  if (input.complete !== true) throw new Error("nail_history_incomplete");
+  const records = input.records;
   const replacedIds = new Set(records.map((record) => record.replaces_record_id).filter((id): id is string => id !== null));
   let latest: string | null = null;
   for (const record of records) {
