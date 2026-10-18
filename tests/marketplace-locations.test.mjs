@@ -45,13 +45,20 @@ test("location metadata has localized headings, canonical URLs, and language alt
     "@/lib/supabase/server": { createClient: async () => null },
   });
   for (const locale of ["fr", "en", "es"]) {
-    const metadata = await generateMetadata({ params: Promise.resolve({ locale, country: "US", city: ["Greensboro"] }), searchParams: Promise.resolve({}) });
-    assert.ok(metadata.title.includes("Greensboro"));
-    assert.equal(metadata.alternates.canonical, `/${locale}/salons/locations/US/Greensboro`);
-    for (const language of ["fr", "en", "es"]) assert.equal(metadata.alternates.languages[language], `/${language}/salons/locations/US/Greensboro`);
+    for (const city of [undefined, ["Greensboro"]]) {
+      const metadata = await generateMetadata({ params: Promise.resolve({ locale, country: "US", city }), searchParams: Promise.resolve({}) });
+      const path = `/${locale}/salons/locations/US${city ? "/Greensboro" : ""}`;
+      assert.equal(metadata.alternates.canonical, path);
+      assert.equal(metadata.openGraph.url, `https://glowflow.mocktar.com${path}`);
+      assert.deepEqual(metadata.openGraph.images, [{ url: "/og-glowflow.png", width: 1200, height: 630, alt: "GlowFlow" }]);
+      if (city) assert.ok(metadata.title.includes("Greensboro"));
+      for (const language of ["fr", "en", "es"]) assert.equal(metadata.alternates.languages[language], `/${language}/salons/locations/US${city ? "/Greensboro" : ""}`);
+    }
   }
   const secondPage = await generateMetadata({ params: Promise.resolve({ locale: "en", country: "FR" }), searchParams: Promise.resolve({ page: "2" }) });
   assert.equal(secondPage.alternates.canonical, "/en/salons/locations/FR?page=2");
+  assert.equal(secondPage.openGraph.url, "https://glowflow.mocktar.com/en/salons/locations/FR?page=2");
+  assert.equal(secondPage.openGraph.images[0].url, "/og-glowflow.png");
   assert.deepEqual(await generateMetadata({ params: Promise.resolve({ locale: "en", country: "ZZ" }), searchParams: Promise.resolve({}) }), { robots: { index: false, follow: false } });
 });
 
