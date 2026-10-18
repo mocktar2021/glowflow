@@ -8,11 +8,30 @@ import type { NotificationStatus } from "@/lib/notifications/status";
 
 export type NotificationStatusRecord = {
   id: string;
+  appointmentId: string;
+  clientName: string;
   kind: NotificationKind;
   channel: "email" | "sms";
   scheduledFor: string;
   status: NotificationStatus;
   attemptCount: number;
+};
+
+export type NotificationConsentRecord = {
+  id: string;
+  clientName: string;
+  channel: "email" | "sms";
+  status: "consented" | "opted_out";
+  occurredAt: string;
+};
+
+export type NotificationAttemptRecord = {
+  id: string;
+  outboxId: string;
+  eventType: "claimed" | "delivered" | "retryable" | "failed" | "canceled";
+  attemptNumber: number;
+  occurredAt: string;
+  errorCode: string | null;
 };
 
 const copy = {
@@ -25,11 +44,19 @@ const statusCopy = {
   en: { scheduled: "Scheduled", awaiting_consent: "No recorded consent", opted_out: "Opt-out recorded", appointment_inactive: "Appointment inactive", superseded: "Superseded after rescheduling", ready: "Ready, sending disabled", processing: "Processing recorded", retry_scheduled: "Retry scheduled", ready_to_retry: "Retry eligible, sending disabled", delivered: "Delivered", failed: "Permanently failed", canceled: "Canceled" },
   es: { scheduled: "Programada", awaiting_consent: "Sin consentimiento registrado", opted_out: "Baja registrada", appointment_inactive: "Cita inactiva", superseded: "Sustituida tras reprogramar", ready: "Lista, envío desactivado", processing: "Procesamiento registrado", retry_scheduled: "Reintento programado", ready_to_retry: "Reintento posible, envío desactivado", delivered: "Entregada", failed: "Fallo definitivo", canceled: "Cancelada" },
 } as const;
+const auditCopy = {
+  fr: { title: "Historique des communications", intro: "Les 100 événements les plus récents de chaque catégorie. Consultation uniquement, aucun message n'est envoyé.", consent: "Historique des consentements", delivery: "Historique des tentatives", emptyConsent: "Aucun consentement enregistré.", emptyDelivery: "Aucune tentative enregistrée.", unavailable: "L'historique est momentanément indisponible.", source: "La source du consentement n'est pas encore enregistrée.", consented: "Consentement enregistré", opted_out: "Désinscription enregistrée", claimed: "Traitement commencé", delivered: "Livraison enregistrée", retryable: "Nouvelle tentative demandée", failed: "Échec définitif", canceled: "Annulation enregistrée", attempt: "Tentative", reason: "Code d'erreur", auditId: "Identifiant d'audit", appointmentId: "Rendez-vous" },
+  en: { title: "Communication history", intro: "The latest 100 events in each category. Read-only, with no messages sent.", consent: "Consent history", delivery: "Delivery attempts", emptyConsent: "No consent events recorded.", emptyDelivery: "No delivery attempts recorded.", unavailable: "History is temporarily unavailable.", source: "The consent source is not yet recorded.", consented: "Consent recorded", opted_out: "Opt-out recorded", claimed: "Processing started", delivered: "Delivery recorded", retryable: "Retry requested", failed: "Permanently failed", canceled: "Cancellation recorded", attempt: "Attempt", reason: "Error code", auditId: "Audit ID", appointmentId: "Appointment" },
+  es: { title: "Historial de comunicaciones", intro: "Los 100 eventos más recientes de cada categoría. Solo lectura, sin enviar mensajes.", consent: "Historial de consentimientos", delivery: "Intentos de entrega", emptyConsent: "No hay consentimientos registrados.", emptyDelivery: "No hay intentos de entrega registrados.", unavailable: "El historial no está disponible temporalmente.", source: "Aún no se registra el origen del consentimiento.", consented: "Consentimiento registrado", opted_out: "Baja registrada", claimed: "Procesamiento iniciado", delivered: "Entrega registrada", retryable: "Reintento solicitado", failed: "Fallo definitivo", canceled: "Cancelación registrada", attempt: "Intento", reason: "Código de error", auditId: "ID de auditoría", appointmentId: "Cita" },
+} as const;
 const languages = { fr: "Français", en: "English", es: "Español" };
 const controlClass = "mt-2 min-h-12 w-full rounded-xl border border-[#b6a38b] bg-white px-3 text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:bg-[#202228] dark:text-stone-100";
 
-export function NotificationTemplatePreview({ locale, records = [], statusUnavailable = false }: { locale: Locale; records?: NotificationStatusRecord[]; statusUnavailable?: boolean }) {
+export function NotificationTemplatePreview({ locale, records = [], consents = [], attempts = [], statusUnavailable = false, historyUnavailable = false }: { locale: Locale; records?: NotificationStatusRecord[]; consents?: NotificationConsentRecord[]; attempts?: NotificationAttemptRecord[]; statusUnavailable?: boolean; historyUnavailable?: boolean }) {
   const t = copy[locale];
+  const audit = auditCopy[locale];
+  const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const messagesById = new Map(records.map((record) => [record.id, record]));
   const [kind, setKind] = useState<NotificationKind>("confirmation");
   const [clientLocale, setClientLocale] = useState<string>(locale);
   const [salonLocale, setSalonLocale] = useState<string>("fr");
@@ -49,10 +76,37 @@ export function NotificationTemplatePreview({ locale, records = [], statusUnavai
         </div>
         {statusUnavailable ? <p role="status">{t.unavailable}</p> : records.length === 0 ? <p>{t.empty}</p> : <ul className="divide-y divide-[#e8dfd2] dark:divide-white/10">
           {records.map((record) => <li key={record.id} className="grid gap-1 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-            <div><p className="font-medium">{t[record.kind]} · {record.channel.toUpperCase()}</p><p className="text-sm text-slate-600 dark:text-stone-300">{new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(record.scheduledFor))}</p></div>
+            <div><p className="font-medium">{t[record.kind]} · {record.channel.toUpperCase()}</p><p className="text-sm text-slate-600 dark:text-stone-300">{record.clientName} · {formatDate(record.scheduledFor)}</p></div>
             <p className="text-sm font-medium">{statusCopy[locale][record.status]} · {record.attemptCount} {t.attempts}</p>
           </li>)}
         </ul>}
+      </section>
+      <section className="space-y-5 rounded-3xl border border-[#d9c7b2] bg-white p-5 sm:p-7 dark:bg-[#202228]" aria-labelledby="notification-audit-heading">
+        <div><h2 id="notification-audit-heading" className="text-lg font-semibold">{audit.title}</h2><p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{audit.intro}</p></div>
+        {historyUnavailable ? <p role="status">{audit.unavailable}</p> : <>
+          <div className="space-y-2">
+            <h3 className="font-semibold">{audit.consent}</h3>
+            <p className="text-sm text-slate-600 dark:text-stone-300">{audit.source}</p>
+            {consents.length === 0 ? <p>{audit.emptyConsent}</p> : <ul className="divide-y divide-[#e8dfd2] dark:divide-white/10">{consents.map((event) => <li key={event.id} className="space-y-1 py-3 text-sm">
+              <p className="font-medium">{event.clientName} · {event.channel.toUpperCase()} · {audit[event.status]}</p>
+              <p>{formatDate(event.occurredAt)}</p>
+              <p className="break-all text-xs text-slate-600 dark:text-stone-300">{audit.auditId}: {event.id}</p>
+            </li>)}</ul>}
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-semibold">{audit.delivery}</h3>
+            {attempts.length === 0 ? <p>{audit.emptyDelivery}</p> : <ul className="divide-y divide-[#e8dfd2] dark:divide-white/10">{attempts.map((event) => {
+              const message = messagesById.get(event.outboxId);
+              return <li key={event.id} className="space-y-1 py-3 text-sm">
+                <p className="font-medium">{message ? `${message.clientName} · ${t[message.kind]}` : event.outboxId} · {audit[event.eventType]}</p>
+                <p>{audit.attempt} {event.attemptNumber} · {formatDate(event.occurredAt)}</p>
+                {message && <p className="break-all">{audit.appointmentId}: {message.appointmentId}</p>}
+                {event.errorCode && <p>{audit.reason}: {event.errorCode}</p>}
+                <p className="break-all text-xs text-slate-600 dark:text-stone-300">{audit.auditId}: {event.id}</p>
+              </li>;
+            })}</ul>}
+          </div>
+        </>}
       </section>
       <section className="space-y-5 rounded-3xl border border-[#d9c7b2] bg-white p-5 sm:p-7 dark:bg-[#202228]" aria-label={t.title}>
         <label className="block font-medium" htmlFor="notification-kind">{t.kind}

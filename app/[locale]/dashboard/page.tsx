@@ -9,9 +9,9 @@ import { signOut } from "../auth-actions";
 export const dynamic = "force-dynamic";
 
 const copy = {
-  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements", notifications: "Aperçu des notifications" },
-  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", services: "Service catalog", products: "Products", availability: "Team and availability", profile: "Public profile", payments: "Payments", notifications: "Notification preview" },
-  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos", notifications: "Vista previa de notificaciones" },
+  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements", notifications: "Historique des notifications" },
+  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", services: "Service catalog", products: "Products", availability: "Team and availability", profile: "Public profile", payments: "Payments", notifications: "Notification history" },
+  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos", notifications: "Historial de notificaciones" },
 } as const;
 
 export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -27,13 +27,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const links = [
     { route: "calendar", title: labels.calendar, icon: CalendarDays },
     { route: "walk-ins", title: labels.walkIns, icon: UsersRound },
+    { route: "notifications", title: labels.notifications, icon: Bell },
     ...(tenant.owner_id === userId ? [
       { route: "services", title: labels.services, icon: Scissors },
       { route: "products", title: labels.products, icon: Package },
       { route: "availability", title: labels.availability, icon: CalendarClock },
       { route: "public-profile", title: labels.profile, icon: Globe },
       { route: "payments", title: labels.payments, icon: CreditCard },
-      { route: "notifications", title: labels.notifications, icon: Bell },
     ] : []),
   ];
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "full", timeZone: tenant.time_zone }).format(new Date());

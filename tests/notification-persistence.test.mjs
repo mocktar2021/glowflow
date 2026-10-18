@@ -29,7 +29,9 @@ test("migration keeps notification history tenant-scoped, append-only, and servi
 
 test("application is read-only and truthfully labels provider delivery disabled", () => {
   assert.match(page, /get_notification_status_rows/);
-  assert.doesNotMatch(page, /\.from\("notification_(?:outbox|delivery_attempts)"\)/);
+  assert.match(page, /\.from\("client_notification_consent_events"\)/);
+  assert.match(page, /\.from\("notification_delivery_attempts"\)/);
+  assert.doesNotMatch(page, /\.from\("notification_outbox"\)/);
   assert.doesNotMatch(page, /\.insert\(|\.update\(|\.delete\(/);
   assert.match(runbook, /does not send email or SMS/);
   assert.match(runbook, /retry cadence and maximum attempts/);
