@@ -56,8 +56,12 @@ const secret = "whsec_runtime_fixture";
 let enabled = true;
 let result = { error: null };
 let calls = [];
+let clientFailure = null;
 globalThis.__depositWebhookMocks = {
-  stripe,
+  stripe: () => {
+    if (clientFailure) throw clientFailure;
+    return stripe;
+  },
   configuration: () => enabled ? {} : null,
   admin: () => ({ rpc: async (...args) => { calls.push(args); if (result instanceof Error) throw result; return result; } }),
 };
@@ -65,7 +69,7 @@ let routeSource = await readFile(new URL("../app/api/stripe/webhook/route.ts", i
 routeSource = routeSource
   .replace('"@/lib/payment-diagnostics"', JSON.stringify(compile(await readFile(new URL("../lib/payment-diagnostics.ts", import.meta.url), "utf8"))))
   .replace('import { createAdminClient } from "@/lib/supabase/admin";', 'const createAdminClient = globalThis.__depositWebhookMocks.admin;')
-  .replace('import { createStripeClient } from "@/lib/stripe";', 'const createStripeClient = () => globalThis.__depositWebhookMocks.stripe;')
+  .replace('import { createStripeClient } from "@/lib/stripe";', 'const createStripeClient = globalThis.__depositWebhookMocks.stripe;')
   .replace('import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";', 'const sandboxDepositConfiguration = globalThis.__depositWebhookMocks.configuration;')
   .replace('"@/lib/stripe-deposit-events"', JSON.stringify(helperUrl));
 const { POST } = await import(compile(routeSource));
@@ -141,4 +145,27 @@ test("webhook diagnostics exclude provider errors and signed payload content", a
     }
     assert.deepEqual(logs.map(([line]) => JSON.parse(line)), Array(2).fill({ event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_persist", code: "persistence_failed" }));
   } finally { console.error = original; result = { error: null }; }
+});
+
+test("webhook bootstrap failure is a safe signal while invalid signatures do not create false alerts", async () => {
+  process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  try {
+    const sensitive = "private@example.com whsec_private rk_test_private cs_test_private";
+    clientFailure = new Error(sensitive);
+    const unavailable = await POST(request());
+    assert.equal(unavailable.status, 503);
+    assert.deepEqual(await unavailable.json(), { error: "sandbox_unavailable" });
+    assert.deepEqual(logs.map(([line]) => JSON.parse(line)), [{
+      event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_client", code: "operation_failed",
+    }]);
+    assert.ok(!logs[0][0].includes(sensitive));
+
+    clientFailure = null;
+    logs.length = 0;
+    assert.equal((await POST(request(event(), "whsec_wrong"))).status, 400);
+    assert.equal((await POST(request(event(), secret, true))).status, 400);
+    assert.deepEqual(logs, [], "rejected signatures are not application failure alerts");
+  } finally { console.error = original; clientFailure = null; }
 });
