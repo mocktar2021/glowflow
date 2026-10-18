@@ -7,9 +7,12 @@ import { notFound } from "next/navigation";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
+import { VisitorTimeZoneField } from "@/components/glowflow/visitor-time-zone-field";
 import { isLocale, salonProfileLocale, type Locale } from "@/lib/i18n";
+import { endOfLocalDayUtc, isValidIanaTimeZone, timeZoneOptions } from "@/lib/marketplace-time-zones";
 import { fallbackMarkets, marketName } from "@/lib/markets";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
+import { publicSalonTimeZones } from "@/lib/salon-time-zones";
 import {
   isSalonCategory,
   maximumPriceMinorUnits,
@@ -39,7 +42,11 @@ const copy = {
     nails: "Ongles",
     other: "Autres",
     maximumPrice: "Prix maximum",
-    availableBefore: "Disponible avant",
+    availableBefore: "Disponible d’ici la fin du",
+    timeZone: "Fuseau horaire du filtre",
+    timeZoneHelp: "La date utilise ce fuseau horaire. Les horaires affichés sur les cartes utilisent celui de chaque salon.",
+    invalidTimeZone: "Ce fuseau horaire n’est pas reconnu. Le filtre utilise UTC.",
+    invalidDate: "Cette date n’est pas valide. Le filtre de disponibilité n’a pas été appliqué.",
     submit: "Rechercher",
     reset: "Effacer les filtres",
     results: "salons trouvés",
@@ -89,7 +96,11 @@ const copy = {
     nails: "Nails",
     other: "Other",
     maximumPrice: "Maximum price",
-    availableBefore: "Available before",
+    availableBefore: "Available by end of date",
+    timeZone: "Filter time zone",
+    timeZoneHelp: "The date uses this time zone. Times on salon cards use each salon’s own time zone.",
+    invalidTimeZone: "That time zone is not recognized. The filter uses UTC.",
+    invalidDate: "That date is invalid. The availability filter was not applied.",
     submit: "Search",
     reset: "Clear filters",
     results: "salons found",
@@ -139,7 +150,11 @@ const copy = {
     nails: "Uñas",
     other: "Otros",
     maximumPrice: "Precio máximo",
-    availableBefore: "Disponible antes de",
+    availableBefore: "Disponible antes de terminar el día",
+    timeZone: "Zona horaria del filtro",
+    timeZoneHelp: "La fecha usa esta zona horaria. Las horas en las tarjetas usan la zona de cada salón.",
+    invalidTimeZone: "No se reconoce esa zona horaria. El filtro usa UTC.",
+    invalidDate: "La fecha no es válida. No se aplicó el filtro de disponibilidad.",
     submit: "Buscar",
     reset: "Borrar filtros",
     results: "salones encontrados",
@@ -182,7 +197,7 @@ const extraCopy = {
   es: { priceNeedsCountry: "Elige un país para filtrar precios en su moneda. No se aplicó el filtro de precio.", pageAdjusted: "Esa página no existe. Se muestran los primeros resultados." },
 } as const;
 
-const allowedQueryKeys = new Set(["q", "country", "city", "postcode", "category", "maxPrice", "availableBefore", "sort"]);
+const allowedQueryKeys = new Set(["q", "country", "city", "postcode", "category", "maxPrice", "availableBefore", "timeZone", "sort"]);
 
 function value(params: SearchParams, key: string) {
   const item = params[key];
@@ -248,6 +263,14 @@ export default async function SalonSearchPage({
   const maxPriceNeedsCountry = Boolean(maxPriceValue && !selectedMarket);
   const maximumPrice = maximumPriceMinorUnits(maxPriceValue, selectedMarket?.currency ?? null);
   const availableDate = value(filters, "availableBefore");
+  const requestedTimeZone = value(filters, "timeZone");
+  const invalidTimeZone = Boolean(requestedTimeZone && !isValidIanaTimeZone(requestedTimeZone));
+  // Legacy date-only links keep their original UTC meaning. For a new search,
+  // the client field detects the browser zone after hydration and submits it.
+  const selectedTimeZone = requestedTimeZone && !invalidTimeZone ? requestedTimeZone : "UTC";
+  const availableBefore = availableDate ? endOfLocalDayUtc(availableDate, selectedTimeZone) : null;
+  const invalidDate = Boolean(availableDate && !availableBefore);
+  const paginationFilters = invalidTimeZone ? { ...filters, timeZone: selectedTimeZone } : filters;
   const requestedPage = value(filters, "page");
   let page = salonSearchPage(requestedPage);
   let pageAdjusted = Boolean(requestedPage && page === 1 && requestedPage !== "1");
@@ -258,6 +281,7 @@ export default async function SalonSearchPage({
   let loadError = !configured;
   let sortUnavailable = false;
   let countryDefaultLocales = new Map<string, string>();
+  let salonTimeZones: Record<string, string> = {};
   const visitorPreference = (await cookies()).get("glowflow_locale")?.value;
   const rpcFilters = {
     search_text: searchText || null,
@@ -266,7 +290,7 @@ export default async function SalonSearchPage({
     filter_postal_code: postalCode || null,
     filter_category: category || null,
     maximum_price: maximumPrice,
-    available_before: availableDate ? `${availableDate}T23:59:59.999Z` : null,
+    available_before: availableBefore,
   };
 
   if (configured) {
@@ -297,6 +321,7 @@ export default async function SalonSearchPage({
 
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
+    const timeZonePromise = publicSalonTimeZones(supabase, results);
     if (results.length && !isLocale(visitorPreference ?? "")) {
       const countryCodes = [...new Set(results.map((salon) => salon.country_code))];
       const { data: markets } = await supabase
@@ -305,6 +330,7 @@ export default async function SalonSearchPage({
         .in("country_code", countryCodes);
       countryDefaultLocales = new Map((markets ?? []).map((market) => [market.country_code, market.default_locale]));
     }
+    salonTimeZones = await timeZonePromise;
   }
 
   const total = Number(results[0]?.total_count ?? 0);
@@ -364,9 +390,9 @@ export default async function SalonSearchPage({
             <details className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
-                {labels.category}, {labels.postal}, {labels.maximumPrice}
+                {labels.category}, {labels.postal}, {labels.maximumPrice}, {labels.availableBefore}
               </summary>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="text-sm font-medium">
                   {labels.postal}
                   <input name="postcode" defaultValue={postalCode} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
@@ -388,6 +414,13 @@ export default async function SalonSearchPage({
                   {labels.availableBefore}
                   <input name="availableBefore" type="date" defaultValue={availableDate} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
                 </label>
+                <VisitorTimeZoneField
+                  initialZone={selectedTimeZone}
+                  detectBrowserZone={!requestedTimeZone && !availableDate}
+                  options={timeZoneOptions(selectedTimeZone)}
+                  label={labels.timeZone}
+                  help={labels.timeZoneHelp}
+                />
               </div>
             </details>
 
@@ -421,9 +454,11 @@ export default async function SalonSearchPage({
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
         {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
+        {invalidTimeZone ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidTimeZone}</p> : null}
+        {invalidDate ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidDate}</p> : null}
         {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
-        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} enabled={!loadError}>
+        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}>
         {loadError ? (
           <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>
@@ -448,15 +483,16 @@ export default async function SalonSearchPage({
                 locale={locale}
                 href={`/${salonProfileLocale(countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
+                timeZone={salonTimeZones[salon.slug]}
                 labels={labels}
               />)}
             </div>
 
             {totalPages > 1 ? (
               <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${labels.page} ${page}`}>
-                {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, filters, page - 1)}>{labels.previous}</Link> : null}
+                {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
                 <span className="text-sm text-slate-600 dark:text-stone-300">{labels.page} {page} / {totalPages}</span>
-                {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, filters, page + 1)}>{labels.nextPage}</Link> : null}
+                {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
               </nav>
             ) : null}
           </>

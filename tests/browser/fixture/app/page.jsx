@@ -3,9 +3,17 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { NotificationTemplatePreview } from "@/components/glowflow/notification-template-preview";
+import { VisitorTimeZoneField } from "@/components/glowflow/visitor-time-zone-field";
 export default function Fixture() {
   const locale = usePathname().split("/")[1] || "fr";
   const search = useSearchParams();
+  if (search.get("zoneFixture") === "1") return <form><VisitorTimeZoneField
+    initialZone={search.get("zone") || "UTC"}
+    detectBrowserZone={!search.has("zone") && !search.has("date")}
+    options={["UTC", "America/Los_Angeles", "Europe/Paris"]}
+    label="Filter time zone"
+    help="Salon card times use each salon's own time zone."
+  /></form>;
   if (search.get("templates") === "1") return <NotificationTemplatePreview locale={locale} />;
   const id = search.get("sandboxReservation");
   if (id) return <SandboxPaymentStatusPanel locale={locale} salonSlug="browser-fixture" reservationId={id} />;

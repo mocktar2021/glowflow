@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
 import { isLocale, salonProfileLocale, type Locale } from "@/lib/i18n";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
+import { publicSalonTimeZones } from "@/lib/salon-time-zones";
 import { marketName } from "@/lib/markets";
 import type { SalonSearchResult } from "@/lib/salon-search";
 import { createClient } from "@/lib/supabase/server";
@@ -73,6 +74,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
   let results: SalonSearchResult[] = [];
   let loadError = false;
   let countryDefaultLocale: string = location.market.default_locale;
+  let salonTimeZones: Record<string, string> = {};
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     const supabase = await createClient();
@@ -89,6 +91,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
     });
     loadError = Boolean(error);
     if (data) results = data as SalonSearchResult[];
+    const timeZonePromise = publicSalonTimeZones(supabase, results);
     if (results.length && !isLocale(visitorPreference ?? "")) {
       const { data: market } = await supabase
         .from("markets")
@@ -97,6 +100,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
         .maybeSingle();
       if (market?.default_locale) countryDefaultLocale = market.default_locale;
     }
+    salonTimeZones = await timeZonePromise;
   } else {
     loadError = true;
   }
@@ -141,6 +145,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
                 locale={locale}
                 href={`/${salonProfileLocale(countryDefaultLocale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={!location.city && marketplaceLocation(country, [salon.city]) ? marketplaceLocationHref(locale, country, salon.city) : undefined}
+                timeZone={salonTimeZones[salon.slug]}
                 labels={labels}
               />)}
             </div>

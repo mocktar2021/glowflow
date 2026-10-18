@@ -41,11 +41,12 @@ test("distance search requests browser location only after a click and sends onl
     "@/lib/markets": { fallbackMarkets: [] },
     "@/lib/marketplace-locations": { marketplaceLocation: () => null, marketplaceLocationHref: () => "" },
     "@/lib/salon-search": { coarseVisitorOrigin },
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/client": { createClient: () => ({ rpc: async (name, args) => { rpcCalls.push({ name, args }); return { data: [{ slug: "test", distance_meters: 100, total_count: 1 }], error: null }; } }) },
   };
   const browser = { geolocation: { getCurrentPosition(success) { geolocationCalls++; success({ coords: { latitude: 36.0726, longitude: -79.7915 } }); } } };
   new Function("require", "exports", "navigator", js)(name => deps[name] ?? require(name), loaded.exports, browser);
-  const tree = loaded.exports.DistanceSearch({ children: "existing results", locale: "en", labels: {}, filters: { filter_country_code: "US" }, pageSize: 9, visitorPreference: null, countryDefaultLocales: {}, enabled: true });
+  const tree = loaded.exports.DistanceSearch({ children: "existing results", locale: "en", labels: {}, filters: { filter_country_code: "US" }, pageSize: 9, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled: true });
   assert.equal(geolocationCalls, 0);
   const findAction = (node) => {
     if (!node || typeof node !== "object") return null;

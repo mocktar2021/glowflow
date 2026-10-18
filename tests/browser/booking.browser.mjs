@@ -53,8 +53,8 @@ after(async () => {
   }
   await writeFile(path.join(artifacts, "server.log"), output);
 });
-async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale });
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, timeZoneId });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
   page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
@@ -94,6 +94,29 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   });
   return { page, writes, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
 }
+test("visitor time-zone chooser detects browser zone only for new searches and allows override", async t => {
+  const { page } = await pageFor(t, "en", { timeZoneId: "America/Los_Angeles" });
+  // The optional system Chromium can ignore Playwright's timeZoneId override.
+  // Model the browser API response directly so this check is deterministic.
+  await page.addInitScript(() => {
+    const original = Intl.DateTimeFormat.prototype.resolvedOptions;
+    Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+      return { ...original.call(this), timeZone: "America/Los_Angeles" };
+    };
+  });
+  const chooser = page.getByRole("combobox", { name: "Filter time zone" });
+  await page.goto(`${origin}/en/book/browser-fixture?zoneFixture=1`);
+  await chooser.waitFor();
+  await page.waitForFunction(() => document.querySelector('[name="timeZone"]')?.value === "America/Los_Angeles");
+  await chooser.selectOption("Europe/Paris");
+  assert.equal(await chooser.inputValue(), "Europe/Paris");
+
+  await page.goto(`${origin}/en/book/browser-fixture?zoneFixture=1&date=2026-11-15`);
+  assert.equal(await chooser.inputValue(), "UTC", "a legacy date-only URL stays in UTC");
+
+  await page.goto(`${origin}/en/book/browser-fixture?zoneFixture=1&date=2026-11-15&zone=Europe%2FParis`);
+  assert.equal(await chooser.inputValue(), "Europe/Paris", "an explicit visitor zone stays selected");
+});
 async function selectBookingTime(page, start = slot.slot_start) {
   const radio = page.locator(`[name="bookingTime"][value="${start}"]`);
   await radio.locator("..").click();
