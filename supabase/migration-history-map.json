@@ -247,6 +247,13 @@
       "sourceVersion": "20261017230138",
       "marker": false,
       "normalizedSha256": "e89975924ef4381c121d8a4781902942d2ba20f804fe2ce087c208123d1faa7d"
+    },
+    {
+      "version": "20261018000135",
+      "name": "schedule_confirmed_appointment_notifications",
+      "sourceVersion": "20261018000135",
+      "marker": false,
+      "normalizedSha256": "3781a6771051c5131ad4ceb3592a00dbb2e36a10ae27efe30ef72470aa63692f"
     }
   ]
 }
