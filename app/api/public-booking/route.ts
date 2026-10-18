@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { reportApplicationFailure, type ApplicationCode, type ApplicationStage } from "@/lib/application-diagnostics";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -43,6 +44,14 @@ const bookingSchema = z.object({
   message: "contact_required",
 });
 
+function failed(error: string, status: number, method: "GET" | "POST", stage: ApplicationStage, code: ApplicationCode) {
+  const requestId = reportApplicationFailure("public_booking", method, stage, code);
+  return NextResponse.json({ error }, {
+    status,
+    headers: { "cache-control": "private, no-store", ...(requestId ? { "x-glowflow-error-id": requestId } : {}) },
+  });
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsed = availabilitySchema.safeParse({
@@ -55,54 +64,67 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc("get_public_booking_slots", {
-    target_salon_slug: parsed.data.salonSlug,
-    target_service_id: parsed.data.serviceId,
-    target_local_date: parsed.data.date,
-  });
-
-  if (error) {
-    return NextResponse.json({ error: "availability_failed" }, { status: 500 });
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.rpc("get_public_booking_slots", {
+      target_salon_slug: parsed.data.salonSlug,
+      target_service_id: parsed.data.serviceId,
+      target_local_date: parsed.data.date,
+    });
+    if (error) return failed("availability_failed", 500, "GET", "availability", "database_error");
+    return NextResponse.json(
+      { slots: data ?? [] },
+      { headers: { "cache-control": "private, no-store" } },
+    );
+  } catch {
+    return failed("availability_failed", 500, "GET", "availability", "unexpected_error");
   }
-
-  return NextResponse.json(
-    { slots: data ?? [] },
-    { headers: { "cache-control": "private, no-store" } },
-  );
 }
 
 export async function POST(request: Request) {
-  const parsed = bookingSchema.safeParse(await request.json());
+  let body: unknown;
+  try { body = await request.json(); } catch {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+  const parsed = bookingSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc("create_public_appointment", {
-    target_salon_slug: parsed.data.salonSlug,
-    target_service_id: parsed.data.serviceId,
-    target_staff_id: parsed.data.staffId,
-    requested_start: parsed.data.startTime,
-    client_full_name: parsed.data.fullName,
-    client_phone: parsed.data.phone,
-    client_email: parsed.data.email,
-    client_locale: parsed.data.locale,
-    request_key: parsed.data.requestKey,
-  });
+  let supabase;
+  let data;
+  let error;
+  try {
+    supabase = createAdminClient();
+    ({ data, error } = await supabase.rpc("create_public_appointment", {
+      target_salon_slug: parsed.data.salonSlug,
+      target_service_id: parsed.data.serviceId,
+      target_staff_id: parsed.data.staffId,
+      requested_start: parsed.data.startTime,
+      client_full_name: parsed.data.fullName,
+      client_phone: parsed.data.phone,
+      client_email: parsed.data.email,
+      client_locale: parsed.data.locale,
+      request_key: parsed.data.requestKey,
+    }));
+  } catch {
+    return failed("booking_failed", 500, "POST", "create", "unexpected_error");
+  }
 
   if (error) {
-    const conflict = error.code === "23P01" || error.message.includes("public_time_unavailable");
+    const conflict = error.code === "23P01" ||
+      (typeof error.message === "string" && error.message.includes("public_time_unavailable"));
+    if (!conflict) return failed("booking_failed", 500, "POST", "create", "database_error");
     return NextResponse.json(
-      { error: conflict ? "slot_unavailable" : "booking_failed" },
-      { status: conflict ? 409 : 500 },
+      { error: "slot_unavailable" },
+      { status: 409 },
     );
   }
 
   const confirmation = Array.isArray(data) ? data[0] : data;
   if (!confirmation) {
-    return NextResponse.json({ error: "booking_failed" }, { status: 500 });
+    return failed("booking_failed", 500, "POST", "confirmation", "missing_confirmation");
   }
 
   // Enrichment must never turn an already committed booking into a failed request.
@@ -139,6 +161,7 @@ export async function POST(request: Request) {
     }
   } catch {
     // The booking reference remains usable even if optional public details cannot load.
+    reportApplicationFailure("public_booking", "POST", "enrichment", "unexpected_error");
   }
 
   return NextResponse.json({ confirmation: { ...confirmation, salon_name: publicSalonName, details } }, {
