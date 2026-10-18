@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="GlowFlow">
+  <rect width="1200" height="630" fill="#faf9f6"/>
+  <rect width="474" height="630" fill="#0f172a"/>
+  <path fill="#e7b779" transform="translate(-24 79) scale(.95)" d="M256 64c10 0 18 8 22 22l29 119 119 29c14 4 22 12 22 22s-8 18-22 22l-119 29-29 119c-4 14-12 22-22 22s-18-8-22-22l-29-119-119-29c-14-4-22-12-22-22s8-18 22-22l119-29 29-119c4-14 12-22 22-22Z"/>
+  <text x="548" y="310" fill="#0f172a" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="700" letter-spacing="-6">GlowFlow</text>
+  <path d="M553 364h487" fill="none" stroke="#e7b779" stroke-linecap="round" stroke-width="16"/>
+  <circle cx="1067" cy="364" r="8" fill="#0f172a"/>
+</svg>
