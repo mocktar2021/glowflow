@@ -5,7 +5,7 @@ export type BookingOutcome = typeof outcomes[number];
 export function recordBookingOutcome(outcome: BookingOutcome): void {
   // A runtime allowlist also protects JavaScript callers. Invalid input is dropped,
   // never serialized or coerced into a metric label.
-  if (!outcomes.includes(outcome)) return;
+  if (!outcomes.includes(outcome) || process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED !== "true") return;
   try {
     console.info(JSON.stringify({
       event: "glowflow_booking_outcome_count",

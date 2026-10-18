@@ -27,8 +27,16 @@ const sensitiveValues = Object.entries(fixture).filter(([key]) => key !== "local
 test("booking count event has a fixed vocabulary and never serializes hostile inputs", () => {
   const lines = [];
   const original = console.info;
+  const previousSetting = process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED;
   console.info = line => lines.push(line);
   try {
+    delete process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED;
+    recordBookingOutcome("confirmed");
+    assert.deepEqual(lines, [], "telemetry is disabled by default");
+    process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED = "false";
+    recordBookingOutcome("confirmed");
+    assert.deepEqual(lines, [], "only an explicit true value activates telemetry");
+    process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED = "true";
     for (const outcome of ["confirmed", "slot_unavailable", "failed"]) recordBookingOutcome(outcome);
     const hostile = { toString() { throw Error(fixture.email); }, toJSON() { throw Error(fixture.fullName); } };
     recordBookingOutcome(hostile);
@@ -43,6 +51,8 @@ test("booking count event has a fixed vocabulary and never serializes hostile in
     assert.doesNotThrow(() => recordBookingOutcome("confirmed"));
   } finally {
     console.info = original;
+    if (previousSetting === undefined) delete process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED;
+    else process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED = previousSetting;
   }
 });
 
@@ -63,11 +73,13 @@ test("valid public-booking POSTs emit exactly one response outcome; GET and inva
   });
   const lines = [];
   const original = console.info;
+  const previousSetting = process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED;
   console.info = line => lines.push(line);
   const post = body => POST(new Request("https://example.invalid/api/public-booking?token=private", {
     method: "POST", body: JSON.stringify(body),
   }));
   try {
+    process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED = "true";
     state.result = { data: [{ appointment_id: "private-appointment" }], error: null };
     assert.equal((await post(fixture)).status, 201);
     state.result = { data: null, error: { code: "23P01", message: fixture.email } };
@@ -94,5 +106,7 @@ test("valid public-booking POSTs emit exactly one response outcome; GET and inva
     assert.equal((await post(fixture)).status, 201, "metrics cannot fail a committed booking");
   } finally {
     console.info = original;
+    if (previousSetting === undefined) delete process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED;
+    else process.env.GLOWFLOW_BOOKING_COUNT_LOGS_ENABLED = previousSetting;
   }
 });
