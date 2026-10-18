@@ -109,3 +109,13 @@ test("staff can submit a valid tenant-scoped profile update", async () => {
     await page.getByRole("status").filter({ hasText: "Profile saved." }).waitFor();
   } finally { await context.close(); }
 });
+
+test("forged foreign client ID cannot be saved by a staff member", async () => {
+  const { context, page } = await pageFor("staff");
+  try {
+    await page.goto(`${origin}/en/dashboard/clients/forged`);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "Could not save the profile" }).waitFor();
+    assert.equal(await page.getByRole("status").count(), 0);
+  } finally { await context.close(); }
+});

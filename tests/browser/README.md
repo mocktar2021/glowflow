@@ -80,7 +80,8 @@ Screenshots and runtime/server evidence go to `test-results/browser/auth`.
 only the Supabase client replaced by synthetic in-memory rows. It checks owner and
 staff search/profile access in FR/EN/ES, anonymous redirects, cross-tenant profile
 denial, a search that keeps contact details out of the URL, and invalid/valid phone
-form submissions. The fixture does not persist writes or prove a deployed session.
+form submissions. A test-only route binds a forged foreign UUID to the real Server
+Action and confirms it cannot be saved. The fixture does not persist writes or prove a deployed session.
 `tests/client-directory-authorization.sql`, loaded by the disposable local PostgreSQL
 RLS suite, checks real migrated policies for owner/staff/anonymous/cross-tenant client
 field access and writes. No hosted database is used.

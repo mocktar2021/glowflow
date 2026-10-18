@@ -20,7 +20,13 @@ select public.test_assert(
     and notes='Updated synthetic note' and preferred_locale='en') = 1,
   'staff can update own salon client contact, notes, and language'
 );
-update public.clients set notes='forbidden' where tenant_id='10000000-0000-0000-0000-000000000002';
+do $$
+declare changed integer;
+begin
+  update public.clients set notes='forbidden' where tenant_id='10000000-0000-0000-0000-000000000002';
+  get diagnostics changed = row_count;
+  perform public.test_assert(changed = 0, 'staff foreign client update affects zero rows');
+end $$;
 select public.test_assert(
   (select count(*) from public.clients where tenant_id='10000000-0000-0000-0000-000000000002') = 0,
   'staff cannot see or update foreign salon client'
@@ -34,6 +40,10 @@ select public.test_denied(
   'insert into public.clients(tenant_id,full_name) values(''10000000-0000-0000-0000-000000000001'',''Foreign client'')'
 );
 reset role;
+select public.test_assert(
+  (select count(*) from public.clients where tenant_id='10000000-0000-0000-0000-000000000002' and notes='private notes') = 1,
+  'foreign client note remains unchanged after denied staff update'
+);
 set role anon;
 select public.test_denied('select email,phone,notes,preferred_locale from public.clients');
 select public.test_denied('insert into public.clients(tenant_id,full_name) values(''10000000-0000-0000-0000-000000000001'',''Anonymous client'')');
