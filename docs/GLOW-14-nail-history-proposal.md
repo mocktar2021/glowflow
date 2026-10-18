@@ -16,7 +16,7 @@ For photos, propose a separate `public.client_nail_photo_metadata` table keyed t
 
 ## Security and acceptance gate
 
-1. Enable RLS on both new tenant-owned tables. Owner and staff can select and insert only rows for their membership tenant. Anonymous and other tenants cannot read, insert, update, or delete. Revoke update/delete for all application roles; a database immutability guard must also protect records from accidental privileged updates. Service role should not be used for this staff workflow.
+1. Enable RLS on both new tenant-owned tables. Owner and staff can select and insert only rows for their membership tenant, with `created_by = auth.uid()` on insert. Anonymous and other tenants cannot read, insert, update, or delete. Revoke update/delete for all application roles; a database immutability guard must also protect records from accidental privileged updates. Service role should not be used for this staff workflow.
 2. Enforce `(client_id, tenant_id)` and `(appointment_id, tenant_id, client_id)` consistency with composite keys or a narrowly scoped database check. Enforce creator membership within the same tenant and validate length/size limits for text and metadata. Avoid exposing private photo object keys in public booking responses.
 3. On the future client-profile route, load the client by UUID **and tenant_id** using the signed-in member's Supabase session. All record and photo queries must also filter tenant_id and client_id. Fail closed on authorization or query errors. Do not use an admin client.
 4. Show latest effective infill and prior performed services; distinguish an appointment booking from a completed service record. Corrections must remain auditable. Mobile entry needs 44px or larger controls and works at narrow viewport widths. Supply FR, EN and ES copy without em dashes.
@@ -28,5 +28,6 @@ For photos, propose a separate `public.client_nail_photo_metadata` table keyed t
 - Choose the privacy policy for client nail photos: permission, retention, export and deletion, plus private Storage authorization. This task makes no Storage change.
 - Decide whether a nail record may be entered without an appointment and whether historical records are backfilled manually. Never infer a performed treatment from an existing booking.
 - Agree whether `nail_preferences` is still maintained separately or derived from the latest effective service record.
+- Decide record retention, export, correction, and erasure policy, including what happens to the author reference when a staff account is removed. Hard-deleting the author must not silently erase provenance.
 
 The GLOW-16 profile path is `/${locale}/dashboard/clients/${clientId}`. Its owner will leave nail-specific UI out of that PR. Once the reviewed data model is implemented, add a small integration link to its own nails child route; do not merge an orphaned or misleading page now.
