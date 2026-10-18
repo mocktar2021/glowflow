@@ -86,7 +86,7 @@ async function markup(locale, details, salonName = base.salon_name) {
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
   });
-  return renderToStaticMarkup(React.createElement(LiveBookingFlow, { locale, salon: { name: "Published page name", slug: "salon-a", city: null, currency: "EUR", timeZone: "America/Los_Angeles" }, services: [{ id: serviceId, title_json: {}, duration_minutes: 30, price: 1, deposit_amount: 0, currency: "EUR" }] }));
+  return renderToStaticMarkup(React.createElement(LiveBookingFlow, { locale, salon: { name: "Published page name", slug: "salon-a", city: null, countryCode: "US", currency: "EUR", timeZone: "America/Los_Angeles" }, services: [{ id: serviceId, title_json: {}, duration_minutes: 30, price: 1, deposit_amount: 0, currency: "EUR" }] }));
 }
 test("confirmation localizes authoritative date, price and truthful payment copy in all three languages", async () => {
   const { value } = await post(database());

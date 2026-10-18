@@ -38,7 +38,7 @@ type Confirmation = {
 
 type Props = {
   locale: Locale;
-  salon: { name: string; slug: string; city: string | null; currency: string; timeZone: string };
+  salon: { name: string; slug: string; city: string | null; countryCode: string; currency: string; timeZone: string };
   services: Service[];
   bookingStaffByService?: Record<string, Array<{ id: string; name: string }>>;
   initialServiceId?: string;
@@ -365,7 +365,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">{sandbox ? paymentLabels.title : labels.title}</h1>
           {sandbox ? <p role="note" className="mt-4 rounded-xl bg-white/70 p-4 text-sm dark:bg-black/15">{paymentLabels.notice}</p> : null}
           <p className="mt-3 leading-7 text-slate-600 dark:text-stone-300">{labels.subtitle}</p>
-          {salon.city ? <p className="mt-6 flex items-center gap-2 text-sm"><MapPin className="size-4 text-[#9a622f]" />{salon.city}</p> : null}
+          <p className="mt-6 flex items-center gap-2 text-sm"><MapPin className="size-4 text-[#9a622f]" />{salon.city ? `${salon.city}, ` : ""}{salon.countryCode}</p>
           <div className="mt-8 rounded-2xl bg-white/70 p-5 dark:bg-black/15">
             <p className="font-semibold">{service.title_json[locale] ?? service.title_json.fr}</p>
             <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.duration}: {service.duration_minutes} min</p>

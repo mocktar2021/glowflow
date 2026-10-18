@@ -18,18 +18,18 @@ const first = "11111111-1111-4111-8111-111111111111";
 const chosen = "22222222-2222-4222-8222-222222222222";
 const foreign = "33333333-3333-4333-8333-333333333333";
 const inactive = "44444444-4444-4444-8444-444444444444";
-const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true };
+const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid", country_code: "ES", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true };
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, tenantCurrency = tenant.currency, products = [] } = {}) {
+function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, products = [] } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
     const query = { select() { return query; }, eq(key, value) { filters.push([key, value]); return query; }, order() { return result(false); }, single() { return result(true); }, maybeSingle() { return result(true); } };
     function result(single) {
       queries.push({ table, filters });
-      const profiles = [{ ...profile, is_published: profilePublished }];
+      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished }];
       const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : table === "markets" ? [{ country_code: "ES", default_locale: "es" }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
@@ -106,6 +106,7 @@ test("booking route preserves selected service, locale and trusted salon currenc
     assert.equal(tree.props.locale, locale);
     assert.deepEqual(tree.props.services.map(s => s.id), [first, chosen]);
     assert.equal(tree.props.salon.currency, "EUR");
+    assert.equal(tree.props.salon.countryCode, "ES");
     assert.equal(tree.props.salon.timeZone, "Europe/Madrid");
     assert.notEqual(tree.key, (await Page(request(locale, first))).key, "new selected-service navigation resets old form state");
   }
@@ -125,6 +126,10 @@ test("unpublished salons reject direct public booking URLs while owner sandbox a
   const SandboxPage = await booking(database({ profilePublished: false }), { sandbox: true });
   assert.equal((await SandboxPage(request("en", chosen, { sandbox: "1" }))).props.sandbox, true);
 }));
+test("public booking fails closed when the discovered profile country differs from the checkout market", async () => withConfiguration(async () => {
+  const Page = await booking(database({ profileCountry: "FR" }));
+  await assert.rejects(Page(request("es", chosen)), /not-found/);
+}));
 test("selected service preserves sandbox owner/configuration gates and reservation status", async () => withConfiguration(async () => {
   const Page = await booking(database(), { sandbox: true });
   assert.equal((await Page(request("en", chosen, { sandbox: "1" }))).props.sandbox, true);
@@ -138,7 +143,7 @@ test("live form selects requested catalog service and rejects foreign component 
     "@/lib/sandbox-payment-copy": payment,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });
-  const props = { locale: "en", salon: { ...tenant, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: chosen };
+  const props = { locale: "en", salon: { ...tenant, countryCode: tenant.country_code, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: chosen };
   const html = renderToStaticMarkup(createElement(LiveBookingFlow, props));
   assert.match(html, new RegExp(`<option value="${chosen}" selected=""`));
   assert.doesNotMatch(html, new RegExp(`<option value="${first}" selected=""`));
@@ -159,7 +164,7 @@ test("changing service preserves sandbox query, hash and history state for local
   const replacements = [];
   globalThis.window = { location: { href: `https://example.invalid/fr/book/salon-a?sandbox=1&service=${first}&campaign=fixture#booking` }, history: { state: historyState, replaceState: (...args) => replacements.push(args) } };
   try {
-    const tree = LiveBookingFlow({ locale: "fr", salon: { ...tenant, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: first });
+    const tree = LiveBookingFlow({ locale: "fr", salon: { ...tenant, countryCode: tenant.country_code, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: first });
     nodes(tree).find(node => node.type === "select").props.onChange({ target: { value: chosen } });
     assert.equal(values[0], chosen);
     assert.equal(replacements.length, 1);

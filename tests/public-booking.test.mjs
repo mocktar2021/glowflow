@@ -114,7 +114,7 @@ test("requires owner publication for public slots and appointment creation", () 
   assert.equal((publicationGuard.match(/profile\.is_published = true/g) ?? []).length, 2);
   assert.match(publicationGuard, /grant execute on function public\.get_public_booking_slots[\s\S]*to service_role/);
   assert.doesNotMatch(publicationGuard, /to anon, authenticated/);
-  assert.match(page, /from\("salon_public_profiles"\)[\s\S]*\.eq\("is_published", true\)[\s\S]*if \(!publishedProfile\) notFound\(\)/);
+  assert.match(page, /from\("salon_public_profiles"\)[\s\S]*\.eq\("is_published", true\)[\s\S]*if \(!publishedProfile \|\| publishedProfile\.country_code !== tenant\.country_code\) notFound\(\)/);
 });
 
 test("uses neutral localized cancellation guidance without inventing a deadline", () => {
