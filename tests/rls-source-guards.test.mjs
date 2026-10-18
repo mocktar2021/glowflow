@@ -61,6 +61,11 @@ test('client guard catches alias, relative, re-export and dynamic credential pat
 test('privileged Supabase client remains limited to reviewed server operations', () => {
   const sources = codeFiles('app');
   codeFiles('lib', sources);
+  for (const folder of ['components', 'hooks']) {
+    codeFiles(folder, sources);
+    assert.ok([...sources.keys()].some(filename => filename.startsWith(`${folder}/`)),
+      `privileged-client review must include ${folder}/`);
+  }
   const approved = new Set([
     'app/[locale]/book/[slug]/page.tsx',
     'app/api/checkout/route.ts',
@@ -75,5 +80,10 @@ test('privileged Supabase client remains limited to reviewed server operations',
     'const admin = import("@/lib/supabase/admin");',
   ]) {
     assert.throws(() => assertTrustedAdminClientUsage(new Map([...sources, ['app/api/unreviewed/route.ts', unreviewedSource]]), approved), /Unreviewed privileged Supabase client use/);
+  }
+  for (const filename of ['components/glowflow/unsafe-server-panel.tsx', 'hooks/use-unsafe-server-data.ts']) {
+    assert.throws(() => assertTrustedAdminClientUsage(new Map([...sources, [filename,
+      'import { createAdminClient } from "@/lib/supabase/admin";',
+    ]]), approved), /Unreviewed privileged Supabase client use/);
   }
 });
