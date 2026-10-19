@@ -40,8 +40,8 @@ records the client-directory scope and remaining live-flow verification.
 
 Subsequently, [PR #91](https://github.com/mocktar2021/glowflow/pull/91) merged
 as `1e4e22a2ad908ee625f67b8809682944b66dda4c`. The observation above
-therefore cannot establish the current production build or alias. This
-documentation change did not reverify production after that merge.
+therefore cannot establish any later production build or alias. Consult a
+separate exact-commit release check for the latest deployment.
 
 The historical snapshot does not verify a historical backup restore, hosted
 authorization/settings, alert delivery, all localized journeys, legal approval
