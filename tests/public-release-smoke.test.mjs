@@ -5,6 +5,7 @@ import { probePublicRelease } from "./public-release-smoke.mjs";
 
 const origin = "https://glowflow.mocktar.com";
 const locales = ["fr", "en", "es"];
+const publicPages = ["", "/salons", "/login", "/privacy", "/terms", "/support"];
 
 function successFor(url) {
   const route = new URL(url).pathname;
@@ -23,10 +24,11 @@ test("public smoke uses only anonymous, exact-origin GETs and never follows redi
   });
 
   assert.equal(result.origin, origin);
-  assert.equal(result.checks.length, 13);
+  assert.equal(result.checks.length, 22);
+  assert.equal(requests.length, 22);
   assert.deepEqual(result.checks.map(check => check.route), [
     "/",
-    ...locales.flatMap(locale => [`/${locale}`, `/${locale}/salons`, `/${locale}/login`, `/${locale}/dashboard/clients`]),
+    ...locales.flatMap(locale => [...publicPages.map(page => `/${locale}${page}`), `/${locale}/dashboard/clients`]),
   ]);
   for (const { url, options } of requests) {
     assert.equal(new URL(url).origin, origin);
@@ -76,4 +78,17 @@ test("public smoke fails if a localized login destination does not render", asyn
       : successFor(url)),
     /\/es\/login: expected a public HTML 200, got 404/,
   );
+});
+
+test("public smoke fails if a localized legal or support route does not render HTML", async () => {
+  for (const [route, response] of [
+    ["/fr/privacy", new Response(null, { status: 404 })],
+    ["/en/terms", new Response(null, { status: 307, headers: { location: "/en/login" } })],
+    ["/es/support", new Response(null, { status: 200, headers: { "content-type": "application/json" } })],
+  ]) {
+    await assert.rejects(
+      probePublicRelease(async url => new URL(url).pathname === route ? response : successFor(url)),
+      error => error.message.includes(`${route}: expected a public HTML 200`),
+    );
+  }
 });
