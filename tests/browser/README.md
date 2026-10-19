@@ -91,8 +91,13 @@ Screenshots and runtime/server evidence go to `test-results/browser/auth`.
 only the Supabase client replaced by synthetic in-memory rows. It checks owner and
 staff search/profile access in FR/EN/ES, anonymous redirects, cross-tenant profile
 denial, a search that keeps contact details out of the URL, and invalid/valid phone
-form submissions. A test-only route binds a forged foreign UUID to the real Server
-Action and confirms it cannot be saved. The fixture does not persist writes or prove a deployed session.
+form submissions. It also submits the production create form in FR/EN/ES and checks
+the redirect and profile fields using fixture-only in-memory rows. Invalid phone and
+email submissions use a guard identity that throws on any attempted insert; the email
+case bypasses native browser validity to exercise server-side validation. A test-only
+route binds a forged foreign UUID to the real Server Action and confirms it cannot
+be saved. Fixture writes exist only in the isolated Next.js test process and do not
+prove a deployed session or hosted database behavior.
 `tests/client-directory-authorization.sql`, loaded by the disposable local PostgreSQL
 RLS suite, checks real migrated policies for owner/staff/anonymous/cross-tenant client
 field access and writes. No hosted database is used.

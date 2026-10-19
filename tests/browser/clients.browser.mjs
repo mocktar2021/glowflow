@@ -89,6 +89,65 @@ for (const [locale, title, search, history] of [
   });
 }
 
+for (const [locale, identity, save, invalid] of [
+  ["fr", "owner", "Enregistrer", "7 à 15 chiffres"],
+  ["en", "staff", "Save", "7 to 15 digits"],
+  ["es", "owner", "Guardar", "7 y 15 dígitos"],
+]) {
+  test(`${locale} ${identity} creates a synthetic client from the actual directory form`, async () => {
+    const { context, page } = await pageFor(identity);
+    const id = { fr: "30000000-0000-4000-8000-000000000011", en: "30000000-0000-4000-8000-000000000012", es: "30000000-0000-4000-8000-000000000013" }[locale];
+    const name = `Synthetic New ${locale.toUpperCase()}`;
+    const email = `synthetic-new-${locale}@example.invalid`;
+    const notes = `Synthetic browser-only note ${locale}`;
+    try {
+      await page.goto(`${origin}/${locale}/dashboard/clients`);
+      await page.locator('input[name="full_name"]').fill(name);
+      await page.locator('input[name="email"]').fill(email);
+      await page.locator('input[name="phone"]').fill("+1 555 010 0099");
+      await page.locator('select[name="preferred_locale"]').selectOption(locale);
+      await page.locator('textarea[name="notes"]').fill(notes);
+      await page.getByRole("button", { name: save, exact: true }).click();
+      await page.waitForURL(`${origin}/${locale}/dashboard/clients/${id}`);
+      await page.getByRole("heading", { name, exact: true, level: 1 }).waitFor();
+      assert.equal(await page.locator('input[name="email"]').inputValue(), email);
+      assert.equal(await page.locator('input[name="phone"]').inputValue(), "+1 555 010 0099");
+      assert.equal(await page.locator('select[name="preferred_locale"]').inputValue(), locale);
+      assert.equal(await page.locator('textarea[name="notes"]').inputValue(), notes);
+      assert.equal(await page.getByText("Foreign private note").count(), 0);
+    } finally { await context.close(); }
+  });
+
+  test(`${locale} invalid phone shows validation feedback without a client insert`, async () => {
+    const { context, page } = await pageFor("staff-no-insert");
+    try {
+      await page.goto(`${origin}/${locale}/dashboard/clients`);
+      await page.locator('input[name="full_name"]').fill("Synthetic Invalid Contact");
+      await page.locator('input[name="email"]').fill("invalid-contact@example.invalid");
+      await page.locator('input[name="phone"]').fill("123");
+      await page.getByRole("button", { name: save, exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: invalid }).waitFor();
+      assert.equal(page.url(), `${origin}/${locale}/dashboard/clients`);
+    } finally { await context.close(); }
+  });
+}
+
+test("invalid email reaches server validation without a client insert", async () => {
+  const { context, page } = await pageFor("staff-no-insert");
+  try {
+    await page.goto(`${origin}/en/dashboard/clients`);
+    await page.locator('input[name="full_name"]').fill("Synthetic Invalid Email");
+    await page.locator('input[name="email"]').fill("not-an-email");
+    await page.locator('input[name="phone"]').fill("+1 555 010 0099");
+    // Native email validity normally stops the submit. Bypass it in the fixture
+    // to exercise the production server action's independent validation.
+    await page.locator('form:has(input[name="full_name"])').evaluate(form => { form.noValidate = true; });
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "Check the name, email, and phone" }).waitFor();
+    assert.equal(page.url(), `${origin}/en/dashboard/clients`);
+  } finally { await context.close(); }
+});
+
 test("profile form rejects an invalid phone before any client write", async () => {
   const { context, page } = await pageFor("staff");
   try {
