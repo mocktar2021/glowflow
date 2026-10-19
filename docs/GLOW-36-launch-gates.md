@@ -24,9 +24,9 @@ use those paragraphs as a current deployment status. Recheck the launch commit,
 database migration ledger, hosted settings, and production behavior before a
 go/no-go decision.
 
-## Current production reference, not launch approval
+## Historical production snapshot, not current status or launch approval
 
-At the 2026-10-19 UTC check, GitHub `master` was
+At the 2026-10-19 UTC observation, GitHub `master` was
 `69573bfa7b4178193059a10f458ce705dd55d6b0`. Vercel deployment
 [`dpl_q7fDwt4H8Agr9gZtTzYcsNuyM4ot`](https://vercel.com/tairoumocktar-9966s-projects/glowflow/q7fDwt4H8Agr9gZtTzYcsNuyM4ot)
 was READY for that exact commit on the GlowFlow production project, and the
@@ -38,12 +38,18 @@ dashboard and client directory loaded. [GLOW-10](https://mocktarltd.atlassian.ne
 records the domain checks and rollback runbook; [GLOW-16](https://mocktarltd.atlassian.net/browse/GLOW-16)
 records the client-directory scope and remaining live-flow verification.
 
-This snapshot does not verify a historical backup restore, current hosted
+Subsequently, [PR #91](https://github.com/mocktar2021/glowflow/pull/91) merged
+as `1e4e22a2ad908ee625f67b8809682944b66dda4c`. The observation above
+therefore cannot establish the current production build or alias. This
+documentation change did not reverify production after that merge.
+
+The historical snapshot does not verify a historical backup restore, hosted
 authorization/settings, alert delivery, all localized journeys, legal approval
 for launch countries, or live financial operations. It expires when the
 production alias, application commit, relevant database revision, or provider
-configuration changes. Recheck those identities before citing it in a launch
-decision; never carry a green result forward solely because a URL is stable.
+configuration changes. Recheck those identities against the exact proposed
+release before a launch decision; never carry a green result forward solely
+because a URL is stable.
 
 ## Go/no-go checklist for an exact release
 
