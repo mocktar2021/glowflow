@@ -23,10 +23,10 @@ test("public smoke uses only anonymous, exact-origin GETs and never follows redi
   });
 
   assert.equal(result.origin, origin);
-  assert.equal(result.checks.length, 10);
+  assert.equal(result.checks.length, 13);
   assert.deepEqual(result.checks.map(check => check.route), [
     "/",
-    ...locales.flatMap(locale => [`/${locale}`, `/${locale}/salons`, `/${locale}/dashboard/clients`]),
+    ...locales.flatMap(locale => [`/${locale}`, `/${locale}/salons`, `/${locale}/login`, `/${locale}/dashboard/clients`]),
   ]);
   for (const { url, options } of requests) {
     assert.equal(new URL(url).origin, origin);
@@ -67,4 +67,13 @@ test("public smoke rejects protected, missing, or non-HTML public pages", async 
       /\/en\/salons: expected a public HTML 200/,
     );
   }
+});
+
+test("public smoke fails if a localized login destination does not render", async () => {
+  await assert.rejects(
+    probePublicRelease(async url => new URL(url).pathname === "/es/login"
+      ? new Response(null, { status: 404 })
+      : successFor(url)),
+    /\/es\/login: expected a public HTML 200, got 404/,
+  );
 });

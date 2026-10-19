@@ -27,7 +27,7 @@ export async function probePublicRelease(fetchImpl = fetch) {
 
   const checks = [{ route: "/", status: root.status }];
   for (const locale of locales) {
-    for (const route of [`/${locale}`, `/${locale}/salons`]) {
+    for (const route of [`/${locale}`, `/${locale}/salons`, `/${locale}/login`]) {
       const response = await readOnlyGet(route, fetchImpl);
       if (response.status !== 200 || !response.headers.get("content-type")?.toLowerCase().startsWith("text/html")) {
         throw new Error(`${route}: expected a public HTML 200, got ${response.status}`);
