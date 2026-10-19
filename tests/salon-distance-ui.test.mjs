@@ -66,6 +66,65 @@ test("distance search requests browser location only after a click and sends onl
   assert.doesNotMatch(component, /localStorage|sessionStorage|window\.location|console\./);
 });
 
+test("stopping a pending location request ignores late success and denial callbacks", async () => {
+  const js = ts.transpileModule(component, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const state = [];
+  const refs = [];
+  let stateIndex = 0;
+  let refIndex = 0;
+  const callbacks = [];
+  const rpcCalls = [];
+  const loaded = { exports: {} };
+  const deps = {
+    react: {
+      useState(initial) { const slot = stateIndex++; if (!(slot in state)) state[slot] = initial; return [state[slot], (value) => { state[slot] = typeof value === "function" ? value(state[slot]) : value; }]; },
+      useRef(initial) { const slot = refIndex++; return refs[slot] ??= { current: initial }; },
+    },
+    "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+    "@/lib/i18n": { salonProfileLocale: () => "en" },
+    "@/lib/markets": { fallbackMarkets: [] },
+    "@/lib/marketplace-locations": { marketplaceLocation: () => null, marketplaceLocationHref: () => "" },
+    "@/lib/salon-search": { coarseVisitorOrigin },
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    "@/lib/supabase/client": { createClient: () => ({ rpc: async (...args) => { rpcCalls.push(args); return { data: [], error: null }; } }) },
+  };
+  const browser = { geolocation: { getCurrentPosition(success, error) { callbacks.push({ success, error }); } } };
+  new Function("require", "exports", "navigator", js)(name => deps[name] ?? require(name), loaded.exports, browser);
+  const render = () => {
+    stateIndex = refIndex = 0;
+    return loaded.exports.DistanceSearch({ children: "existing results", locale: "en", labels: {}, filters: {}, pageSize: 9, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled: true });
+  };
+  const button = (node, label) => {
+    if (!node || typeof node !== "object") return null;
+    if (node.type === "button" && node.props.children === label) return node.props.onClick;
+    for (const child of Array.isArray(node.props?.children) ? node.props.children : [node.props?.children]) {
+      const action = button(child, label);
+      if (action) return action;
+    }
+    return null;
+  };
+
+  button(render(), "Sort near me")();
+  assert.equal(callbacks.length, 1);
+  const stop = button(render(), "Stop distance sorting");
+  assert.equal(typeof stop, "function");
+  stop();
+  callbacks[0].success({ coords: { latitude: 36.0726, longitude: -79.7915 } });
+  callbacks[0].error(new Error("late denial"));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(rpcCalls.length, 0);
+  assert.equal(button(render(), "Stop distance sorting"), null);
+
+  button(render(), "Sort near me")();
+  assert.equal(callbacks.length, 2);
+  callbacks[0].error(new Error("old denial"));
+  assert.equal(typeof button(render(), "Stop distance sorting"), "function");
+  callbacks[1].success({ coords: { latitude: 36.0726, longitude: -79.7915 } });
+  button(render(), "Stop distance sorting")();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(rpcCalls.length, 0);
+});
+
 test("owner point editing is explicit, optional, and compatible with a pre-migration profile save", () => {
   assert.match(ownerControl, /type="button" onClick={useDeviceLocation}/);
   assert.match(ownerControl, /name="map_latitude"/);
