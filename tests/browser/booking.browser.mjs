@@ -208,6 +208,31 @@ test("sandbox deposit retry reuses the request key after an unavailable response
   assert.deepEqual(externalRequests, []);
 });
 
+test("changed contact details after unavailable deposit checkout get a new request key", async t => {
+  const { page, writes, externalRequests, setUnavailable } = await pageFor(t, "en", { unavailable: true });
+  await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+  await selectBookingTime(page);
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("original@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+
+  setUnavailable(false);
+  await page.locator('[name="email"]').fill("updated@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.waitForURL(`**sandboxReservation=${reservationId}`);
+  assert.equal(writes.length, 2);
+  const { requestKey: firstKey, ...firstPayload } = writes[0];
+  const { requestKey: secondKey, ...secondPayload } = writes[1];
+  assert.match(firstKey, /^[0-9a-f-]{36}$/);
+  assert.match(secondKey, /^[0-9a-f-]{36}$/);
+  assert.notEqual(secondKey, firstKey, "a changed booking payload cannot reuse a prior reservation key");
+  assert.deepEqual(secondPayload, { ...firstPayload, email: "updated@example.invalid" });
+  assert.deepEqual(externalRequests, []);
+});
+
 for (const checkoutUrl of [
   "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
   "http://checkout.stripe.com/c/pay/cs_test_fixture",
