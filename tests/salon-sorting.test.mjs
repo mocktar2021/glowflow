@@ -124,6 +124,30 @@ test("maximum price uses selected country's minor units and warns without a coun
   assert.match(html, /Choose a country to filter prices in its currency/);
 });
 
+test("active advanced filters remain visible when opening a filtered search link", async () => {
+  const Page = await loadPage(async () => ({ data: [], error: null }));
+
+  for (const filters of [
+    { postcode: "27405" },
+    { category: "hair" },
+    { maxPrice: "45" },
+    { availableBefore: "2026-11-15" },
+  ]) {
+    const html = renderToStaticMarkup(await Page({
+      params: Promise.resolve({ locale: "en" }),
+      searchParams: Promise.resolve(filters),
+    }));
+    assert.match(html, /<details open=""/);
+  }
+
+  const unfiltered = renderToStaticMarkup(await Page({
+    params: Promise.resolve({ locale: "en" }),
+    searchParams: Promise.resolve({ q: "braids" }),
+  }));
+  assert.match(unfiltered, /<details class=/);
+  assert.doesNotMatch(unfiltered, /<details open=""/);
+});
+
 test("shared country links normalize supported codes and ignore unsupported codes visibly", async () => {
   const calls = [];
   const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
