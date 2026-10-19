@@ -268,6 +268,7 @@ export default async function SalonSearchPage({
   const maxPriceNeedsCountry = Boolean(maxPriceValue && !selectedMarket);
   const maximumPrice = maximumPriceMinorUnits(maxPriceValue, selectedMarket?.currency ?? null);
   const availableDate = value(filters, "availableBefore");
+  const hasAdvancedFilters = Boolean(postalCode || category || maxPriceValue || availableDate);
   const requestedTimeZone = value(filters, "timeZone");
   const invalidTimeZone = Boolean(requestedTimeZone && !isValidIanaTimeZone(requestedTimeZone));
   // Legacy date-only links keep their original UTC meaning. For a new search,
@@ -392,7 +393,7 @@ export default async function SalonSearchPage({
               </label>
             </div>
 
-            <details className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
+            <details open={hasAdvancedFilters} className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
                 {labels.category}, {labels.postal}, {labels.maximumPrice}, {labels.availableBefore}
