@@ -65,9 +65,9 @@ test("renders localized authentication and booking routes in production", { time
     "/fr/salons",
     "/en/salons?q=braids&country=US",
     "/es/salons?category=nails",
-    "/fr/privacy",
-    "/en/terms",
-    "/es/support",
+    ...["fr", "en", "es"].flatMap((locale) =>
+      ["privacy", "terms", "support"].map((page) => `/${locale}/${page}`),
+    ),
   ]) {
     const response = await fetch(`${origin}${route}`, {
       headers: { accept: "text/html" },
