@@ -88,6 +88,42 @@ test("location page uses the public search boundary and links to a salon without
   assert.equal(calls.length, 1);
 });
 
+test("stale country and city result pages return to the first page, but search errors do not", async () => {
+  const calls = [];
+  let response = { data: [], error: null };
+  const { default: Page } = await load(locationPagePath, {
+    "next/link": "a",
+    "next/headers": { cookies: async () => ({ get: () => undefined }) },
+    "next/navigation": {
+      notFound() { throw new Error("not-found"); },
+      redirect(href) { throw new Error(`redirect:${href}`); },
+    },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+    "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value) },
+    "@/lib/marketplace-locations": locations,
+    "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    "@/lib/supabase/server": { createClient: async () => ({ rpc: async (_name, args) => { calls.push(args); return response; } }) },
+  }, { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
+
+  for (const [locale, city, href] of [
+    ["fr", undefined, "/fr/salons/locations/US"],
+    ["en", ["Greensboro"], "/en/salons/locations/US/Greensboro"],
+    ["es", ["Greensboro"], "/es/salons/locations/US/Greensboro"],
+  ]) {
+    await assert.rejects(Page({ params: Promise.resolve({ locale, country: "US", city }), searchParams: Promise.resolve({ page: "2" }) }), new RegExp(`redirect:${href}$`));
+  }
+  assert.deepEqual(calls.map(({ page_offset }) => page_offset), [9, 9, 9]);
+
+  const firstPage = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en", country: "US" }), searchParams: Promise.resolve({ page: "1" }) }));
+  assert.match(firstPage, /No salons are published here yet/);
+
+  response = { data: null, error: { message: "temporary failure" } };
+  const failedPage = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en", country: "US" }), searchParams: Promise.resolve({ page: "2" }) }));
+  assert.match(failedPage, /Search is temporarily unavailable/);
+});
+
 test("country location uses its configured language when the visitor has no preference", async () => {
   const marketLookups = [];
   const { default: Page } = await load(locationPagePath, {
