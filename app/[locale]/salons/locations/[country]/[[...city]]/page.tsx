@@ -114,7 +114,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
 
   const total = Number(results[0]?.total_count ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const jsonLd = !loadError && results.length ? JSON.stringify({
+  const jsonLd = !loadError ? JSON.stringify({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: title,
