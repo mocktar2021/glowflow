@@ -124,6 +124,34 @@ test("maximum price uses selected country's minor units and warns without a coun
   assert.match(html, /Choose a country to filter prices in its currency/);
 });
 
+test("shared country links normalize supported codes and ignore unsupported codes visibly", async () => {
+  const calls = [];
+  const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
+  const Page = await loadPage(async (_name, args) => { calls.push(args); return { data: [result], error: null }; });
+
+  const supported = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: " us " }) }));
+  assert.equal(calls[0].filter_country_code, "US");
+  assert.match(supported, /<option value="US" selected="">/);
+  assert.match(supported, /href="\/en\/salons\?country=US&amp;page=2"/);
+
+  for (const [locale, notice] of [
+    ["fr", "Ce pays n’est pas disponible"],
+    ["en", "That country is not available"],
+    ["es", "Ese país no está disponible"],
+  ]) {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale }), searchParams: Promise.resolve({ country: "ZZ" }) }));
+    assert.equal(calls.at(-1).filter_country_code, null);
+    assert.match(html, new RegExp(notice));
+    assert.match(html, new RegExp(`href="/${locale}/salons\\?page=2"`));
+    assert.doesNotMatch(html, /country=ZZ/);
+  }
+
+  const priceHtml = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: "ZZ", sort: "price_asc", maxPrice: "40" }) }));
+  assert.equal(calls.at(-1).maximum_price, null);
+  assert.match(priceHtml, /Choose a country to compare prices in one currency/);
+  assert.match(priceHtml, /Choose a country to filter prices in its currency/);
+});
+
 test("invalid or out-of-range pages show first-page results instead of an empty state", async () => {
   const calls = [];
   const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 1 };
