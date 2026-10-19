@@ -54,7 +54,7 @@ async function waitForServer() {
   throw new Error(`Next.js did not start in time:\n${serverOutput}`);
 }
 
-test("renders localized authentication and booking routes in production", { timeout: 30000 }, async () => {
+test("renders localized authentication, booking, and legal routes in production", { timeout: 60000 }, async () => {
   await waitForServer();
 
   for (const route of [
