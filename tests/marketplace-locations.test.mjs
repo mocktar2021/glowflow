@@ -88,6 +88,38 @@ test("location page uses the public search boundary and links to a salon without
   assert.equal(calls.length, 1);
 });
 
+test("empty country and city pages retain CollectionPage structured data without inventing salons", async () => {
+  let searchError = null;
+  const { default: Page } = await load(locationPagePath, {
+    "next/link": "a",
+    "next/headers": { cookies: async () => ({ get: () => undefined }) },
+    "next/navigation": { notFound() { throw new Error("not-found"); } },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+    "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value) },
+    "@/lib/marketplace-locations": locations,
+    "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => ({ data: [], error: searchError }) }) },
+  }, { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
+
+  for (const city of [undefined, ["Greensboro"]]) {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en", country: "US", city }), searchParams: Promise.resolve({}) }));
+    const jsonLd = html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)?.[1];
+    assert.ok(jsonLd, "Empty location pages must retain structured data");
+    const schema = JSON.parse(jsonLd);
+    assert.equal(schema["@type"], "CollectionPage");
+    assert.equal(schema.mainEntity["@type"], "ItemList");
+    assert.deepEqual(schema.mainEntity.itemListElement, []);
+    assert.equal(schema.about.address.addressCountry, "US");
+    assert.equal(schema.about.address.addressLocality, city?.[0]);
+  }
+
+  searchError = { message: "unavailable" };
+  const unavailable = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en", country: "US" }), searchParams: Promise.resolve({}) }));
+  assert.doesNotMatch(unavailable, /application\/ld\+json/);
+});
+
 test("stale country and city result pages return to the first page, but search errors do not", async () => {
   const calls = [];
   let response = { data: [], error: null };
