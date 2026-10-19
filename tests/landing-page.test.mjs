@@ -36,3 +36,11 @@ test("landing route stays localized and sends users to existing product flows", 
   assert.match(page, /motion-safe:animate-/);
   assert.doesNotMatch(page, /—/);
 });
+
+test("pricing contact subjects follow the selected landing language", async () => {
+  const page = await readFile(pagePath, "utf8");
+  assert.match(page, /subject=\$\{encodeURIComponent\(copy\.pricing\.emailSubject\)\}/);
+  assert.equal(landingCopy.fr.pricing.emailSubject, "Tarifs GlowFlow");
+  assert.equal(landingCopy.en.pricing.emailSubject, "GlowFlow pricing");
+  assert.equal(landingCopy.es.pricing.emailSubject, "Precios de GlowFlow");
+});
