@@ -55,6 +55,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
     setStatus("loading");
     try {
       const { createClient } = await import("@/lib/supabase/client");
+      if (currentRequest !== requestId.current) return;
       const supabase = createClient();
       const { data, error } = await supabase.rpc("search_public_salons_by_distance", {
         ...point,
@@ -91,9 +92,11 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
       setStatus("denied");
       return;
     }
+    const currentRequest = ++requestId.current;
     setStatus("requesting");
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
+        if (currentRequest !== requestId.current) return;
         const point = coarseVisitorOrigin(coords.latitude, coords.longitude);
         if (!point) {
           setStatus("denied");
@@ -102,7 +105,9 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
         setOrigin(point);
         void searchNearby(point, 1);
       },
-      () => setStatus("denied"),
+      () => {
+        if (currentRequest === requestId.current) setStatus("denied");
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 },
     );
   }
@@ -121,7 +126,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
     <>
       {enabled ? <div className="mb-5 flex flex-wrap items-center gap-3">
         <button type="button" onClick={requestLocation} disabled={busy} className="min-h-11 rounded-xl border border-[#cdbba6] bg-white px-4 py-2 text-sm font-semibold text-[#7b4b24] hover:bg-[#faf5ed] disabled:opacity-60 dark:border-white/20 dark:bg-white/5 dark:text-[#efc992] dark:hover:bg-white/10">{messages.action}</button>
-        {distanceResults ? <button type="button" onClick={clearDistance} className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]">{messages.clear}</button> : null}
+        {distanceResults || busy ? <button type="button" onClick={clearDistance} className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]">{messages.clear}</button> : null}
         {status !== "idle" ? <p role="status" className="text-sm text-slate-600 dark:text-stone-300">{messages[status]}</p> : null}
       </div> : null}
       {distanceResults ? <>
