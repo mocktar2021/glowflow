@@ -11,6 +11,9 @@ paid/failed/expired transitions, and unavailable checkout/status behavior. Each 
 uses a fresh browser context; external network requests are blocked, booking and
 checkout APIs are controlled fixtures, and sandbox POSTs to the real booking API fail.
 No Supabase or Stripe application credentials are inherited by the fixture server.
+The checkout-destination guard tests reject lookalike or unsafe URLs from fixture
+responses and assert that no browser request leaves the local origin. They never
+follow even an approved Stripe Checkout link.
 
 This is component interaction evidence, not a deployed payment integration test. The
 fixture does not load the application stylesheet, so its narrow viewport screenshots
