@@ -23,3 +23,7 @@ GLOW-34 remains open: payment-webhook and reminder-job alerts, health and
 latency/failure-rate checks, and named operational owners require a separate
 implementation and an agreed alert destination. Notification outbox persistence
 exists, but no reminder delivery worker currently runs.
+
+See [the dormant alerting contract](GLOW-34-alerting-audit.md) for the current
+signal inventory, privacy boundaries and remaining owner decisions. It is an
+audit, not active monitoring.
