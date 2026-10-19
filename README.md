@@ -46,6 +46,9 @@ Use a Supabase publishable key in the browser and a Supabase secret key only on 
 - Production branch: `master`
 - Pull requests must pass lint, build, and route tests before merge.
 
+See [the production-domain verification and rollback runbook](docs/GLOW-10-production-domain.md)
+for post-release route checks and incident recovery steps.
+
 Keep `NEXT_PUBLIC_PAYMENTS_ENABLED=false` until Stripe Connect sandbox onboarding and signed webhooks pass end-to-end verification.
 
 Use the [GLOW-36 launch gate record](docs/GLOW-36-launch-gates.md) for the

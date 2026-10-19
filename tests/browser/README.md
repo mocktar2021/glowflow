@@ -73,3 +73,15 @@ These are server-route/browser integration tests with a mocked authentication an
 database SDK, not proof of real Supabase JWT verification, RLS policies, or deployed
 owner access. Real authenticated-session and database isolation checks remain separate.
 Screenshots and runtime/server evidence go to `test-results/browser/auth`.
+
+## GLOW-16 client directory fixture
+
+`clients.browser.mjs` imports the production directory and profile server pages with
+only the Supabase client replaced by synthetic in-memory rows. It checks owner and
+staff search/profile access in FR/EN/ES, anonymous redirects, cross-tenant profile
+denial, a search that keeps contact details out of the URL, and invalid/valid phone
+form submissions. A test-only route binds a forged foreign UUID to the real Server
+Action and confirms it cannot be saved. The fixture does not persist writes or prove a deployed session.
+`tests/client-directory-authorization.sql`, loaded by the disposable local PostgreSQL
+RLS suite, checks real migrated policies for owner/staff/anonymous/cross-tenant client
+field access and writes. No hosted database is used.
