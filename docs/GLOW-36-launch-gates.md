@@ -24,6 +24,16 @@ use those paragraphs as a current deployment status. Recheck the launch commit,
 database migration ledger, hosted settings, and production behavior before a
 go/no-go decision.
 
+For a repeatable read-only public route check, run
+`node tests/public-release-smoke.mjs` from the repository. It makes ten anonymous
+GET requests only to `https://glowflow.mocktar.com`, checks the French root
+redirect, FR/EN/ES landing and salon pages, and verifies that each anonymous
+client-directory request redirects to the same-locale login. It does not send
+bookings or payments, read response bodies, authenticate, verify a signed-in
+client workflow, or prove the Vercel alias points to the exact GitHub commit.
+Record the separate GitHub/Vercel identity and runtime-error evidence alongside
+its result; a pass is not a launch approval.
+
 ## Historical production snapshot, not current status or launch approval
 
 At the 2026-10-19 UTC observation, GitHub `master` was
