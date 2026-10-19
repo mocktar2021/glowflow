@@ -53,13 +53,14 @@ after(async () => {
   }
   await writeFile(path.join(artifacts, "server.log"), output);
 });
-async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId } = {}) {
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId, postCheckoutUrl = null, statusCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_fixture" } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, timeZoneId });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
   page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
   const errors = [];
   const writes = [];
+  const externalRequests = [];
   let state = status;
   let unavailableState = unavailable;
   let release;
@@ -68,7 +69,10 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   page.on("console", message => { if (message.type() === "error" && /hydrat|server rendered HTML/i.test(message.text())) errors.push(message.text()); });
   await context.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if (url.origin !== origin) return route.abort();
+    if (url.origin !== origin) {
+      externalRequests.push(route.request().url());
+      return route.abort();
+    }
     if (url.pathname === "/api/public-booking") {
       if (publicBooking) return publicBooking(route, writes);
       assert.equal(route.request().method(), "GET", "sandbox must never submit a real booking");
@@ -78,10 +82,10 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
     if (url.pathname === "/api/checkout") {
       if (route.request().method() === "POST") {
         writes.push(route.request().postDataJSON());
-        return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: "pending", url: null } });
+        return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: "pending", url: postCheckoutUrl } });
       }
       await barrier;
-      return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: state, url: state === "pending" ? "https://checkout.stripe.com/c/pay/cs_test_fixture" : null } });
+      return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: state, url: state === "pending" ? statusCheckoutUrl : null } });
     }
     return route.continue();
   });
@@ -92,7 +96,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
       assert.equal(await page.locator("[data-nextjs-dialog], .vite-error-overlay").count(), 0);
     } finally { await context.close(); }
   });
-  return { page, writes, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
+  return { page, writes, externalRequests, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
 }
 test("visitor time-zone chooser detects browser zone only for new searches and allows override", async t => {
   const { page } = await pageFor(t, "en", { timeZoneId: "America/Los_Angeles" });
@@ -156,6 +160,7 @@ for (const status of ["paid", "failed", "expired"]) {
     assert.equal(await page.getByText(labels.en.paid, { exact: false }).count(), 0);
     release();
     await page.getByRole("link", { name: labels.en.pay }).waitFor();
+    assert.equal(await page.getByRole("link", { name: labels.en.pay }).getAttribute("href"), "https://checkout.stripe.com/c/pay/cs_test_fixture");
     setStatus(status);
     await page.getByRole("button", { name: labels.en.refresh }).click();
     await page.getByRole("status").filter({ hasText: labels.en[status] }).waitFor();
@@ -182,6 +187,41 @@ test("unavailable checkout stays in sandbox and never confirms a booking", async
   assert.equal(writes.length, 1);
   assert.equal(new URL(page.url()).searchParams.get("sandbox"), "1");
   assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+});
+
+for (const checkoutUrl of [
+  "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
+  "http://checkout.stripe.com/c/pay/cs_test_fixture",
+  "javascript:alert(1)",
+  "/fr/dashboard/payments",
+]) {
+  test(`sandbox booking refuses untrusted checkout destination ${checkoutUrl}`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, "en", { postCheckoutUrl: checkoutUrl });
+    await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+    await selectBookingTime(page);
+    await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+    await page.locator('[name="email"]').fill("browser@example.invalid");
+    await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+    assert.equal(writes.length, 1);
+    assert.equal(page.url(), `${origin}/en/book/browser-fixture?sandbox=1`);
+    assert.deepEqual(externalRequests, [], "fixture must not request a checkout or other external host");
+    assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+  });
+}
+
+test("pending deposit status exposes only a genuine Stripe Checkout link", async t => {
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    statusCheckoutUrl: "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
+  });
+  const statusResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/checkout" && response.request().method() === "GET");
+  await page.goto(`${origin}/en/book/browser-fixture?sandboxReservation=${reservationId}`);
+  await statusResponse;
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent?.includes("Check payment") && !button.disabled));
+  await page.getByRole("status").filter({ hasText: labels.en.pending }).waitFor();
+  assert.equal(await page.getByRole("link", { name: labels.en.pay }).count(), 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(externalRequests, []);
 });
 
 for (const locale of ["fr", "en", "es"]) {
