@@ -31,6 +31,14 @@ unauthenticated, over-balance, and cross-tenant failure paths; and owner/staff
 cancellation success and denial. It verifies the trusted RPC payloads and localized
 redirects, but does not claim a real card charge or hosted authorization check.
 
+`booking.browser.mjs` also holds a synthetic public-booking response to verify that
+the disabled form and submit guard allow only one POST while a reservation is pending.
+When the first POST has an ambiguous network failure, a retry of the unchanged
+booking payload must reuse its request key. An unavailable sandbox checkout
+response has the same retry-key invariant and cannot display a confirmed booking.
+These fixture checks do not prove the
+hosted PostgreSQL conflict constraint or a real booking outcome.
+
 `tests/stripe-deposit-events.test.mjs` signs synthetic sandbox events with a fixture
 webhook secret, then sends the raw bytes to the production webhook handler. It
 checks paid completion, asynchronous success, asynchronous failure, expiration,

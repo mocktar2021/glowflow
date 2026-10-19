@@ -189,6 +189,25 @@ test("unavailable checkout stays in sandbox and never confirms a booking", async
   assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
 });
 
+test("sandbox deposit retry reuses the request key after an unavailable response", async t => {
+  const { page, writes, externalRequests, setUnavailable } = await pageFor(t, "en", { unavailable: true });
+  await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+  await selectBookingTime(page);
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("browser@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+  setUnavailable(false);
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.waitForURL(`**sandboxReservation=${reservationId}`);
+  assert.equal(writes.length, 2);
+  assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(writes[1], writes[0]);
+  assert.deepEqual(externalRequests, []);
+});
+
 for (const checkoutUrl of [
   "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
   "http://checkout.stripe.com/c/pay/cs_test_fixture",
@@ -440,4 +459,48 @@ test("public booking recovers from a taken slot before confirming a replacement"
   assert.equal(writes.length, 2);
   assert.equal(writes[1].startTime, replacement.slot_start);
   assert.notEqual(writes[1].requestKey, writes[0].requestKey);
+});
+
+test("pending public booking accepts only one submission even if the form fires again", async t => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const { page, writes, externalRequests } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    await pending;
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en") } });
+  } });
+  try {
+    await page.goto(`${origin}/en/book/browser-fixture`);
+    await fillBooking(page, "en");
+    await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "true");
+    const submit = page.getByRole("button", { name: "Confirming…" });
+    assert.equal(await submit.isDisabled(), true);
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.length, 1, "a duplicate submit event must not start another POST");
+  } finally {
+    release?.();
+  }
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("ambiguous public booking failure retries the same request key", async t => {
+  const { page, writes, externalRequests } = await pageFor(t, "fr", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) return route.abort("failed");
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("fr") } });
+  } });
+  await page.goto(`${origin}/fr/book/browser-fixture`);
+  await fillBooking(page, "fr");
+  await page.getByRole("alert").filter({ hasText: "La réservation a échoué" }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).count(), 0);
+  await page.getByRole("button", { name: confirmationLabels.fr.submit, exact: true }).click();
+  await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).waitFor();
+  assert.equal(writes.length, 2);
+  assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(writes[1], writes[0], "an uncertain first result must reuse its idempotency key and payload");
+  assert.deepEqual(externalRequests, []);
 });
