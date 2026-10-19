@@ -48,6 +48,7 @@ export const landingCopy = {
       title: "Découvrez l’espace avant de vous engager.",
       body: "Créez votre espace salon pour voir les outils. Pour connaître les tarifs et la disponibilité des options dans votre pays, contactez notre équipe avant tout engagement payant.",
       ask: "Demander les tarifs",
+      emailSubject: "Tarifs GlowFlow",
     },
     faq: {
       eyebrow: "Questions fréquentes",
@@ -107,6 +108,7 @@ export const landingCopy = {
       title: "Explore the workspace before committing.",
       body: "Create your salon workspace to see the tools. For current pricing and feature availability in your country, contact our team before any paid commitment.",
       ask: "Ask about pricing",
+      emailSubject: "GlowFlow pricing",
     },
     faq: {
       eyebrow: "Frequently asked questions",
@@ -166,6 +168,7 @@ export const landingCopy = {
       title: "Conoce el espacio antes de comprometerte.",
       body: "Crea el espacio de tu salón para descubrir las herramientas. Consulta con nuestro equipo los precios y las opciones disponibles en tu país antes de asumir cualquier compromiso de pago.",
       ask: "Consultar precios",
+      emailSubject: "Precios de GlowFlow",
     },
     faq: {
       eyebrow: "Preguntas frecuentes",
