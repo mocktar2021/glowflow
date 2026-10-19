@@ -78,6 +78,7 @@ const copy = {
     sortAvailability: "Prochain créneau",
     sortUnavailable: "Le tri est momentanément indisponible. Les résultats sont affichés par pertinence.",
     priceSortNeedsCountry: "Choisissez un pays pour comparer les prix dans une même devise. Les résultats sont affichés par pertinence.",
+    invalidCountry: "Ce pays n’est pas disponible dans la recherche. Tous les pays disponibles sont affichés.",
   },
   en: {
     eyebrow: "GlowFlow salons",
@@ -132,6 +133,7 @@ const copy = {
     sortAvailability: "Soonest available",
     sortUnavailable: "Sorting is temporarily unavailable. Results are shown by relevance.",
     priceSortNeedsCountry: "Choose a country to compare prices in one currency. Results are shown by relevance.",
+    invalidCountry: "That country is not available in search. Showing all available countries.",
   },
   es: {
     eyebrow: "Salones GlowFlow",
@@ -186,6 +188,7 @@ const copy = {
     sortAvailability: "Próxima disponibilidad",
     sortUnavailable: "La ordenación no está disponible temporalmente. Los resultados se muestran por relevancia.",
     priceSortNeedsCountry: "Elige un país para comparar precios en una sola moneda. Los resultados se muestran por relevancia.",
+    invalidCountry: "Ese país no está disponible en la búsqueda. Se muestran todos los países disponibles.",
   },
 } as const;
 
@@ -250,13 +253,15 @@ export default async function SalonSearchPage({
   const filters = await searchParams;
   const labels = copy[locale];
   const searchText = value(filters, "q").trim();
-  const country = value(filters, "country").toUpperCase();
+  const requestedCountry = value(filters, "country").trim().toUpperCase();
+  const selectedMarket = fallbackMarkets.find((market) => market.country_code === requestedCountry);
+  const country = selectedMarket?.country_code ?? "";
+  const invalidCountry = Boolean(requestedCountry && !selectedMarket);
   const city = value(filters, "city").trim();
   const postalCode = value(filters, "postcode").trim();
   const categoryValue = value(filters, "category");
   const category = isSalonCategory(categoryValue) ? categoryValue : "";
   const sortBy = salonSearchSort(value(filters, "sort"));
-  const selectedMarket = fallbackMarkets.find((market) => market.country_code === country);
   const priceSortNeedsCountry = (sortBy === "price_asc" || sortBy === "price_desc") && !selectedMarket;
   const effectiveSort = priceSortNeedsCountry ? "relevance" : sortBy;
   const maxPriceValue = value(filters, "maxPrice");
@@ -270,7 +275,7 @@ export default async function SalonSearchPage({
   const selectedTimeZone = requestedTimeZone && !invalidTimeZone ? requestedTimeZone : "UTC";
   const availableBefore = availableDate ? endOfLocalDayUtc(availableDate, selectedTimeZone) : null;
   const invalidDate = Boolean(availableDate && !availableBefore);
-  const paginationFilters = invalidTimeZone ? { ...filters, timeZone: selectedTimeZone } : filters;
+  const paginationFilters = { ...filters, country, ...(invalidTimeZone ? { timeZone: selectedTimeZone } : {}) };
   const requestedPage = value(filters, "page");
   let page = salonSearchPage(requestedPage);
   let pageAdjusted = Boolean(requestedPage && page === 1 && requestedPage !== "1");
@@ -452,6 +457,7 @@ export default async function SalonSearchPage({
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
+        {invalidCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidCountry}</p> : null}
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
         {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
         {invalidTimeZone ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidTimeZone}</p> : null}
