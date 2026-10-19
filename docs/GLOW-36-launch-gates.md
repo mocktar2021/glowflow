@@ -25,13 +25,15 @@ database migration ledger, hosted settings, and production behavior before a
 go/no-go decision.
 
 For a repeatable read-only public route check, run
-`node tests/public-release-smoke.mjs` from the repository. It makes thirteen
+`node tests/public-release-smoke.mjs` from the repository. It makes 22
 anonymous GET requests only to `https://glowflow.mocktar.com`. It checks the
-French root redirect and FR/EN/ES landing, salon, and login pages. It verifies
-that each anonymous client-directory request redirects to the same-locale
-login. It does not send bookings or payments, read response bodies, authenticate,
-or verify a signed-in client workflow. It does not prove the Vercel alias points
-to the exact GitHub commit.
+French root redirect and FR/EN/ES landing, salon, login, privacy, terms, and
+support pages. It verifies that each anonymous client-directory request
+redirects to the same-locale login. It does not send bookings or payments,
+read response bodies, authenticate, or verify a signed-in client workflow.
+A public HTML 200 confirms route availability, not legal accuracy, current
+approval, policy coverage, or that the Vercel alias points to the exact GitHub
+commit.
 Record the separate GitHub/Vercel identity and runtime-error evidence alongside
 its result; a pass is not a launch approval.
 

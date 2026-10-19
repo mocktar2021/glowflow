@@ -3,6 +3,7 @@ import path from "node:path";
 
 const origin = "https://glowflow.mocktar.com";
 const locales = ["fr", "en", "es"];
+const publicPages = ["", "/salons", "/login", "/privacy", "/terms", "/support"];
 
 function expectedRedirect(response, target, route) {
   if (![307, 308].includes(response.status)) throw new Error(`${route}: expected an authentication or locale redirect, got ${response.status}`);
@@ -27,7 +28,8 @@ export async function probePublicRelease(fetchImpl = fetch) {
 
   const checks = [{ route: "/", status: root.status }];
   for (const locale of locales) {
-    for (const route of [`/${locale}`, `/${locale}/salons`, `/${locale}/login`]) {
+    for (const page of publicPages) {
+      const route = `/${locale}${page}`;
       const response = await readOnlyGet(route, fetchImpl);
       if (response.status !== 200 || !response.headers.get("content-type")?.toLowerCase().startsWith("text/html")) {
         throw new Error(`${route}: expected a public HTML 200, got ${response.status}`);
