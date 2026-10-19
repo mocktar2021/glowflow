@@ -57,7 +57,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
 
       <main id="main">
         <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 pb-20 pt-12 sm:px-8 sm:pt-16 lg:grid-cols-[1.06fr_0.94fr] lg:gap-14 lg:py-24" aria-labelledby="hero-title">
-          <div className="motion-safe:animate-[landing-rise_700ms_ease-out_both]">
+          <div>
             <p className={eyebrow}>{copy.hero.eyebrow}</p>
             <h1 id="hero-title" className="mt-5 max-w-3xl text-balance text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-5xl lg:text-[4.25rem]">{copy.hero.title}</h1>
             <p className="mt-7 max-w-xl text-lg leading-relaxed text-[#475569]">{copy.hero.body}</p>
@@ -69,9 +69,9 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               {copy.hero.points.map((point) => <li key={point} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-[#855124]" aria-hidden="true" />{point}</li>)}
             </ul>
           </div>
-          <figure className="relative min-h-[380px] overflow-hidden rounded-[2rem] bg-[#e9d9c8] shadow-[0_24px_80px_rgba(38,27,19,0.16)] sm:min-h-[520px] lg:min-h-[600px] motion-safe:animate-[landing-rise_800ms_100ms_ease-out_both]">
+          <figure className="relative min-h-[380px] overflow-hidden rounded-[2rem] bg-[#e9d9c8] shadow-[0_24px_80px_rgba(38,27,19,0.16)] sm:min-h-[520px] lg:min-h-[600px]">
             <Image src="/glowflow-manicure.png" alt={copy.hero.imageAlt} fill priority sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover object-center" />
-            <figcaption className="absolute bottom-5 left-5 right-5 rounded-2xl bg-[#0f172a]/90 px-5 py-4 text-sm font-medium text-white backdrop-blur-sm sm:bottom-7 sm:left-7 sm:right-auto">{copy.hero.imageCaption}</figcaption>
+            <figcaption className="absolute bottom-5 left-5 right-5 rounded-2xl bg-[#0f172a]/90 px-5 py-4 text-sm font-medium text-white backdrop-blur-sm motion-safe:animate-[landing-rise_600ms_250ms_ease-out_both] sm:bottom-7 sm:left-7 sm:right-auto">{copy.hero.imageCaption}</figcaption>
           </figure>
         </section>
 
