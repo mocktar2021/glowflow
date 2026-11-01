@@ -68,6 +68,20 @@ history, or provider setting. Leaked-password protection remains an open
 security setting for the owner to assess; the ledger difference and hosted
 authorization/fingerprint evidence remain pending. GLOW-36 remains In Progress.
 
+## 2026-11-01 local notification-consent blocker, hosted state unverified
+
+Local PostgreSQL review of the checked-in notification persistence migration
+found that `private.notification_delivery_eligible` can return SQL `NULL` for
+a due outbox row with no consent, while `claim_notification_delivery` checks
+`IF NOT eligible THEN`. In PL/pgSQL, `IF NOT NULL` does not reject the claim.
+This is a local SQL contract failure, not evidence that the hosted function has
+the same definition. No sender, worker, or provider delivery was activated or
+tested. Keep messaging disabled and GLOW-29 pending until a fail-closed fix,
+effective-time consent semantics, the missing hosted predecessor migration,
+and hosted authorization/fingerprint evidence are reviewed under a separately
+approved deployment plan. Do not treat a green public route check as proof of
+notification safety.
+
 ## Historical verified 2026-11-01 15:09 UTC snapshot, not launch approval
 
 At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
