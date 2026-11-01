@@ -111,9 +111,11 @@ function main() {
         where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity;
         if missing is not null then raise exception 'restored public tables without RLS: %', missing; end if;
         if (select count(*) from public.tenants where slug = 'recovery-salon') <> 1 then raise exception 'tenant row was not restored'; end if;
+        if (select count(*) from auth.users where id = '10000000-0000-4000-8000-000000000001' and email = 'recovery-owner@example.invalid') <> 1 then raise exception 'auth user row was not restored'; end if;
         if (select count(*) from public.users where email = 'recovery-owner@example.invalid') <> 1 then raise exception 'user row was not restored'; end if;
         if (select count(*) from public.clients where email = 'recovery-client@example.invalid') <> 1 then raise exception 'client row was not restored'; end if;
         if (select count(*) from public.services where id = '40000000-0000-4000-8000-000000000001') <> 1 then raise exception 'service row was not restored'; end if;
+        if (select count(*) from storage.buckets where id = 'salon-public-media' and name = 'salon-public-media' and public) <> 1 then raise exception 'storage bucket definition was not restored'; end if;
         if (select count(*) from storage.objects where name like '%/recovery.jpg') <> 1 then raise exception 'storage metadata was not restored'; end if;
         if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'clients' and policyname = 'clients_tenant_select') then raise exception 'critical tenant policy was not restored'; end if;
         if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'is_tenant_member') then raise exception 'authorization function was not restored'; end if;
