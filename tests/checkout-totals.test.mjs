@@ -36,6 +36,32 @@ test("prior deposits and refunds affect only the remaining balance", () => {
   assert.equal(quote.balanceDueMinor, 4700);
 });
 
+test("a refund reopens only the refunded portion of a previously settled quote", () => {
+  const quote = calculateCheckoutQuote(input({ paidMinor: 6200, refundedMinor: 1250 }));
+  assert.equal(quote.status, "ready");
+  assert.equal(quote.totalMinor, 6200);
+  assert.equal(quote.netPaidMinor, 4950);
+  assert.equal(quote.balanceDueMinor, 1250);
+});
+
+test("a fully discounted quote has a payable zero only with explicitly resolved zero tax", () => {
+  const adjustments = {
+    addOns: [], discountMinor: 4500, tipMinor: 0, paidMinor: 0,
+  };
+  const quote = calculateCheckoutQuote(input({
+    ...adjustments,
+    tax: { status: "resolved", amountMinor: 0, currency: "USD" },
+  }));
+  assert.deepEqual(quote, {
+    status: "ready", currency: "USD", subtotalMinor: 4500,
+    discountMinor: 4500, taxMinor: 0, tipMinor: 0,
+    totalMinor: 0, netPaidMinor: 0, balanceDueMinor: 0,
+  });
+  const unresolved = calculateCheckoutQuote(input({ ...adjustments, tax: { status: "unresolved" } }));
+  assert.equal(unresolved.status, "tax_unresolved");
+  assert.equal("totalMinor" in unresolved, false);
+});
+
 test("unresolved tax cannot silently become zero or a payable total", () => {
   const quote = calculateCheckoutQuote(input({ tax: { status: "unresolved" } }));
   assert.deepEqual(quote, {
@@ -57,7 +83,24 @@ test("rejects negative, fractional, non-finite, and unsafe amounts", () => {
     assert.deepEqual(calculateCheckoutQuote(input({ tipMinor: invalid })), { status: "invalid", reason: "invalid_amount" });
     assert.deepEqual(calculateCheckoutQuote(input({ appointment: { amountMinor: invalid, currency: "USD" } })), { status: "invalid", reason: "invalid_amount" });
     assert.deepEqual(calculateCheckoutQuote(input({ tax: { status: "resolved", amountMinor: invalid, currency: "USD" } })), { status: "invalid", reason: "invalid_amount" });
+    assert.deepEqual(calculateCheckoutQuote(input({ addOns: [{ amountMinor: invalid, currency: "USD" }] })), { status: "invalid", reason: "invalid_amount" });
+    assert.deepEqual(calculateCheckoutQuote(input({ discountMinor: invalid })), { status: "invalid", reason: "invalid_amount" });
+    assert.deepEqual(calculateCheckoutQuote(input({ paidMinor: invalid })), { status: "invalid", reason: "invalid_amount" });
+    assert.deepEqual(calculateCheckoutQuote(input({ refundedMinor: invalid })), { status: "invalid", reason: "invalid_amount" });
   }
+});
+
+test("minor-unit arithmetic remains exact near the safe-integer boundary", () => {
+  const max = Number.MAX_SAFE_INTEGER;
+  const quote = calculateCheckoutQuote(input({
+    appointment: { amountMinor: max - 4, currency: "JPY" },
+    addOns: [{ amountMinor: 2, currency: "JPY" }],
+    discountMinor: 1, tipMinor: 1, paidMinor: 0,
+    tax: { status: "resolved", amountMinor: 1, currency: "JPY" },
+  }));
+  assert.equal(quote.status, "ready");
+  assert.equal(quote.totalMinor, max - 1);
+  assert.equal(quote.balanceDueMinor, max - 1);
 });
 
 test("rejects overflow and impossible discounts or ledger balances", () => {

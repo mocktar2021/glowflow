@@ -8,6 +8,8 @@ export const copy = {
     failed: "Impossible d’enregistrer la fiche. Réessayez.", searchFailed: "Impossible de charger les clients. Réessayez.",
     history: "Rendez-vous récents", noHistory: "Aucun rendez-vous enregistré.", canceled: "Annulé", confirmed: "Confirmé", completed: "Terminé", no_show: "Absent",
     french: "Français", english: "Anglais", spanish: "Espagnol", profile: "Fiche client", noEmail: "Aucun e-mail", noPhone: "Aucun téléphone",
+    nailPreferences: "Préférences ongulaires", noNailPreferences: "Aucune préférence ongulaire enregistrée.",
+    nailShape: "Forme", nailProductType: "Type de produit", nailShade: "Teinte", nailDesignNotes: "Notes sur le motif", lastInfill: "Date déclarée du dernier remplissage",
   },
   en: {
     back: "Dashboard", directory: "Clients", intro: "Find and manage clients in your salon.",
@@ -18,6 +20,8 @@ export const copy = {
     failed: "Could not save the profile. Try again.", searchFailed: "Could not load clients. Try again.",
     history: "Recent appointments", noHistory: "No appointments recorded.", canceled: "Canceled", confirmed: "Confirmed", completed: "Completed", no_show: "No-show",
     french: "French", english: "English", spanish: "Spanish", profile: "Client profile", noEmail: "No email", noPhone: "No phone",
+    nailPreferences: "Nail preferences", noNailPreferences: "No nail preferences recorded.",
+    nailShape: "Shape", nailProductType: "Product type", nailShade: "Shade", nailDesignNotes: "Design notes", lastInfill: "Reported last infill date",
   },
   es: {
     back: "Panel", directory: "Clientes", intro: "Busca y gestiona los clientes de tu salón.",
@@ -28,6 +32,8 @@ export const copy = {
     failed: "No se pudo guardar la ficha. Inténtalo de nuevo.", searchFailed: "No se pudieron cargar los clientes. Inténtalo de nuevo.",
     history: "Citas recientes", noHistory: "No hay citas registradas.", canceled: "Cancelada", confirmed: "Confirmada", completed: "Terminada", no_show: "Ausente",
     french: "Francés", english: "Inglés", spanish: "Español", profile: "Ficha de cliente", noEmail: "Sin correo", noPhone: "Sin teléfono",
+    nailPreferences: "Preferencias de uñas", noNailPreferences: "No hay preferencias de uñas registradas.",
+    nailShape: "Forma", nailProductType: "Tipo de producto", nailShade: "Tono", nailDesignNotes: "Notas del diseño", lastInfill: "Fecha declarada del último relleno",
   },
 } as const;
 

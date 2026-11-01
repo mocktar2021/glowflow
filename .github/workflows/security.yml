@@ -34,6 +34,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes postgresql-client-16
       - name: Check source authorization boundaries
         run: node --test tests/rls-source-guards.test.mjs tests/rls-run.test.mjs
+      - name: Install locked test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run real PostgreSQL transaction and role tests
         env:
           GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
