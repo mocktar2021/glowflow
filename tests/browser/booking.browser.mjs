@@ -319,6 +319,8 @@ test("changing service then language preserves the current service and sandbox q
   const second = "44444444-4444-4444-8444-444444444444";
   await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1&service=${second}#booking`);
   await page.getByRole("heading", { name: labels.fr.title }).waitFor();
+  // The heading is server-rendered; the fixture slot appears after hydration and availability loading.
+  await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor({ state: "attached" });
   await page.locator('[name="bookingService"]').selectOption(first);
   assert.equal(new URL(page.url()).searchParams.get("service"), first);
   await page.getByRole("button", { name: "Changer de langue" }).click();
