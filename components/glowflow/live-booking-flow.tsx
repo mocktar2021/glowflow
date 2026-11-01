@@ -2,11 +2,13 @@
 
 import { CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import type { Locale } from "@/lib/i18n";
 import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
+
+const noHydrationSubscription = () => () => {};
 
 type Service = {
   id: string;
@@ -203,6 +205,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const contactRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLHeadingElement>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
+  // Do not accept a native selection before React can persist it to booking state.
+  const hydrated = useSyncExternalStore(noHydrationSubscription, () => true, () => false);
   const [serviceId, setServiceId] = useState(initialServiceId ?? services[0].id);
   const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -375,7 +379,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         </aside>
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
           <label className="block font-semibold">{labels.service}
-            <select name="bookingService" disabled={submitting} value={serviceId} onChange={(event) => {
+            <select name="bookingService" disabled={!hydrated || submitting} value={serviceId} onChange={(event) => {
                 if (typeof window !== "undefined") {
                   const url = new URL(window.location.href);
                   url.searchParams.set("service", event.target.value);
@@ -393,13 +397,13 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
             </select>
           </label>
           {staffChoices.length ? <label className="block font-semibold">{labels.staff}
-            <select name="bookingStaff" disabled={submitting} value={preferredStaffId} onChange={(event) => { setPreferredStaffId(event.target.value); setSlot(null); setError(""); }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
+            <select name="bookingStaff" disabled={!hydrated || submitting} value={preferredStaffId} onChange={(event) => { setPreferredStaffId(event.target.value); setSlot(null); setError(""); }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
               <option value="">{labels.anyStaff}</option>
               {staffChoices.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </select>
           </label> : <div><p className="font-semibold">{labels.staff}</p><p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.anyStaff}</p></div>}
           <label className="block font-semibold">{labels.date}
-            <input type="date" disabled={submitting} min={today} value={date} onChange={(event) => {
+            <input type="date" disabled={!hydrated || submitting} min={today} value={date} onChange={(event) => {
               setLoadingSlots(true);
               setAvailabilityFailed(false);
               setSlots([]);

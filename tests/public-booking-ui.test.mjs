@@ -24,6 +24,7 @@ async function harness(initial = {}) {
     useRef(value) { const index = refIndex++; return refs[index] ??= { current: value }; },
     useMemo(fn) { return fn(); },
     useEffect(fn, deps) { const index = effectIndex++; const last = effects[index]; if (!last || deps.some((value, i) => value !== last.deps[i])) { last?.cleanup?.(); effects[index] = { fn, deps, pending: true }; } },
+    useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); },
   };
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react,
