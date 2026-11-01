@@ -185,6 +185,38 @@ test("advanced search controls retain a visible keyboard focus outline in every 
   }
 });
 
+test("search actions and server pagination have visible keyboard focus in every locale", async () => {
+  const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
+  const Page = await loadPage(async () => ({ data: [result], error: null }));
+
+  for (const locale of ["fr", "en", "es"]) {
+    const html = renderToStaticMarkup(await Page({
+      params: Promise.resolve({ locale }),
+      searchParams: Promise.resolve({ page: "2" }),
+    }));
+    const submit = html.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
+    const form = html.match(/<form\b[\s\S]*?<\/form>/)?.[0];
+    assert.ok(form, `${locale}: search form is present`);
+    const formLinks = [...form.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+    const pagination = html.match(/<nav class="mt-8[^>]*>[\s\S]*?<\/nav>/)?.[0];
+    assert.ok(pagination, `${locale}: pagination is present`);
+    const pageLinks = [...pagination.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+    const reset = formLinks.find((link) => link.includes(`href="/${locale}/salons"`));
+    const previous = pageLinks.find((link) => link.includes(`href="/${locale}/salons"`));
+    const next = pageLinks.find((link) => link.includes(`href="/${locale}/salons?page=3"`));
+
+    for (const [name, control] of [["submit", submit], ["reset", reset], ["previous", previous], ["next", next]]) {
+      assert.ok(control, `${locale}: ${name} control is present`);
+      assert.match(control, /focus-visible:outline-solid/);
+      assert.match(control, /focus-visible:outline-2/);
+      assert.match(control, /focus-visible:outline-offset-2/);
+      assert.match(control, /dark:focus-visible:outline-\[#efc992\]/);
+    }
+    assert.match(previous, /min-h-11/);
+    assert.match(next, /min-h-11/);
+  }
+});
+
 test("shared country links normalize supported codes and ignore unsupported codes visibly", async () => {
   const calls = [];
   const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
