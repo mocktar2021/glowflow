@@ -7,6 +7,50 @@ commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
 
+## Verified 2026-11-01 20:14-20:15 UTC production checkpoint, not launch approval
+
+GitHub `mocktar2021/glowflow` `master` was
+`032608f857279bf6fe28c2b3cf6df4e49d27086f`. Its master-push
+[GlowFlow CI](https://github.com/mocktar2021/glowflow/actions/runs/41335092317),
+[Database security](https://github.com/mocktar2021/glowflow/actions/runs/41335092246),
+and [browser checks](https://github.com/mocktar2021/glowflow/actions/runs/41335092291)
+all completed successfully on that exact commit. Vercel team
+`team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu`, reported production deployment
+`dpl_2uAFxvuJFdGGoThEdRqCBQZdakDj` READY for the same GitHub SHA; a separate
+alias lookup mapped `glowflow.mocktar.com` to that deployment.
+
+The earlier 2026-11-01 18:13 UTC GLOW-36 Jira evidence comment `11913` records
+22 read-only FR/EN/ES public and signed-out client-directory GETs through the
+production alias, each yielding HTML 200 after any same-origin redirect with
+that deployment marker. A fresh, smaller 20:15 UTC connected-fetch sample of
+`/fr/salons`, `/en/salons`, `/es/salons`, and `/fr/dashboard/clients` also
+returned HTML 200 with the same marker; the signed-out French client-directory
+request rendered the French login heading. The connected fetch follows
+same-origin redirects, so these results do not independently prove the redirect
+status code. A one-hour Vercel runtime-error query at this checkpoint found no
+errors in its sampled window. Neither sample exercised a signed-in journey,
+booking, payment, provider send, or hosted SQL.
+
+A separate read-only Supabase metadata recheck identified organization
+`goutxcrujaxjjssbjfsn` and healthy GlowFlow project `rfwhqutkiztxkagbhevp`.
+Its hosted ledger still contained 35 version/name pairs versus 36 entries and
+files on this exact `master`; the sole local-only version was
+`20261018000135_schedule_confirmed_appointment_notifications`. The available
+read-only table/type metadata did not expose the relevant private function body
+or appointment trigger fingerprint. The ledger gap is **not** proof of hosted
+schema drift or equivalence. Draft [PR #139](https://github.com/mocktar2021/glowflow/pull/139)
+remains unmerged and unapplied; keep messaging disabled until the predecessor,
+function and trigger state, consent semantics, and hosted authorization are
+verified under a separately approved change plan.
+
+This checkpoint establishes only the stated exact-commit production and sampled
+read-only behavior. The leaked-password-protection warning from the earlier
+advisor check was not rechecked here. Historical-point recovery, named incident
+and alert coverage, country-specific legal and salon-policy approval, payment
+and refund controls, test-fixture cleanup, and the product owner's release
+scope and go/no-go decision remain **Pending**. GLOW-36 stays In Progress.
+
 ## Verified 2026-11-01 16:29 UTC production checkpoint, not launch approval
 
 At 2026-11-01 16:29 UTC, GitHub `mocktar2021/glowflow` `master` was
