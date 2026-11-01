@@ -81,6 +81,7 @@ async function pageFor(t, identity) {
       await page.screenshot({
         path: path.join(artifacts, `${t.name.replace(/[^a-z0-9-]/gi, "-")}.png`),
         fullPage: true,
+        caret: "initial",
       });
       assert.deepEqual(errors, [], "no runtime or hydration errors");
       assert.deepEqual(externalRequests, [], "fixture must not contact Stripe or another host");
