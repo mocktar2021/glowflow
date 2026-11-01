@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { reportApplicationFailure, type ApplicationCode, type ApplicationStage } from "@/lib/application-diagnostics";
+import { recordBookingOutcome } from "@/lib/bookings/analytics";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -45,6 +46,7 @@ const bookingSchema = z.object({
 });
 
 function failed(error: string, status: number, method: "GET" | "POST", stage: ApplicationStage, code: ApplicationCode) {
+  if (method === "POST") recordBookingOutcome("failed");
   const requestId = reportApplicationFailure("public_booking", method, stage, code);
   return NextResponse.json({ error }, {
     status,
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
     const conflict = error.code === "23P01" ||
       (typeof error.message === "string" && error.message.includes("public_time_unavailable"));
     if (!conflict) return failed("booking_failed", 500, "POST", "create", "database_error");
+    recordBookingOutcome("slot_unavailable");
     return NextResponse.json(
       { error: "slot_unavailable" },
       { status: 409 },
@@ -164,6 +167,7 @@ export async function POST(request: Request) {
     reportApplicationFailure("public_booking", "POST", "enrichment", "unexpected_error");
   }
 
+  recordBookingOutcome("confirmed");
   return NextResponse.json({ confirmation: { ...confirmation, salon_name: publicSalonName, details } }, {
     status: 201, headers: { "cache-control": "private, no-store" },
   });
