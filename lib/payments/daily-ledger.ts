@@ -40,14 +40,27 @@ function addChecked(left: number, right: number): number | null {
   return Number.isSafeInteger(sum) ? sum : null;
 }
 
+function isIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 export function aggregateDailyLedger(input: {
   tenantId: string;
   currency: string;
   timeZone: string;
   entries: readonly DailyLedgerEntry[];
+  fromDate?: string;
+  throughDate?: string;
 }): DailyLedgerReport {
-  const { tenantId, currency, timeZone, entries } = input;
+  const { tenantId, currency, timeZone, entries, fromDate, throughDate } = input;
   if (!tenantId || !/^[A-Z]{3}$/.test(currency) || !timeZone || timeZone.length > 64) {
+    return { status: "invalid", reason: "invalid_scope" };
+  }
+  if ((fromDate !== undefined && !isIsoDate(fromDate))
+    || (throughDate !== undefined && !isIsoDate(throughDate))
+    || (fromDate && throughDate && fromDate > throughDate)) {
     return { status: "invalid", reason: "invalid_scope" };
   }
   let formatter: Intl.DateTimeFormat;
@@ -77,6 +90,8 @@ export function aggregateDailyLedger(input: {
     const parts = formatter.formatToParts(occurredAt);
     const part = (name: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === name)?.value;
     const date = `${part("year")}-${part("month")}-${part("day")}`;
+    // Filter by the salon's local calendar date, never by a fixed UTC offset.
+    if ((fromDate && date < fromDate) || (throughDate && date > throughDate)) continue;
     let day = days.get(date);
     if (!day) {
       day = { date, paidMinor: 0, refundedMinor: 0, netMinor: 0,

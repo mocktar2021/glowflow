@@ -52,6 +52,42 @@ test("uses the requested salon zone, not UTC or the server zone", () => {
   assert.equal(report.days[0].date, "2026-01-02");
 });
 
+test("date filters include only the selected salon-local day across both DST changes", () => {
+  for (const [selectedDate, entries, expected] of [
+    ["2026-03-08", [
+      row("2026-03-08T04:59:59Z", 100),
+      row("2026-03-08T05:00:00Z", 200),
+      row("2026-03-09T03:59:59Z", 300),
+      row("2026-03-09T04:00:00Z", 400),
+    ], 500],
+    ["2026-11-01", [
+      row("2026-11-01T03:59:59Z", 100),
+      row("2026-11-01T04:00:00Z", 200),
+      row("2026-11-02T04:59:59Z", 300),
+      row("2026-11-02T05:00:00Z", 400),
+    ], 500],
+  ]) {
+    const report = aggregateDailyLedger({ ...scope, entries, fromDate: selectedDate, throughDate: selectedDate });
+    assert.equal(report.status, "ready");
+    assert.deepEqual(report.days.map((day) => [day.date, day.paidMinor]), [[selectedDate, expected]]);
+  }
+});
+
+test("date filters reject invalid or inverted calendar dates and still validate excluded rows", () => {
+  const entries = [row("2026-03-08T05:00:00Z", 100)];
+  for (const dates of [
+    { fromDate: "2026-02-30" },
+    { throughDate: "2026-13-01" },
+    { fromDate: "2026-03-09", throughDate: "2026-03-08" },
+    { fromDate: "03/08/2026" },
+  ]) {
+    assert.deepEqual(aggregateDailyLedger({ ...scope, entries, ...dates }), { status: "invalid", reason: "invalid_scope" });
+  }
+  assert.deepEqual(aggregateDailyLedger({ ...scope, entries: [
+    { ...entries[0], tenant_id: "salon-b" },
+  ], fromDate: "2026-03-09" }), { status: "invalid", reason: "cross_tenant" });
+});
+
 test("rejects cross-tenant, mixed-currency, and malformed rows without partial totals", () => {
   const entries = [row("2026-03-08T05:00:00Z", 100)];
   for (const [bad, reason] of [
