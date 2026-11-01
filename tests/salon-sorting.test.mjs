@@ -162,6 +162,7 @@ test("advanced search controls retain a visible keyboard focus outline in every 
 
   function assertVisibleFocus(control, context) {
     assert.ok(control, `${context} control is present`);
+    assert.match(control, /focus-visible:outline-solid/);
     assert.match(control, /focus-visible:outline-2/);
     assert.match(control, /focus-visible:outline-offset-2/);
     assert.match(control, /focus-visible:outline-\[#b77a42\]/);

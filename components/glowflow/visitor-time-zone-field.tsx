@@ -32,7 +32,7 @@ export function VisitorTimeZoneField({ initialZone, detectBrowserZone, options, 
         name="timeZone"
         value={zone}
         onChange={(event) => setManualZone(event.target.value)}
-        className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5"
+        className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5"
       >
         {choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
       </select>
