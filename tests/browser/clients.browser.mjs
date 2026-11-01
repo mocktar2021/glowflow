@@ -50,10 +50,10 @@ async function pageFor(identity) {
   return { context, page };
 }
 
-for (const [locale, title, search, history] of [
-  ["fr", "Clients", "Rechercher", "Rendez-vous récents"],
-  ["en", "Clients", "Search", "Recent appointments"],
-  ["es", "Clientes", "Buscar", "Citas recientes"],
+for (const [locale, title, search, history, nailPreferences, shade] of [
+  ["fr", "Clients", "Rechercher", "Rendez-vous récents", "Préférences ongulaires", "Teinte"],
+  ["en", "Clients", "Search", "Recent appointments", "Nail preferences", "Shade"],
+  ["es", "Clientes", "Buscar", "Citas recientes", "Preferencias de uñas", "Tono"],
 ]) {
   for (const identity of ["owner", "staff"]) test(`${locale} ${identity} can search and read their own synthetic client`, async () => {
     const { context, page } = await pageFor(identity);
@@ -67,11 +67,19 @@ for (const [locale, title, search, history] of [
       await page.getByRole("link", { name: /Fixture Client/ }).waitFor({ state: "detached" });
       assert.equal(await page.getByRole("link", { name: /Fixture Client/ }).count(), 0);
       assert.equal(new URL(page.url()).search, "", "contact search stays out of the URL");
-      await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
+      const profileResponse = await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
+      assert.equal(profileResponse.status(), 200);
+      assert.doesNotMatch(await profileResponse.text(), /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
       await page.getByRole("heading", { name: "Synthetic Alice" }).waitFor();
       await page.getByRole("heading", { name: history }).waitFor();
+      const nails = page.getByRole("region", { name: nailPreferences });
+      await nails.getByText(shade, { exact: true }).waitFor();
+      await nails.getByText("Rose gold", { exact: true }).waitFor();
+      assert.equal(await nails.locator("img").count(), 0, "untrusted preference text must not become markup");
+      assert.equal(await nails.getByText("Synthetic floral design <img src=x onerror=alert(1)>").count(), 1);
       assert.equal(await page.locator('textarea[name="notes"]').inputValue(), "Synthetic private note");
       assert.equal(await page.getByText("Foreign private note").count(), 0);
+      assert.equal(await page.getByText("Foreign nail secret").count(), 0);
     } finally { await context.close(); }
   });
   test(`${locale} directory denies anonymous and foreign client access`, async () => {
@@ -85,6 +93,7 @@ for (const [locale, title, search, history] of [
       const response = await member.page.goto(`${origin}/${locale}/dashboard/clients/${foreignId}`);
       assert.equal(response.status(), 404);
       assert.equal(await member.page.getByText("Foreign private note").count(), 0);
+      assert.equal(await member.page.getByText("Foreign nail secret").count(), 0);
     } finally { await member.context.close(); }
   });
 }
