@@ -50,10 +50,10 @@ async function pageFor(identity) {
   return { context, page };
 }
 
-for (const [locale, title, search, history, nailPreferences, shade] of [
-  ["fr", "Clients", "Rechercher", "Rendez-vous récents", "Préférences ongulaires", "Teinte"],
-  ["en", "Clients", "Search", "Recent appointments", "Nail preferences", "Shade"],
-  ["es", "Clientes", "Buscar", "Citas recientes", "Preferencias de uñas", "Tono"],
+for (const [locale, title, search, history, nailPreferences, shade, reportedInfill, oldInfill] of [
+  ["fr", "Clients", "Rechercher", "Rendez-vous récents", "Préférences ongulaires", "Teinte", "Date déclarée du dernier remplissage", "Dernier remplissage"],
+  ["en", "Clients", "Search", "Recent appointments", "Nail preferences", "Shade", "Reported last infill date", "Last infill"],
+  ["es", "Clientes", "Buscar", "Citas recientes", "Preferencias de uñas", "Tono", "Fecha declarada del último relleno", "Último relleno"],
 ]) {
   for (const identity of ["owner", "staff"]) test(`${locale} ${identity} can search and read their own synthetic client`, async () => {
     const { context, page } = await pageFor(identity);
@@ -75,6 +75,8 @@ for (const [locale, title, search, history, nailPreferences, shade] of [
       const nails = page.getByRole("region", { name: nailPreferences });
       await nails.getByText(shade, { exact: true }).waitFor();
       await nails.getByText("Rose gold", { exact: true }).waitFor();
+      await nails.getByText(reportedInfill, { exact: true }).waitFor();
+      assert.equal(await nails.getByText(oldInfill, { exact: true }).count(), 0, "mutable preference date must not be presented as verified history");
       assert.equal(await nails.locator("img").count(), 0, "untrusted preference text must not become markup");
       assert.equal(await nails.getByText("Synthetic floral design <img src=x onerror=alert(1)>").count(), 1);
       assert.equal(await page.locator('textarea[name="notes"]').inputValue(), "Synthetic private note");
