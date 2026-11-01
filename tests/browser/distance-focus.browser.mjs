@@ -53,6 +53,7 @@ for (const [locale, actionText, clearText] of [
     await page.goto(`${origin}/${locale}/book/browser-fixture?distanceFocus=1`);
     const action = page.getByRole("button", { name: actionText });
     await action.waitFor();
+    await page.locator('[data-distance-focus-hydrated="true"]').waitFor();
     await page.keyboard.press("Tab");
     assert.equal(await action.evaluate(node => node === document.activeElement), true);
     const actionOutline = await action.evaluate(node => ({ style: getComputedStyle(node).outlineStyle, width: getComputedStyle(node).outlineWidth }));
