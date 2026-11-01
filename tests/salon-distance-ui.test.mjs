@@ -165,6 +165,63 @@ test("all localized distance and paging controls render a visible keyboard focus
   }
 });
 
+test("distance pagination has one concise localized live announcement without changing visible page text", () => {
+  const js = ts.transpileModule(component, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  for (const [locale, firstPage, secondPage, loading] of [
+    ["fr", "2 salons trouvés. Page 1 sur 2.", "2 salons trouvés. Page 2 sur 2.", "Tri par distance…"],
+    ["en", "2 salons found. Page 1 of 2.", "2 salons found. Page 2 of 2.", "Sorting by distance…"],
+    ["es", "2 salones encontrados. Página 1 de 2.", "2 salones encontrados. Página 2 de 2.", "Ordenando por distancia…"],
+  ]) {
+    const loaded = { exports: {} };
+    const state = [{ origin_lat: 36.07, origin_lon: -79.79 }, [{ slug: "fixture", country_code: "US", city: "Fixture" }], 1, 2, {}, "active"];
+    let stateIndex = 0;
+    const deps = {
+      react: { useState(initial) { return [state[stateIndex++] ?? initial, () => {}]; }, useRef(initial) { return { current: initial }; } },
+      "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+      "@/lib/i18n": { salonProfileLocale: () => locale },
+      "@/lib/markets": { fallbackMarkets: [] },
+      "@/lib/marketplace-locations": { marketplaceLocation: () => null, marketplaceLocationHref: () => "" },
+      "@/lib/salon-search": { coarseVisitorOrigin },
+      "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    };
+    new Function("require", "exports", js)(name => deps[name] ?? require(name), loaded.exports);
+    const render = (enabled = true) => {
+      stateIndex = 0;
+      return loaded.exports.DistanceSearch({ children: "existing results", locale, labels: {}, filters: {}, pageSize: 1, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled, fallbackAnnouncement: "Existing results" });
+    };
+    const find = (node, predicate, matches = []) => {
+      if (!node || typeof node !== "object") return matches;
+      if (predicate(node)) matches.push(node);
+      for (const child of Array.isArray(node.props?.children) ? node.props.children : [node.props?.children]) find(child, predicate, matches);
+      return matches;
+    };
+    const assertAnnouncement = (expected) => {
+      const tree = render();
+      const regions = find(tree, node => node.props?.role === "status");
+      assert.equal(regions.length, 1, `${locale} has one live region`);
+      assert.equal(regions[0].props.className, "sr-only");
+      assert.equal(regions[0].props["aria-atomic"], "true");
+      assert.equal(regions[0].props.children, expected);
+      return tree;
+    };
+    const firstTree = assertAnnouncement(firstPage);
+    assert.equal(find(firstTree, node => node.type === "nav").length, 1, "visual pager remains");
+    state[2] = 2;
+    assertAnnouncement(secondPage);
+    state[5] = "loading";
+    assertAnnouncement(loading);
+    state[5] = "idle";
+    assertAnnouncement("Existing results");
+    state[1] = null;
+    assert.equal(find(render(false), node => node.props?.role === "status").length, 0, "disabled distance controls leave the error's own status alone");
+    state[1] = [{ slug: "fixture", country_code: "US", city: "Fixture" }];
+    state[2] = 1;
+    state[3] = 1;
+    state[5] = "active";
+    assertAnnouncement(locale === "fr" ? "1 salon trouvé." : locale === "es" ? "1 salón encontrado." : "1 salon found.");
+  }
+});
+
 test("owner point editing is explicit, optional, and compatible with a pre-migration profile save", () => {
   assert.match(ownerControl, /type="button" onClick={useDeviceLocation}/);
   assert.match(ownerControl, /name="map_latitude"/);
