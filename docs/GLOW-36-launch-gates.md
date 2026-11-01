@@ -1,13 +1,41 @@
 # GLOW-36 launch gate record
 
-This is a repository evidence inventory as of 2026-10-18, not permission to
-launch and not a claim that every gate is green today. Keep GLOW-36 In Progress
+This is a dated repository evidence inventory begun on 2026-10-18, not permission
+to launch and not a claim that every gate is green today. Keep GLOW-36 In Progress
 until the product owner records a go/no-go decision against one exact production
 commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
 
-## Verified 2026-11-01 release snapshot, not launch approval
+## Verified 2026-11-01 16:29 UTC production checkpoint, not launch approval
+
+At 2026-11-01 16:29 UTC, GitHub `mocktar2021/glowflow` `master` was
+`cdf73b53e1b4b43f51dfb59756aa60e2491aa3cc`. Its master-push
+[GlowFlow CI](https://github.com/mocktar2021/glowflow/actions/runs/41326277971),
+[Database security](https://github.com/mocktar2021/glowflow/actions/runs/41326278050),
+and [browser checks](https://github.com/mocktar2021/glowflow/actions/runs/41326277964)
+all completed successfully. This is combined-branch evidence for that exact
+commit, not a pass for any later commit or hosted database revision.
+
+Vercel team `team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu`, reported production deployment
+`dpl_Cwa83rC3tvLux1Vo9AsfRSyj8Ygc` READY for that exact GitHub SHA, and a
+separate alias check mapped `glowflow.mocktar.com` to it. Twenty-two read-only
+GETs through the Vercel-connected fetch checked `/` plus each FR/EN/ES landing,
+salon search, login, privacy, terms, support, and signed-out client-directory
+route. All yielded HTML 200 after any same-origin redirect and identified the
+same deployment; the client-directory responses showed sign-in content rather
+than the private directory. This fetch follows same-origin redirects, so it
+does not independently establish the redirect status code. A one-hour Vercel
+runtime-error scan found no errors in the sampled window.
+
+These public and signed-out checks do not verify a signed-in workflow, hosted
+Supabase authorization or recovery, provider health, a charge or refund, legal
+approval, or launch readiness. No booking, payment, hosted SQL, or provider
+message was initiated for this checkpoint. Recheck all identities and gates
+against the actual release candidate before an owner go/no-go decision.
+
+## Historical verified 2026-11-01 15:09 UTC snapshot, not launch approval
 
 At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
 `72d52c5b5a2448f15f8e585270dbc2588ce37bb5`, the merge of
@@ -41,7 +69,7 @@ go/no-go decision. Do not carry this snapshot forward as standing approval.
 | Area | What the repository proves | What it does not prove |
 | --- | --- | --- |
 | Privacy, terms, support | `lib/legal-content.ts` has FR/EN/ES copy, a 2026-09-24 effective date, the public support address, and cancellation/deposit guidance. Localized routes and `tests/legal-support.test.mjs` cover presence and links. `docs/GLOW-35-release-readiness.md` records a September 24 production check. | A fresh legal review for every launch country, or that a salon has published its own applicable policy. The platform copy does not define a platform refund entitlement. |
-| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. `GLOW-24` remains Backlog. `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
+| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. A localized public notice now says when a salon has not published policy text; it does not supply cancellation or refund terms. `GLOW-24` remains Backlog. `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
 | Support and incident response | The public support address is `support@mocktar.com`. `docs/GLOW-36-recovery-drill.md` records working incident-lead and database-owner roles and a 24-hour RPO and 4-hour RTO target. `docs/GLOW-34-observability-slice.md` documents safe booking error IDs. | A currently confirmed named primary and alternate, monitored support and alert destinations, an exercised escalation, or measured achievement of the recovery targets. `GLOW-34` remains In Progress. |
 | Database recovery | `tests/recovery-run.mjs` uses only guarded loopback PostgreSQL and synthetic records. `.github/workflows/security.yml` runs the logical backup/restore drill on disposable PostgreSQL 16. `docs/GLOW-36-recovery-drill.md` records a September 24 isolated hosted current-state clone, count/Auth/bucket comparison, synthetic Storage-file recovery, and a later signed-in owner journey. | A selected historical daily or PITR recovery point, full file-volume recovery, provider settings/secrets restoration, or a measured production-equivalent RTO. A database archive does not include Storage file contents. |
 | Security and quality | `.github/workflows/ci.yml`, `security.yml`, and `browser.yml` define build/unit, database authorization/recovery, and browser checks. | A green result for an arbitrary future release commit, a current Supabase advisor review, or hosted Auth/Storage behavior from local substitutes alone. |
@@ -78,7 +106,7 @@ HTTPS GETs returned French content at `/` and 200 at the published salon's
 `/fr/book/mocktar-braiding` route. The product owner confirmed the signed-in
 dashboard and client directory loaded. [GLOW-10](https://mocktarltd.atlassian.net/browse/GLOW-10)
 records the domain checks and rollback runbook; [GLOW-16](https://mocktarltd.atlassian.net/browse/GLOW-16)
-records the client-directory scope and remaining live-flow verification.
+records the accepted client-directory scope and signed-in owner verification.
 
 Subsequently, [PR #91](https://github.com/mocktar2021/glowflow/pull/91) merged
 as `1e4e22a2ad908ee625f67b8809682944b66dda4c`. The observation above
