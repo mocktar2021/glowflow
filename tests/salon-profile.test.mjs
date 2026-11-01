@@ -58,6 +58,18 @@ test("public route requires a published profile and localizes sharing metadata",
   assert.match(publicPage, /\/book\/\$\{profile\.slug\}/);
 });
 
+test("public profile explains missing salon policies in the visitor language", () => {
+  for (const message of [
+    "Conditions d’annulation non publiées. Contactez le salon pour les connaître.",
+    "Cancellation policies are not published. Contact the salon for details.",
+    "Las condiciones de cancelación no están publicadas. Contacta con el salón para conocerlas.",
+  ]) assert.ok(publicPage.includes(message));
+  assert.match(publicPage, /selectPublishedPolicy\(profile\.policies_json, locale\)/);
+  assert.match(publicPage, /lang=\{publishedPolicy\?\.language \?\? locale\}/);
+  assert.match(publicPage, /publishedPolicy\?\.text \?\? labels\.policiesMissing/);
+  assert.doesNotMatch(publicPage, /\{localized\(profile\.policies_json, locale\) \? <section/);
+});
+
 test("anonymous catalog access is limited to active services from published salons", () => {
   assert.match(publicCatalogMigration, /grant select \(is_active\) on public\.services to anon/);
   assert.match(publicCatalogMigration, /salon_public_profiles\.tenant_id = tenants\.id/);
