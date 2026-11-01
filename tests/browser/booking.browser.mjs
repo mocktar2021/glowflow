@@ -53,13 +53,14 @@ after(async () => {
   }
   await writeFile(path.join(artifacts, "server.log"), output);
 });
-async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId } = {}) {
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId, postCheckoutUrl = null, statusCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_fixture" } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, timeZoneId });
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
   page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
   const errors = [];
   const writes = [];
+  const externalRequests = [];
   let state = status;
   let unavailableState = unavailable;
   let release;
@@ -68,7 +69,10 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
   page.on("console", message => { if (message.type() === "error" && /hydrat|server rendered HTML/i.test(message.text())) errors.push(message.text()); });
   await context.route("**/*", async route => {
     const url = new URL(route.request().url());
-    if (url.origin !== origin) return route.abort();
+    if (url.origin !== origin) {
+      externalRequests.push(route.request().url());
+      return route.abort();
+    }
     if (url.pathname === "/api/public-booking") {
       if (publicBooking) return publicBooking(route, writes);
       assert.equal(route.request().method(), "GET", "sandbox must never submit a real booking");
@@ -78,10 +82,10 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
     if (url.pathname === "/api/checkout") {
       if (route.request().method() === "POST") {
         writes.push(route.request().postDataJSON());
-        return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: "pending", url: null } });
+        return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: "pending", url: postCheckoutUrl } });
       }
       await barrier;
-      return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: state, url: state === "pending" ? "https://checkout.stripe.com/c/pay/cs_test_fixture" : null } });
+      return route.fulfill({ status: unavailableState ? 503 : 200, json: unavailableState ? { error: "sandbox_unavailable" } : { reservationId, status: state, url: state === "pending" ? statusCheckoutUrl : null } });
     }
     return route.continue();
   });
@@ -92,7 +96,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
       assert.equal(await page.locator("[data-nextjs-dialog], .vite-error-overlay").count(), 0);
     } finally { await context.close(); }
   });
-  return { page, writes, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
+  return { page, writes, externalRequests, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
 }
 test("visitor time-zone chooser detects browser zone only for new searches and allows override", async t => {
   const { page } = await pageFor(t, "en", { timeZoneId: "America/Los_Angeles" });
@@ -156,6 +160,7 @@ for (const status of ["paid", "failed", "expired"]) {
     assert.equal(await page.getByText(labels.en.paid, { exact: false }).count(), 0);
     release();
     await page.getByRole("link", { name: labels.en.pay }).waitFor();
+    assert.equal(await page.getByRole("link", { name: labels.en.pay }).getAttribute("href"), "https://checkout.stripe.com/c/pay/cs_test_fixture");
     setStatus(status);
     await page.getByRole("button", { name: labels.en.refresh }).click();
     await page.getByRole("status").filter({ hasText: labels.en[status] }).waitFor();
@@ -182,6 +187,85 @@ test("unavailable checkout stays in sandbox and never confirms a booking", async
   assert.equal(writes.length, 1);
   assert.equal(new URL(page.url()).searchParams.get("sandbox"), "1");
   assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+});
+
+test("sandbox deposit retry reuses the request key after an unavailable response", async t => {
+  const { page, writes, externalRequests, setUnavailable } = await pageFor(t, "en", { unavailable: true });
+  await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+  await selectBookingTime(page);
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("browser@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+  setUnavailable(false);
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.waitForURL(`**sandboxReservation=${reservationId}`);
+  assert.equal(writes.length, 2);
+  assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(writes[1], writes[0]);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("changed contact details after unavailable deposit checkout get a new request key", async t => {
+  const { page, writes, externalRequests, setUnavailable } = await pageFor(t, "en", { unavailable: true });
+  await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+  await selectBookingTime(page);
+  await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+  await page.locator('[name="email"]').fill("original@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+
+  setUnavailable(false);
+  await page.locator('[name="email"]').fill("updated@example.invalid");
+  await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+  await page.waitForURL(`**sandboxReservation=${reservationId}`);
+  assert.equal(writes.length, 2);
+  const { requestKey: firstKey, ...firstPayload } = writes[0];
+  const { requestKey: secondKey, ...secondPayload } = writes[1];
+  assert.match(firstKey, /^[0-9a-f-]{36}$/);
+  assert.match(secondKey, /^[0-9a-f-]{36}$/);
+  assert.notEqual(secondKey, firstKey, "a changed booking payload cannot reuse a prior reservation key");
+  assert.deepEqual(secondPayload, { ...firstPayload, email: "updated@example.invalid" });
+  assert.deepEqual(externalRequests, []);
+});
+
+for (const checkoutUrl of [
+  "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
+  "http://checkout.stripe.com/c/pay/cs_test_fixture",
+  "javascript:alert(1)",
+  "/fr/dashboard/payments",
+]) {
+  test(`sandbox booking refuses untrusted checkout destination ${checkoutUrl}`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, "en", { postCheckoutUrl: checkoutUrl });
+    await page.goto(`${origin}/en/book/browser-fixture?sandbox=1`);
+    await selectBookingTime(page);
+    await page.locator('[name="fullName"]').fill("Fictional Browser Client");
+    await page.locator('[name="email"]').fill("browser@example.invalid");
+    await page.getByRole("button", { name: labels.en.pay, exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: labels.en.unavailable }).waitFor();
+    assert.equal(writes.length, 1);
+    assert.equal(page.url(), `${origin}/en/book/browser-fixture?sandbox=1`);
+    assert.deepEqual(externalRequests, [], "fixture must not request a checkout or other external host");
+    assert.equal(await page.getByRole("heading", { name: "Appointment confirmed" }).count(), 0);
+  });
+}
+
+test("pending deposit status exposes only a genuine Stripe Checkout link", async t => {
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    statusCheckoutUrl: "https://checkout.stripe.com.evil.example/c/pay/cs_test_fixture",
+  });
+  const statusResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/checkout" && response.request().method() === "GET");
+  await page.goto(`${origin}/en/book/browser-fixture?sandboxReservation=${reservationId}`);
+  await statusResponse;
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent?.includes("Check payment") && !button.disabled));
+  await page.getByRole("status").filter({ hasText: labels.en.pending }).waitFor();
+  assert.equal(await page.getByRole("link", { name: labels.en.pay }).count(), 0);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(externalRequests, []);
 });
 
 for (const locale of ["fr", "en", "es"]) {
@@ -235,6 +319,8 @@ test("changing service then language preserves the current service and sandbox q
   const second = "44444444-4444-4444-8444-444444444444";
   await page.goto(`${origin}/fr/book/browser-fixture?sandbox=1&service=${second}#booking`);
   await page.getByRole("heading", { name: labels.fr.title }).waitFor();
+  // The heading is server-rendered; the fixture slot appears after hydration and availability loading.
+  await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor({ state: "attached" });
   await page.locator('[name="bookingService"]').selectOption(first);
   assert.equal(new URL(page.url()).searchParams.get("service"), first);
   await page.getByRole("button", { name: "Changer de langue" }).click();
@@ -380,24 +466,72 @@ for (const locale of ["fr", "en", "es"]) {
     assert.equal("policies" in writes[0], false);
   });
 }
-test("public booking recovers from a taken slot before confirming a replacement", async t => {
-  const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
-  let conflicted = false;
-  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [conflicted ? replacement : slot] } });
-    writes.push(route.request().postDataJSON());
-    if (!conflicted) { conflicted = true; return route.fulfill({ status: 409, json: { error: "slot_unavailable" } }); }
-    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en", replacement.slot_start) } });
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} public booking recovers from a taken slot before confirming a replacement`, async t => {
+    const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+    let conflicted = false;
+    const { page, writes } = await pageFor(t, locale, { publicBooking: async (route, writes) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [conflicted ? replacement : slot] } });
+      writes.push(route.request().postDataJSON());
+      if (!conflicted) { conflicted = true; return route.fulfill({ status: 409, json: { error: "slot_unavailable" } }); }
+      return route.fulfill({ status: 201, json: { confirmation: confirmedBooking(locale, replacement.slot_start) } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: confirmationLabels[locale].conflict }).waitFor();
+    await page.locator(`input[type="radio"][value="${replacement.slot_start}"]`).waitFor();
+    assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+    assert.equal(await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).count(), 0);
+    await fillBooking(page, locale, replacement.slot_start);
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(writes.length, 2);
+    assert.equal(writes[0].locale, locale);
+    assert.equal(writes[1].locale, locale);
+    assert.equal(writes[1].startTime, replacement.slot_start);
+    assert.notEqual(writes[1].requestKey, writes[0].requestKey);
+  });
+}
+
+test("pending public booking accepts only one submission even if the form fires again", async t => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const { page, writes, externalRequests } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    await pending;
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en") } });
   } });
-  await page.goto(`${origin}/en/book/browser-fixture`);
-  await fillBooking(page, "en");
-  await page.getByRole("alert").filter({ hasText: confirmationLabels.en.conflict }).waitFor();
-  await page.locator(`input[type="radio"][value="${replacement.slot_start}"]`).waitFor();
-  assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
-  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 0);
-  await fillBooking(page, "en", replacement.slot_start);
+  try {
+    await page.goto(`${origin}/en/book/browser-fixture`);
+    await fillBooking(page, "en");
+    await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "true");
+    const submit = page.getByRole("button", { name: "Confirming…" });
+    assert.equal(await submit.isDisabled(), true);
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.length, 1, "a duplicate submit event must not start another POST");
+  } finally {
+    release?.();
+  }
   await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("ambiguous public booking failure retries the same request key", async t => {
+  const { page, writes, externalRequests } = await pageFor(t, "fr", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) return route.abort("failed");
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("fr") } });
+  } });
+  await page.goto(`${origin}/fr/book/browser-fixture`);
+  await fillBooking(page, "fr");
+  await page.getByRole("alert").filter({ hasText: "La réservation a échoué" }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).count(), 0);
+  await page.getByRole("button", { name: confirmationLabels.fr.submit, exact: true }).click();
+  await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).waitFor();
   assert.equal(writes.length, 2);
-  assert.equal(writes[1].startTime, replacement.slot_start);
-  assert.notEqual(writes[1].requestKey, writes[0].requestKey);
+  assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(writes[1], writes[0], "an uncertain first result must reuse its idempotency key and payload");
+  assert.deepEqual(externalRequests, []);
 });

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
@@ -96,6 +96,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
       page_offset: (page - 1) * pageSize,
     });
     loadError = Boolean(error);
+    if (!error && !data?.length && page > 1) redirect(pathname);
     if (data) results = data as SalonSearchResult[];
     const timeZonePromise = publicSalonTimeZones(results);
     if (results.length && !isLocale(visitorPreference ?? "")) {
@@ -113,7 +114,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
 
   const total = Number(results[0]?.total_count ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const jsonLd = !loadError && results.length ? JSON.stringify({
+  const jsonLd = !loadError ? JSON.stringify({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: title,

@@ -24,6 +24,46 @@ use those paragraphs as a current deployment status. Recheck the launch commit,
 database migration ledger, hosted settings, and production behavior before a
 go/no-go decision.
 
+For a repeatable read-only public route check, run
+`node tests/public-release-smoke.mjs` from the repository. It makes 22
+anonymous GET requests only to `https://glowflow.mocktar.com`. It checks the
+French root redirect and FR/EN/ES landing, salon, login, privacy, terms, and
+support pages. It verifies that each anonymous client-directory request
+redirects to the same-locale login. It does not send bookings or payments,
+read response bodies, authenticate, or verify a signed-in client workflow.
+A public HTML 200 confirms route availability, not legal accuracy, current
+approval, policy coverage, or that the Vercel alias points to the exact GitHub
+commit.
+Record the separate GitHub/Vercel identity and runtime-error evidence alongside
+its result; a pass is not a launch approval.
+
+## Historical production snapshot, not current status or launch approval
+
+At the 2026-10-19 UTC observation, GitHub `master` was
+`69573bfa7b4178193059a10f458ce705dd55d6b0`. Vercel deployment
+[`dpl_q7fDwt4H8Agr9gZtTzYcsNuyM4ot`](https://vercel.com/tairoumocktar-9966s-projects/glowflow/q7fDwt4H8Agr9gZtTzYcsNuyM4ot)
+was READY for that exact commit on the GlowFlow production project, and the
+`glowflow.mocktar.com` alias pointed to it. Vercel reported the project domain
+verified and its external-DNS CNAME configured without conflicts. Read-only
+HTTPS GETs returned French content at `/` and 200 at the published salon's
+`/fr/book/mocktar-braiding` route. The product owner confirmed the signed-in
+dashboard and client directory loaded. [GLOW-10](https://mocktarltd.atlassian.net/browse/GLOW-10)
+records the domain checks and rollback runbook; [GLOW-16](https://mocktarltd.atlassian.net/browse/GLOW-16)
+records the client-directory scope and remaining live-flow verification.
+
+Subsequently, [PR #91](https://github.com/mocktar2021/glowflow/pull/91) merged
+as `1e4e22a2ad908ee625f67b8809682944b66dda4c`. The observation above
+therefore cannot establish any later production build or alias. Consult a
+separate exact-commit release check for the latest deployment.
+
+The historical snapshot does not verify a historical backup restore, hosted
+authorization/settings, alert delivery, all localized journeys, legal approval
+for launch countries, or live financial operations. It expires when the
+production alias, application commit, relevant database revision, or provider
+configuration changes. Recheck those identities against the exact proposed
+release before a launch decision; never carry a green result forward solely
+because a URL is stable.
+
 ## Go/no-go checklist for an exact release
 
 For each item, record the UTC observation time, evidence URL or artifact,
@@ -67,6 +107,41 @@ record.
 - [ ] Product owner records the final go/no-go, exceptions, rollback trigger,
       decision time, and who will monitor the first operating period. Keep
       GLOW-36 In Progress if any required evidence or decision is missing.
+
+## Exact-release decision record template
+
+Copy this block into a dated, access-controlled release record. Link evidence
+instead of copying customer data, credentials, secret-bearing logs, or payment
+details. Use **Pending** when a check has not run, **Failed** when it ran and
+failed, and **Not applicable** only with a written scope reason and product-owner
+approval. A pilot exception does not turn an unmet paid-launch gate into a pass.
+
+| Identity / decision | Value to record |
+| --- | --- |
+| Decision time (UTC), product owner, decision | Pending |
+| Release type, countries, salons, pilot limits | Pending |
+| GitHub repository, exact `master` SHA, CI/security/browser run URLs | Pending |
+| Vercel team/project, deployment ID, production target, READY time, alias | Pending |
+| Supabase organization/project, migration ledger and schema fingerprints | Pending |
+| Payment and messaging provider mode and accountable owners, without secrets | Pending |
+| Named incident lead, backup operator, alternates, support/alert contacts | Pending |
+| Monitoring window, rollback trigger, prior READY deployment | Pending |
+
+For every checklist gate above, add a row in the release record using this
+format. Keep separate rows for legal/policy publication, support and alerting,
+historical database plus Storage recovery, security/RLS, FR/EN/ES journeys,
+domain/TLS, test-data cleanup, and, for a paid launch, payments/refunds/tax/
+receipts/reconciliation. Record provider evidence independently of repository
+tests.
+
+| Gate | Applies to this release? | Pass / Failed / Pending / Not applicable | Evidence URL or artifact | Checked at (UTC) and by whom | Open risk, exception owner, retest trigger |
+| --- | --- | --- | --- | --- | --- |
+| Example: historical database and Storage restore | Yes | Pending | No selected historical-point drill yet | Not checked | Product owner to approve an isolated drill; rerun if backup policy changes |
+
+The product owner signs a final **Go** or **No-go** only after reviewing every
+applicable row. Record any supervised-pilot exception with its owner, expiry,
+containment, and rollback trigger. Leave GLOW-36 In Progress while required
+evidence or the exact-release decision is missing.
 
 ## Recovery exercise evidence template
 
