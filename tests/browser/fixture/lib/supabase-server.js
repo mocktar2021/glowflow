@@ -16,7 +16,7 @@ export async function createClient() {
     tenants: [{ id: "tenant-a", tenant_id: "tenant-a", owner_id: "owner-a", name: "Fixture Salon", country_code: "US", currency: "USD", time_zone: "America/New_York" }],
     clients: [
       { id: "client-a", tenant_id: "tenant-a", full_name: "Fixture Client" },
-      { id: "30000000-0000-0000-0000-000000000001", tenant_id: "tenant-a", full_name: "Synthetic Alice", email: "alice@example.invalid", phone: "+1 555 010 1234", notes: "Synthetic private note", nail_preferences: { shape: "Almond", product_type: "Gel", shade: "Rose gold", design_notes: "Synthetic floral design <img src=x onerror=alert(1)>", last_infill_date: "2030-06-01" }, preferred_locale: "fr", created_at: "2030-01-01T00:00:00Z" },
+      { id: "30000000-0000-0000-0000-000000000001", tenant_id: "tenant-a", full_name: "Synthetic Alice", email: "alice@example.invalid", phone: "+1 555 010 1234", notes: "Synthetic private note", nail_preferences: { shape: "Almond", product_type: "Gel", shade: "Rose gold", design_notes: "Synthetic floral design <img src=x onerror=alert(1)>", last_infill_date: "2030-06-01", private_photo_tokens: "SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE" }, preferred_locale: "fr", created_at: "2030-01-01T00:00:00Z" },
       { id: "30000000-0000-0000-0000-000000000002", tenant_id: "tenant-b", full_name: "Synthetic Foreign", email: "foreign@example.invalid", phone: null, notes: "Foreign private note", nail_preferences: { shade: "Foreign nail secret" }, preferred_locale: "en", created_at: "2030-01-01T00:00:00Z" },
       ...Object.values(globalThis.__glowflowFixtureCreatedClients ?? {}),
     ],

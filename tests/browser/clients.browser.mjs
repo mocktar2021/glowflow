@@ -67,7 +67,9 @@ for (const [locale, title, search, history, nailPreferences, shade] of [
       await page.getByRole("link", { name: /Fixture Client/ }).waitFor({ state: "detached" });
       assert.equal(await page.getByRole("link", { name: /Fixture Client/ }).count(), 0);
       assert.equal(new URL(page.url()).search, "", "contact search stays out of the URL");
-      await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
+      const profileResponse = await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
+      assert.equal(profileResponse.status(), 200);
+      assert.doesNotMatch(await profileResponse.text(), /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
       await page.getByRole("heading", { name: "Synthetic Alice" }).waitFor();
       await page.getByRole("heading", { name: history }).waitFor();
       const nails = page.getByRole("region", { name: nailPreferences });

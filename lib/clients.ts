@@ -11,7 +11,7 @@ export type ClientSummary = {
   preferred_locale: Locale;
 };
 
-export type ClientProfile = ClientSummary & { notes: string | null; created_at: string; nail_preferences: unknown };
+export type ClientProfile = ClientSummary & { notes: string | null; created_at: string };
 
 export async function clientMember(locale: Locale) {
   const { supabase, userId } = await requireUser(locale);

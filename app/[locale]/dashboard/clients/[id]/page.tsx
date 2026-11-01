@@ -20,7 +20,13 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
     .select("id,full_name,phone,email,notes,preferred_locale,created_at,nail_preferences")
     .eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (error || !data) notFound();
-  const client = data as ClientProfile;
+  const row = data as ClientProfile & { nail_preferences: unknown };
+  // ClientForm is a client component. Pass only its explicit fields so the
+  // raw JSONB object and any unknown private keys never enter the RSC payload.
+  const client: ClientProfile = {
+    id: row.id, full_name: row.full_name, phone: row.phone, email: row.email,
+    preferred_locale: row.preferred_locale, notes: row.notes, created_at: row.created_at,
+  };
   const [{ data: rawHistory, error: historyError }, { data: tenant, error: tenantError }] = await Promise.all([
     supabase.from("appointments").select("id,service_title_json,start_time,status")
       .eq("tenant_id", tenantId).eq("client_id", id).order("start_time", { ascending: false }).limit(20),
@@ -30,7 +36,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
   if (tenantError || !tenant) throw new Error("Unable to load salon time zone");
   const history = (rawHistory ?? []) as Appointment[];
   const labels = copy[locale];
-  const nails = readNailPreferences(client.nail_preferences);
+  const nails = readNailPreferences(row.nail_preferences);
   const nailFields = [
     [labels.nailShape, nails.shape],
     [labels.nailProductType, nails.productType],
