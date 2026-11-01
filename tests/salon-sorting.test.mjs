@@ -13,7 +13,7 @@ const markets = await import("../lib/markets.ts");
 const migration = await readFile(new URL("../supabase/migrations/20261017220612_add_public_salon_sorting.sql", import.meta.url), "utf8");
 const rollback = await readFile(new URL("../supabase/rollbacks/20261017220612_drop_public_salon_sorting.sql", import.meta.url), "utf8");
 
-async function loadPage(rpc, configured = true) {
+async function loadPage(rpc, configured = true, captureDistanceProps) {
   const source = await readFile(new URL("../app/[locale]/salons/(search)/page.tsx", import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
@@ -22,7 +22,7 @@ async function loadPage(rpc, configured = true) {
     "next/headers": { cookies: async () => ({ get: () => ({ value: "en" }) }) },
     "next/navigation": { notFound() { throw new Error("not-found"); } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
-    "@/components/glowflow/distance-search": { DistanceSearch: ({ children }) => children },
+    "@/components/glowflow/distance-search": { DistanceSearch: ({ children, ...props }) => { captureDistanceProps?.(props); return children; } },
     "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: ({ salon }) => React.createElement("article", null, salon.business_name) },
     "@/components/glowflow/visitor-time-zone-field": { VisitorTimeZoneField: ({ initialZone, label, help, detectBrowserZone }) => React.createElement("div", { "data-zone": initialZone, "data-detect": detectBrowserZone }, label, help) },
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (_country, visitor, fallback) => visitor ?? fallback },
@@ -265,4 +265,38 @@ test("invalid date and zone do not reach SQL as an invalid timestamp", async () 
   assert.match(html, /No se reconoce esa zona horaria/);
   assert.match(html, /La fecha no es válida/);
   assert.match(html, /data-zone="UTC" data-detect="false"/);
+});
+
+test("production results section does not nest the distance live region inside a broad live section", async () => {
+  const distanceProps = [];
+  const Page = await loadPage(async () => ({ data: [], error: null }), true, props => distanceProps.push(props));
+  const warningHtml = renderToStaticMarkup(await Page({
+    params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: "ZZ", q: "unknown" }),
+  }));
+  const resultSection = warningHtml.match(/<section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"[^>]*>/);
+  assert.ok(resultSection, "the production results section renders");
+  assert.doesNotMatch(resultSection[0], /\b(?:aria-live|role)=/, "card changes must not be announced by an outer live region");
+  assert.match(warningHtml, /<p role="status"[^>]*>That country is not available/, "individual warnings remain announced");
+  assert.equal(distanceProps.at(-1).fallbackAnnouncement,
+    "No salons match these filters. Change or clear the filters to broaden your search.",
+    "the same scoped live region describes an empty filtered result");
+
+  renderToStaticMarkup(await Page({
+    params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({}),
+  }));
+  assert.equal(distanceProps.at(-1).fallbackAnnouncement,
+    "The first salons are coming soon. Salons will appear here only after their owner chooses to publish their profile.");
+
+  const CountPage = await loadPage(async () => ({ data: [{ slug: "fixture", business_name: "Fixture", country_code: "US", city: "Fixture", total_count: 2 }], error: null }), true, props => distanceProps.push(props));
+  renderToStaticMarkup(await CountPage({
+    params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({}),
+  }));
+  assert.equal(distanceProps.at(-1).fallbackAnnouncement, "2 salons found.",
+    "ordinary results retain a concise count announcement");
+
+  const UnavailablePage = await loadPage(async () => { throw new Error("should not query"); }, false);
+  const errorHtml = renderToStaticMarkup(await UnavailablePage({
+    params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({}),
+  }));
+  assert.match(errorHtml, /<div role="status"[^>]*><h2[^>]*>Search is unavailable/, "the load error retains a scoped status");
 });

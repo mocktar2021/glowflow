@@ -457,7 +457,7 @@ export default async function SalonSearchPage({
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {invalidCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidCountry}</p> : null}
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
         {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
@@ -465,9 +465,12 @@ export default async function SalonSearchPage({
         {invalidDate ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidDate}</p> : null}
         {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
-        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}>
+        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}
+          fallbackAnnouncement={results.length === 0
+            ? `${hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}. ${hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}`
+            : `${total} ${total === 1 ? labels.oneResult : labels.results}.`}>
         {loadError ? (
-          <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
+          <div role="status" className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.errorText}</p>
           </div>

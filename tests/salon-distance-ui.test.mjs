@@ -185,9 +185,9 @@ test("distance pagination has one concise localized live announcement without ch
       "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     };
     new Function("require", "exports", js)(name => deps[name] ?? require(name), loaded.exports);
-    const render = () => {
+    const render = (enabled = true) => {
       stateIndex = 0;
-      return loaded.exports.DistanceSearch({ children: "existing results", locale, labels: {}, filters: {}, pageSize: 1, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled: true });
+      return loaded.exports.DistanceSearch({ children: "existing results", locale, labels: {}, filters: {}, pageSize: 1, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled, fallbackAnnouncement: "Existing results" });
     };
     const find = (node, predicate, matches = []) => {
       if (!node || typeof node !== "object") return matches;
@@ -211,7 +211,10 @@ test("distance pagination has one concise localized live announcement without ch
     state[5] = "loading";
     assertAnnouncement(loading);
     state[5] = "idle";
-    assertAnnouncement("");
+    assertAnnouncement("Existing results");
+    state[1] = null;
+    assert.equal(find(render(false), node => node.props?.role === "status").length, 0, "disabled distance controls leave the error's own status alone");
+    state[1] = [{ slug: "fixture", country_code: "US", city: "Fixture" }];
     state[2] = 1;
     state[3] = 1;
     state[5] = "active";

@@ -30,7 +30,7 @@ const copy = {
   es: { action: "Ordenar cerca de mí", clear: "Dejar de ordenar por distancia", requesting: "Buscando tu ubicación…", loading: "Ordenando por distancia…", denied: "Ubicación no disponible. Elige un país o una ciudad para buscar manualmente.", unavailable: "La ordenación por distancia no está disponible. Se mantienen los resultados actuales.", noPins: "Ningún salón coincidente tiene un punto en el mapa. Se mantienen los resultados actuales. Puedes buscar por país o ciudad.", active: "Salones ordenados por distancia aproximada. Los que no tienen punto en el mapa aparecen al final.", results: "salones encontrados", oneResult: "salón encontrado", previous: "Anterior", next: "Siguiente", page: "Página", of: "de", empty: "Ningún salón coincide con estos filtros." },
 } as const;
 
-export function DistanceSearch({ children, locale, labels, filters, pageSize, visitorPreference, countryDefaultLocales, initialSalonTimeZones, enabled }: {
+export function DistanceSearch({ children, locale, labels, filters, pageSize, visitorPreference, countryDefaultLocales, initialSalonTimeZones, enabled, fallbackAnnouncement = "" }: {
   children: ReactNode;
   locale: Locale;
   labels: CardLabels;
@@ -40,6 +40,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
   countryDefaultLocales: Record<string, string>;
   initialSalonTimeZones: Record<string, string>;
   enabled: boolean;
+  fallbackAnnouncement?: string;
 }) {
   const messages = copy[locale];
   const [origin, setOrigin] = useState<ReturnType<typeof coarseVisitorOrigin>>(null);
@@ -123,7 +124,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const announcement = status === "active" && distanceResults
     ? `${total} ${total === 1 ? messages.oneResult : messages.results}.${totalPages > 1 ? ` ${messages.page} ${page} ${messages.of} ${totalPages}.` : ""}`
-    : status === "idle" ? "" : messages[status];
+    : status === "idle" ? fallbackAnnouncement : messages[status];
 
   return (
     <>
