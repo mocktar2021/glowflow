@@ -3,8 +3,6 @@ import {execFile,execFileSync} from 'node:child_process';
 import {readFileSync,readdirSync} from 'node:fs';
 import {promisify} from 'node:util';
 import test from 'node:test';
-import Stripe from 'stripe';
-import ts from 'typescript';
 import { verifySandboxAuthorization } from './rls-authorization.mjs';
 
 // Explicit opt-in: run against a fresh, disposable localhost database only.
@@ -98,6 +96,8 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
 
  // Exercise the signature boundary and the real settlement RPC together.
  // These are local synthetic records, not a provider or hosted database call.
+ const {default:Stripe}=await import('stripe');
+ const {default:ts}=await import('typescript');
  const signedReservation=JSON.parse(sql(reserve('40000000-0000-0000-0000-00000000000a',"(current_date+15+time '10:00') at time zone 'UTC'")));
  const stripe=new Stripe('rk_test_local_fixture');
  const secret='whsec_local_fixture';
