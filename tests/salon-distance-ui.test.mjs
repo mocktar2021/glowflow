@@ -125,6 +125,46 @@ test("stopping a pending location request ignores late success and denial callba
   assert.equal(rpcCalls.length, 0);
 });
 
+test("all localized distance and paging controls render a visible keyboard focus outline", () => {
+  const js = ts.transpileModule(component, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const labels = [
+    ["fr", "Trier près de moi", "Arrêter le tri par distance", "Précédent", "Suivant"],
+    ["en", "Sort near me", "Stop distance sorting", "Previous", "Next"],
+    ["es", "Ordenar cerca de mí", "Dejar de ordenar por distancia", "Anterior", "Siguiente"],
+  ];
+  for (const [locale, ...buttonLabels] of labels) {
+    const state = [null, [], 2, 27];
+    let stateIndex = 0;
+    const loaded = { exports: {} };
+    const deps = {
+      react: { useState(initial) { const slot = stateIndex++; return [state[slot] ?? initial, () => {}]; }, useRef(initial) { return { current: initial }; } },
+      "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+      "@/lib/i18n": { salonProfileLocale: () => locale },
+      "@/lib/markets": { fallbackMarkets: [] },
+      "@/lib/marketplace-locations": { marketplaceLocation: () => null, marketplaceLocationHref: () => "" },
+      "@/lib/salon-search": { coarseVisitorOrigin },
+      "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    };
+    new Function("require", "exports", js)(name => deps[name] ?? require(name), loaded.exports);
+    const tree = loaded.exports.DistanceSearch({ children: "existing results", locale, labels: {}, filters: {}, pageSize: 9, visitorPreference: null, countryDefaultLocales: {}, initialSalonTimeZones: {}, enabled: true });
+    const buttons = [];
+    const visit = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (node.type === "button") buttons.push(node);
+      for (const child of Array.isArray(node.props?.children) ? node.props.children : [node.props?.children]) visit(child);
+    };
+    visit(tree);
+    assert.deepEqual(buttons.map((button) => button.props.children), buttonLabels, `${locale} controls`);
+    for (const button of buttons) {
+      assert.match(button.props.className, /focus-visible:outline-solid/);
+      assert.match(button.props.className, /focus-visible:outline-2/);
+      assert.match(button.props.className, /focus-visible:outline-offset-2/);
+      assert.match(button.props.className, /focus-visible:outline-\[#8a5728\]/);
+      assert.match(button.props.className, /dark:focus-visible:outline-\[#efc992\]/);
+    }
+  }
+});
+
 test("owner point editing is explicit, optional, and compatible with a pre-migration profile save", () => {
   assert.match(ownerControl, /type="button" onClick={useDeviceLocation}/);
   assert.match(ownerControl, /name="map_latitude"/);
