@@ -41,6 +41,7 @@ jobs:
       - name: Run logical backup and restore drill
         env:
           GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
+          PSQL_BIN: /usr/lib/postgresql/16/bin/psql
           PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
           PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
         run: node tests/recovery-run.mjs
