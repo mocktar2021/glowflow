@@ -3,6 +3,8 @@ import {execFile,execFileSync} from 'node:child_process';
 import {readFileSync,readdirSync} from 'node:fs';
 import {promisify} from 'node:util';
 import test from 'node:test';
+import Stripe from 'stripe';
+import ts from 'typescript';
 import { verifySandboxAuthorization } from './rls-authorization.mjs';
 
 // Explicit opt-in: run against a fresh, disposable localhost database only.
@@ -93,4 +95,67 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
  sql(`insert into public.appointments(tenant_id,staff_id,station_name,start_time,buffer_end_time,status) values('${tenant}','${staff}','chair','${late.start_time}','${late.buffer_end_time}','confirmed')`);
  assert.equal(JSON.parse(sql(event(late,'evt_capacity'))).status,'reconciliation_required');
  verifySandboxAuthorization(sql,r);
+
+ // Exercise the signature boundary and the real settlement RPC together.
+ // These are local synthetic records, not a provider or hosted database call.
+ const signedReservation=JSON.parse(sql(reserve('40000000-0000-0000-0000-00000000000a',"(current_date+15+time '10:00') at time zone 'UTC'")));
+ const stripe=new Stripe('rk_test_local_fixture');
+ const secret='whsec_local_fixture';
+ const payload=JSON.stringify({
+  id:'evt_signedfixture',account:signedReservation.stripe_account_id,
+  type:'checkout.session.completed',livemode:false,
+  data:{object:{
+   id:'cs_test_signedfixture',object:'checkout.session',mode:'payment',livemode:false,
+   payment_status:'paid',payment_intent:'pi_signedfixture',
+   amount_total:signedReservation.amount,currency:signedReservation.currency.toLowerCase(),
+   metadata:{tenant_id:signedReservation.tenant_id,appointment_id:signedReservation.appointment_id,
+    client_id:signedReservation.client_id,reservation_id:signedReservation.id,
+    environment:'sandbox',product:'glowflow'},
+  }},
+ });
+ const compile=source=>`data:text/javascript;base64,${Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64')}`;
+ const helperUrl=compile(readFileSync(new URL('lib/stripe-deposit-events.ts',root),'utf8'));
+ const rpcCalls=[];
+ const argumentOrder=['target_event_id','target_account_id','target_reservation_id','target_session_id',
+  'target_payment_intent_id','target_event_type','target_amount','target_currency','target_tenant_id',
+  'target_appointment_id','target_client_id','target_livemode'];
+ const literal=value=>value===null?'null':typeof value==='number'||typeof value==='boolean'
+  ?String(value):`'${String(value).replaceAll("'","''")}'`;
+ globalThis.__sandboxWebhookIntegration={
+  stripe:()=>stripe,configuration:()=>({}),
+  admin:()=>({rpc:async(name,args)=>{
+   rpcCalls.push({name,args});
+   assert.equal(name,'process_stripe_sandbox_event');
+   const query=`set role service_role;select row_to_json(r) from public.process_stripe_sandbox_event(${argumentOrder.map(key=>literal(args[key])).join(',')}) r`;
+   return {data:JSON.parse(sql(query).split('\n').at(-1)),error:null};
+  }}),
+ };
+ const priorSecret=process.env.STRIPE_SANDBOX_WEBHOOK_SECRET;
+ process.env.STRIPE_SANDBOX_WEBHOOK_SECRET=secret;
+ try {
+  let source=readFileSync(new URL('app/api/stripe/webhook/route.ts',root),'utf8');
+  source=source
+   .replace('"@/lib/payment-diagnostics"',JSON.stringify(compile(readFileSync(new URL('lib/payment-diagnostics.ts',root),'utf8'))))
+   .replace('import { createAdminClient } from "@/lib/supabase/admin";','const createAdminClient = globalThis.__sandboxWebhookIntegration.admin;')
+   .replace('import { createStripeClient } from "@/lib/stripe";','const createStripeClient = globalThis.__sandboxWebhookIntegration.stripe;')
+   .replace('import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";','const sandboxDepositConfiguration = globalThis.__sandboxWebhookIntegration.configuration;')
+   .replace('"@/lib/stripe-deposit-events"',JSON.stringify(helperUrl));
+  const {POST}=await import(compile(source));
+  const signature=stripe.webhooks.generateTestHeaderString({payload,secret});
+  const request=body=>new Request('https://preview.example.invalid/api/stripe/webhook',{
+   method:'POST',body,headers:{'stripe-signature':signature},
+  });
+  assert.equal((await POST(request(payload))).status,200);
+  assert.equal(sql(`select status from public.stripe_sandbox_reservations where id='${signedReservation.id}'`),'paid');
+  assert.equal(rpcCalls.length,1);
+  assert.equal(rpcCalls[0].args.target_reservation_id,signedReservation.id);
+  assert.equal((await POST(request(payload))).status,200);
+  assert.equal(sql("select count(*) from public.stripe_sandbox_events where event_id='evt_signedfixture'"),'1');
+  assert.equal((await POST(request(payload+' '))).status,400,'tampering invalidates the raw-body signature');
+  assert.equal(rpcCalls.length,2,'tampered payload must not reach the settlement RPC');
+ } finally {
+  if(priorSecret===undefined) delete process.env.STRIPE_SANDBOX_WEBHOOK_SECRET;
+  else process.env.STRIPE_SANDBOX_WEBHOOK_SECRET=priorSecret;
+  delete globalThis.__sandboxWebhookIntegration;
+ }
 });
