@@ -338,6 +338,58 @@ test("changing service then language preserves the current service and sandbox q
   assert.equal("countryCode" in writes[0], false, "checkout derives country from the selected salon, not a browser field");
 });
 
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} controlled booking choices wait for hydration before accepting input`, async t => {
+    const { page } = await pageFor(t, locale);
+    const first = "11111111-1111-4111-8111-111111111111";
+    const second = "44444444-4444-4444-8444-444444444444";
+    const ben = "66666666-6666-4666-8666-666666666666";
+    let releaseJs;
+    const barrier = new Promise(resolve => { releaseJs = resolve; });
+    let paused = 0;
+    await page.route("**/_next/static/**/*.js*", async route => {
+      paused++;
+      await barrier;
+      await route.continue();
+    });
+    try {
+      await page.goto(`${origin}/${locale}/book/browser-fixture?sandbox=1&service=${second}#booking`, { waitUntil: "domcontentloaded" });
+      assert.ok(paused > 0, "the fixture must hold hydration scripts");
+      const service = page.locator('[name="bookingService"]');
+      const staff = page.locator('[name="bookingStaff"]');
+      const date = page.locator('[type="date"]');
+      const name = page.locator('[name="fullName"]');
+      assert.equal(await service.inputValue(), second);
+      assert.equal(await service.isDisabled(), true, "a pre-hydration choice cannot be honored");
+      assert.equal(await staff.isDisabled(), true);
+      assert.equal(await date.isDisabled(), true);
+      await assert.rejects(service.selectOption(first, { timeout: 300 }), /Timeout/);
+      await assert.rejects(staff.selectOption(ben, { timeout: 300 }), /Timeout/);
+      await assert.rejects(date.fill("2030-01-16", { timeout: 300 }), /Timeout/);
+      assert.equal(await service.inputValue(), second);
+      assert.equal(await staff.inputValue(), "");
+      assert.equal(new URL(page.url()).searchParams.get("service"), second);
+      await name.fill("Fictional Browser Client");
+
+      releaseJs();
+      await page.locator(`[name="bookingTime"][value="${slot.slot_start}"]`).waitFor({ state: "attached" });
+      assert.equal(await service.isEnabled(), true);
+      assert.equal(await staff.isEnabled(), true);
+      assert.equal(await date.isEnabled(), true);
+      assert.equal(await name.inputValue(), "Fictional Browser Client", "uncontrolled contact input remains editable");
+      await service.selectOption(first);
+      await staff.selectOption(ben);
+      await date.fill("2030-01-16");
+      assert.equal(await service.inputValue(), first);
+      assert.equal(await staff.inputValue(), ben);
+      assert.equal(await date.inputValue(), "2030-01-16");
+      assert.equal(new URL(page.url()).searchParams.get("service"), first);
+    } finally {
+      releaseJs();
+    }
+  });
+}
+
 test("named professional filters available times and submits that professional", async t => {
   const ben = { slot_start: "2030-01-15T11:00:00Z", staff_id: "66666666-6666-4666-8666-666666666666" };
   const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
