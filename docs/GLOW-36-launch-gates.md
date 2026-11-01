@@ -7,7 +7,7 @@ commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
 
-## Current verified release snapshot, not launch approval
+## Verified 2026-11-01 release snapshot, not launch approval
 
 At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
 `72d52c5b5a2448f15f8e585270dbc2588ce37bb5`, the merge of
