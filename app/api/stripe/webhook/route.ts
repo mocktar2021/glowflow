@@ -27,7 +27,15 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "invalid_signature" }, { status: 400 });
   }
-  const args = sandboxDepositEventArguments(event);
+  let args: ReturnType<typeof sandboxDepositEventArguments>;
+  try {
+    args = sandboxDepositEventArguments(event);
+  } catch {
+    // A signed payload can still have an invalid JSON shape. Do not acknowledge
+    // a potentially actionable event or log its raw body; allow Stripe to retry.
+    reportPaymentFailure("webhook_event", "event_parse_failed");
+    return Response.json({ error: "event_processing_failed" }, { status: 503 });
+  }
   if (!args) return Response.json({ received: true });
   try {
     // PostgreSQL locks the reservation and atomically validates correlation,

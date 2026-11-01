@@ -124,6 +124,34 @@ test("disabled preview configuration rejects processing and ignores unrelated si
   assert.equal((await POST(request(event("payment_intent.succeeded")))).status, 200);
   assert.equal(calls.length, 0);
 });
+test("signed malformed sandbox events fail safely and remain retryable without settlement or payload logs", async () => {
+  process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  calls = [];
+  try {
+    const malformed = [
+      null,
+      (() => { const value = event(); delete value.data; return value; })(),
+      (() => { const value = event(); value.data.object = null; return value; })(),
+      (() => { const value = event(); value.id = { toString: null }; return value; })(),
+      (() => { const value = event(); value.data.object.id = { toString: null }; return value; })(),
+      (() => { const value = event(); value.data.object.metadata.tenant_id = { toString: null }; return value; })(),
+      (() => { const value = event(); value.data.object.currency = { toString: null }; return value; })(),
+      (() => { const value = event(); value.data.object.payment_intent = { id: { toString: null } }; return value; })(),
+    ];
+    for (const value of malformed) {
+      const response = await POST(request(value));
+      assert.equal(response.status, 503, "a signed malformed shape must not be acknowledged");
+      assert.deepEqual(await response.json(), { error: "event_processing_failed" });
+    }
+    assert.equal(calls.length, 0, "malformed events never reach settlement RPC");
+    assert.deepEqual(logs.map(([line]) => JSON.parse(line)), Array(malformed.length).fill({
+      event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_event", code: "event_parse_failed",
+    }));
+    assert.ok(logs.every(([line]) => !line.includes("evt_fixture") && !line.includes("cs_test_fixture")));
+  } finally { console.error = original; }
+});
 test("database failure and correlation rejection are retryable and never acknowledged", async () => {
   for (const failure of [{ error: { code: "08006", message: "private database details" } }, { error: { code: "22023" } }, new Error("private server details")]) {
     result = failure;

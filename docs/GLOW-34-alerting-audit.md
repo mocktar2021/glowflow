@@ -71,3 +71,23 @@ are actually verified.
 
 No hosted SQL, Auth, Storage, Stripe configuration, deployment setting or
 customer record is changed by this audit.
+
+## Draft candidate: signed-event parser failure
+
+A synthetic, correctly signed webhook body can still contain malformed JSON
+shape. In the current route, an exception from the sandbox event-shape parser
+escapes before the persistence catch, yielding an unclassified function error.
+The GLOW-34 draft guard catches only that parser boundary, emits a fixed
+`webhook_event`/`event_parse_failed` diagnostic without event or customer
+details, and returns a generic 503. A 503 preserves Stripe retry behavior and
+does not acknowledge a potentially actionable event. Missing or invalid
+signatures remain 400; verified unrelated or non-actionable events remain 200;
+successful settlement still requires the atomic database RPC.
+
+This is a proposed failure contract, not an active alert. A permanently
+malformed signed event or a parser regression could cause repeated retries and
+logs. There is no durable quarantine, alert destination, owner acknowledgement,
+or tested provider redelivery in this slice. Before merging or enabling any
+alert rule, an operator must review the 503-versus-acknowledgement policy and
+the Stripe retry/triage path. Tests use only synthetic local signatures; no
+provider event, checkout, payment or customer message is sent.
