@@ -464,27 +464,31 @@ for (const locale of ["fr", "en", "es"]) {
     assert.equal("policies" in writes[0], false);
   });
 }
-test("public booking recovers from a taken slot before confirming a replacement", async t => {
-  const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
-  let conflicted = false;
-  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, writes) => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [conflicted ? replacement : slot] } });
-    writes.push(route.request().postDataJSON());
-    if (!conflicted) { conflicted = true; return route.fulfill({ status: 409, json: { error: "slot_unavailable" } }); }
-    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en", replacement.slot_start) } });
-  } });
-  await page.goto(`${origin}/en/book/browser-fixture`);
-  await fillBooking(page, "en");
-  await page.getByRole("alert").filter({ hasText: confirmationLabels.en.conflict }).waitFor();
-  await page.locator(`input[type="radio"][value="${replacement.slot_start}"]`).waitFor();
-  assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
-  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 0);
-  await fillBooking(page, "en", replacement.slot_start);
-  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
-  assert.equal(writes.length, 2);
-  assert.equal(writes[1].startTime, replacement.slot_start);
-  assert.notEqual(writes[1].requestKey, writes[0].requestKey);
-});
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} public booking recovers from a taken slot before confirming a replacement`, async t => {
+    const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+    let conflicted = false;
+    const { page, writes } = await pageFor(t, locale, { publicBooking: async (route, writes) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [conflicted ? replacement : slot] } });
+      writes.push(route.request().postDataJSON());
+      if (!conflicted) { conflicted = true; return route.fulfill({ status: 409, json: { error: "slot_unavailable" } }); }
+      return route.fulfill({ status: 201, json: { confirmation: confirmedBooking(locale, replacement.slot_start) } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: confirmationLabels[locale].conflict }).waitFor();
+    await page.locator(`input[type="radio"][value="${replacement.slot_start}"]`).waitFor();
+    assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+    assert.equal(await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).count(), 0);
+    await fillBooking(page, locale, replacement.slot_start);
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(writes.length, 2);
+    assert.equal(writes[0].locale, locale);
+    assert.equal(writes[1].locale, locale);
+    assert.equal(writes[1].startTime, replacement.slot_start);
+    assert.notEqual(writes[1].requestKey, writes[0].requestKey);
+  });
+}
 
 test("pending public booking accepts only one submission even if the form fires again", async t => {
   let release;
