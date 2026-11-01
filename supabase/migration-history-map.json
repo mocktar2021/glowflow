@@ -254,6 +254,13 @@
       "sourceVersion": "20261018000135",
       "marker": false,
       "normalizedSha256": "3781a6771051c5131ad4ceb3592a00dbb2e36a10ae27efe30ef72470aa63692f"
+    },
+    {
+      "version": "20261101172437",
+      "name": "fail_closed_future_notification_consent",
+      "sourceVersion": "20261101172437",
+      "marker": false,
+      "normalizedSha256": "07412122236baeb9fed8bf54285d1ed17ac445cfdcbec123f00b4103d1118904"
     }
   ]
 }
