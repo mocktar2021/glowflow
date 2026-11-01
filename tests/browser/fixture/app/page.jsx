@@ -4,9 +4,14 @@ import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { NotificationTemplatePreview } from "@/components/glowflow/notification-template-preview";
 import { VisitorTimeZoneField } from "@/components/glowflow/visitor-time-zone-field";
+import { DistanceSearch } from "@/components/glowflow/distance-search";
 export default function Fixture() {
   const locale = usePathname().split("/")[1] || "fr";
   const search = useSearchParams();
+  if (search.get("distanceFocus") === "1") return <DistanceSearch
+    locale={locale} labels={{}} filters={{}} pageSize={9} visitorPreference={null}
+    countryDefaultLocales={{}} initialSalonTimeZones={{}} enabled={true}
+  ><p>Existing results</p></DistanceSearch>;
   if (search.get("zoneFixture") === "1") return <form><VisitorTimeZoneField
     initialZone={search.get("zone") || "UTC"}
     detectBrowserZone={!search.has("zone") && !search.has("date")}

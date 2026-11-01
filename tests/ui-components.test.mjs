@@ -44,6 +44,12 @@ test("emits a solid visible focus outline that overrides outline-none", async ()
   assert.ok(css.includes(String.raw`.focus-visible\:outline-\[\#b77a42\]:focus-visible{outline-color:#b77a42}`), "the compiled focus outline uses the marketplace color");
 });
 
+test("emits light and dark focus outlines for marketplace distance controls", async () => {
+  const css = await readCssTree(path.join(root, ".next", "static"));
+  assert.ok(css.includes(String.raw`.focus-visible\:outline-\[\#8a5728\]:focus-visible{outline-color:#8a5728}`));
+  assert.ok(css.includes(String.raw`.dark\:focus-visible\:outline-\[\#efc992\]`));
+});
+
 test("forwards progress semantics to the primitive", async () => {
   const source = await readFile(path.join(root, "components", "ui", "progress.tsx"), "utf8");
 

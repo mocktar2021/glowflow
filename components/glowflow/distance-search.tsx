@@ -125,8 +125,8 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
   return (
     <>
       {enabled ? <div className="mb-5 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={requestLocation} disabled={busy} className="min-h-11 rounded-xl border border-[#cdbba6] bg-white px-4 py-2 text-sm font-semibold text-[#7b4b24] hover:bg-[#faf5ed] disabled:opacity-60 dark:border-white/20 dark:bg-white/5 dark:text-[#efc992] dark:hover:bg-white/10">{messages.action}</button>
-        {distanceResults || busy ? <button type="button" onClick={clearDistance} className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]">{messages.clear}</button> : null}
+        <button type="button" onClick={requestLocation} disabled={busy} className="min-h-11 rounded-xl border border-[#cdbba6] bg-white px-4 py-2 text-sm font-semibold text-[#7b4b24] hover:bg-[#faf5ed] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] disabled:opacity-60 dark:border-white/20 dark:bg-white/5 dark:text-[#efc992] dark:hover:bg-white/10 dark:focus-visible:outline-[#efc992]">{messages.action}</button>
+        {distanceResults || busy ? <button type="button" onClick={clearDistance} className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-[#9a602d] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:text-[#efc992] dark:focus-visible:outline-[#efc992]">{messages.clear}</button> : null}
         {status !== "idle" ? <p role="status" className="text-sm text-slate-600 dark:text-stone-300">{messages[status]}</p> : null}
       </div> : null}
       {distanceResults ? <>
@@ -143,9 +143,9 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
           />)}
         </div> : <p className="text-sm text-slate-600 dark:text-stone-300">{messages.empty}</p>}
         {totalPages > 1 ? <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${messages.page} ${page}`}>
-          {page > 1 ? <button type="button" disabled={busy} onClick={() => origin && void searchNearby(origin, page - 1)} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold disabled:opacity-60">{messages.previous}</button> : null}
+          {page > 1 ? <button type="button" disabled={busy} onClick={() => origin && void searchNearby(origin, page - 1)} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] disabled:opacity-60 dark:focus-visible:outline-[#efc992]">{messages.previous}</button> : null}
           <span className="text-sm text-slate-600 dark:text-stone-300">{messages.page} {page} / {totalPages}</span>
-          {page < totalPages ? <button type="button" disabled={busy} onClick={() => origin && void searchNearby(origin, page + 1)} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold disabled:opacity-60">{messages.next}</button> : null}
+          {page < totalPages ? <button type="button" disabled={busy} onClick={() => origin && void searchNearby(origin, page + 1)} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] disabled:opacity-60 dark:focus-visible:outline-[#efc992]">{messages.next}</button> : null}
         </nav> : null}
       </> : children}
     </>

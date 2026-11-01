@@ -192,7 +192,7 @@ test("changing service preserves sandbox query, hash and history state for local
   const values = [];
   const payment = await load("../lib/sandbox-payment-copy.ts");
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
-    react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn() },
+    react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn(), useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); } },
     "@/lib/sandbox-payment-copy": payment,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });
