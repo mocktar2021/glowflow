@@ -173,6 +173,26 @@ begin
   end loop;
 end $$;
 
+-- A staff login already belongs to one salon. Forged, editable signup metadata
+-- passed through onboarding must not turn that login into another salon owner.
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_assert(
+  public.create_owner_workspace('Forged Salon', 'forged-salon', 'Forged Owner') =
+    '10000000-0000-0000-0000-000000000001'::uuid,
+  'existing staff login remains in its original salon during owner onboarding'
+);
+select public.test_assert(
+  (select role from public.users where id=auth.uid()) = 'staff',
+  'owner onboarding cannot promote an existing staff login'
+);
+reset role;
+select public.test_assert(
+  (select count(*) from public.tenants) = 2
+    and (select count(*) from public.tenants where slug='forged-salon') = 0,
+  'forged owner onboarding creates no second salon'
+);
+set role authenticated;
+
 -- Staff can read catalog but only the owner can manage it.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
 select public.test_assert(
