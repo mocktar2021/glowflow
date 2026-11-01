@@ -36,13 +36,21 @@ A separate read-only Supabase metadata recheck identified organization
 `goutxcrujaxjjssbjfsn` and healthy GlowFlow project `rfwhqutkiztxkagbhevp`.
 Its hosted ledger still contained 35 version/name pairs versus 36 entries and
 files on this exact `master`; the sole local-only version was
-`20261018000135_schedule_confirmed_appointment_notifications`. The available
-read-only table/type metadata did not expose the relevant private function body
-or appointment trigger fingerprint. The ledger gap is **not** proof of hosted
-schema drift or equivalence. Draft [PR #139](https://github.com/mocktar2021/glowflow/pull/139)
-remains unmerged and unapplied; keep messaging disabled until the predecessor,
-function and trigger state, consent semantics, and hosted authorization are
-verified under a separately approved change plan.
+`20261018000135_schedule_confirmed_appointment_notifications`. Table/type
+metadata alone did not expose its private function or appointment trigger.
+After the exact project/ledger preflight, a separately approved, catalog-only
+SELECT on 2026-11-01 UTC against the hosted `postgres` database returned
+`function_present=false` for `private.enqueue_confirmed_appointment_email()`
+and `trigger_present=false` for `appointments_enqueue_confirmed_email` on
+`public.appointments`; the trigger's enabled/internal/function fields were
+null because the trigger was absent. The exact query time was not recorded.
+This confirms a **scoped hosted schema gap** for those two objects, not a
+fingerprint or equivalence assessment of the rest of the schema. A
+migration-history-only repair would misrepresent this state and is not valid.
+Draft [PR #139](https://github.com/mocktar2021/glowflow/pull/139) remains
+unmerged and unapplied; keep messaging disabled until the predecessor SQL,
+consent semantics, other relevant schema/authorization state, and an approved
+hosted change plan are reviewed. No SQL change was made by these checks.
 
 This checkpoint establishes only the stated exact-commit production and sampled
 read-only behavior. The leaked-password-protection warning from the earlier
