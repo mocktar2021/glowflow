@@ -195,11 +195,13 @@ test("search actions and server pagination have visible keyboard focus in every 
       searchParams: Promise.resolve({ page: "2" }),
     }));
     const submit = html.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
-    const links = [...html.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+    const form = html.match(/<form\b[\s\S]*?<\/form>/)?.[0];
+    assert.ok(form, `${locale}: search form is present`);
+    const formLinks = [...form.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
     const pagination = html.match(/<nav class="mt-8[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pagination, `${locale}: pagination is present`);
     const pageLinks = [...pagination.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
-    const reset = links.find((link) => link.includes(`href="/${locale}/salons"`));
+    const reset = formLinks.find((link) => link.includes(`href="/${locale}/salons"`));
     const previous = pageLinks.find((link) => link.includes(`href="/${locale}/salons"`));
     const next = pageLinks.find((link) => link.includes(`href="/${locale}/salons?page=3"`));
 
