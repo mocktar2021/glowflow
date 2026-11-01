@@ -206,3 +206,33 @@ test("published cover image appears in result cards with an initials fallback", 
   assert.equal(search.publicSalonImageUrl("https://foo.supabase.co.evil.com/storage/v1/object/public/salon-public-media/photo.jpg"), null);
   assert.match(search.publicSalonImageUrl("https://fixture.supabase.co/storage/v1/object/public/salon-public-media/photo.jpg"), /fixture\.supabase\.co/);
 });
+
+test("localized result-card booking links identify their salon to assistive technology", async () => {
+  const { MarketplaceSalonCard } = await load("../components/glowflow/marketplace-salon-card.tsx", {
+    "next/link": "a",
+    "next/image": ({ src, alt }) => React.createElement("img", { src, alt }),
+    "@/lib/markets": markets,
+    "@/lib/salon-search": search,
+  });
+  const salon = {
+    slug: "first-salon", business_name: "First Salon", country_code: "US", city: "Greensboro",
+    postal_code: "27405", categories: [], description_json: {}, image_url: null,
+    next_available_at: null, starting_price: null, currency: "USD",
+  };
+  const labels = {
+    hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price",
+    priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon",
+  };
+  for (const [locale, book] of [["fr", "Voir et réserver"], ["en", "View and book"], ["es", "Ver y reservar"]]) {
+    const first = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
+      salon, locale, href: `/${locale}/salons/first-salon`, labels: { ...labels, book },
+    }));
+    const second = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
+      salon: { ...salon, slug: "second-salon", business_name: "Second Salon" },
+      locale, href: `/${locale}/salons/second-salon`, labels: { ...labels, book },
+    }));
+    assert.match(first, new RegExp(`aria-label="${book}: First Salon"`));
+    assert.match(second, new RegExp(`aria-label="${book}: Second Salon"`));
+    assert.match(first, new RegExp(`>${book}<\\/a>`), "visible link text stays unchanged");
+  }
+});

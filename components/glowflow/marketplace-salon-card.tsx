@@ -73,7 +73,7 @@ export function MarketplaceSalonCard({
             {salon.next_available_at ? <span className="mt-1 block text-xs text-slate-500 dark:text-stone-400">{displayTimeZone}</span> : null}
           </span>
         </div>
-        <Link href={href} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">
+        <Link href={href} aria-label={`${labels.book}: ${salon.business_name}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">
           {labels.book}
         </Link>
       </div>
