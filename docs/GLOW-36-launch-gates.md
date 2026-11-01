@@ -35,6 +35,39 @@ approval, or launch readiness. No booking, payment, hosted SQL, or provider
 message was initiated for this checkpoint. Recheck all identities and gates
 against the actual release candidate before an owner go/no-go decision.
 
+## Read-only 2026-11-01 17:16-17:19 UTC Supabase checkpoint, not launch approval
+
+The connected Supabase organization listing identified `goutxcrujaxjjssbjfsn`
+as Mocktar Technologies. Its project listing and project metadata identified
+`rfwhqutkiztxkagbhevp` as **glowflow** in that organization, `us-east-1`,
+`ACTIVE_HEALTHY`. The hosted migration ledger returned 35 version/name pairs.
+All 35 match `supabase/migration-history-map.json`; the repository map has one
+additional version, `20261018000135_schedule_confirmed_appointment_notifications`.
+That GLOW-27 migration records consented email schedules; its checked-in SQL
+does not enable a worker, provider, cron job, or customer messaging. A missing
+ledger entry does **not** prove that the hosted schema differs: no hosted schema
+fingerprint, SQL, or authorization test was run. Reconcile this exact ledger
+gap and verify the schema under a separately approved change/test plan before
+claiming the hosted database matches the release candidate.
+
+The [Supabase Security Advisor](https://supabase.com/docs/guides/deployment/going-into-prod)
+reported one WARN, [leaked-password protection disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection),
+and one INFO, [RLS enabled with no policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+on `public.stripe_sandbox_events`. The checked-in sandbox migration enables
+RLS, revokes `public`/`anon`/`authenticated` privileges, and grants only
+`service_role`, so the latter notice is consistent with an intentional
+deny-all client policy, not evidence of a client-access vulnerability.
+The Performance Advisor reported 29 notices: 14 unindexed foreign keys,
+12 unused indexes, two multiple-permissive-policy warnings, and one Auth
+connection-allocation notice. These are advisory findings, not a performance
+or authorization test. The advisor findings were observed at
+2026-11-01 17:16:27 UTC; review them again for the actual release candidate.
+
+This checkpoint changed no hosted schema, data, Auth, Storage, migration
+history, or provider setting. Leaked-password protection remains an open
+security setting for the owner to assess; the ledger difference and hosted
+authorization/fingerprint evidence remain pending. GLOW-36 remains In Progress.
+
 ## Historical verified 2026-11-01 15:09 UTC snapshot, not launch approval
 
 At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
