@@ -103,11 +103,17 @@ test("checkout persistence diagnostics redact hostile provider details without f
     assert.deepEqual(await response.json(), { error: "reconciliation_required" });
     assert.equal(response.headers.get("cache-control"), "private, no-store");
     assert.equal(response.headers.get("x-glowflow-error-id"), null, "no response contract change");
-    assert.deepEqual(logs.map(([line]) => JSON.parse(line)), [{
+    assert.equal(logs.length, 1, "failed attach emits one diagnostic event");
+    for (const values of logs) {
+      assert.equal(values.length, 1, "diagnostic must not pass provider details as another log argument");
+      assert.equal(typeof values[0], "string", "diagnostic must be one fixed JSON string");
+    }
+    const loggedValues = logs.flat();
+    assert.deepEqual(loggedValues.map((line) => JSON.parse(line)), [{
       event: "glowflow_payment_failure", environment: "sandbox", stage: "checkout_attach", code: "operation_failed",
     }]);
-    for (const secret of [sensitive, row.id, input.fullName, input.phone]) {
-      assert.ok(!logs[0][0].includes(secret), "diagnostic contains a sensitive fixture");
+    for (const line of loggedValues) for (const secret of [...sensitive.split(" "), row.id, input.fullName, input.phone]) {
+      assert.ok(!line.includes(secret), "diagnostic contains a sensitive fixture");
     }
 
     const malformed = await routeHarness();

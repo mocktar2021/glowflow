@@ -18,8 +18,9 @@ provider integration, and it sends no customer or operator message.
   bootstrap exception emits only the safe `webhook_client` event, without the
   exception text or signed payload. A checkout-route test feeds hostile provider
   details into a failed attach and proves the retryable response and log retain
-  only the fixed `checkout_attach` event. Invalid input, anonymous access, and
-  an intentionally disabled sandbox do not create false failure signals.
+  only one fixed `checkout_attach` event, with no extra log arguments. Invalid
+  input, anonymous access, and an intentionally disabled sandbox do not create
+  false failure signals.
 - The notification outbox and delivery-attempt tables are append-only
   persistence. There is no delivery worker or provider send. Consequently,
   there is no reminder-job failure event or active reminder alert to monitor.
