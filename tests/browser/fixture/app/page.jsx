@@ -6,6 +6,24 @@ import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment
 import { NotificationTemplatePreview } from "@/components/glowflow/notification-template-preview";
 import { VisitorTimeZoneField } from "@/components/glowflow/visitor-time-zone-field";
 import { DistanceSearch } from "@/components/glowflow/distance-search";
+import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
+
+const cardLabels = {
+  fr: { hair: "Coiffure", nails: "Ongles", other: "Autres", from: "À partir de", price: "Prix", priceUnavailable: "Tarif indisponible", next: "Prochain créneau", availabilityUnknown: "Disponibilité sur la page du salon", book: "Voir et réserver" },
+  en: { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book" },
+  es: { hair: "Peluquería", nails: "Uñas", other: "Otros", from: "Desde", price: "Precio", priceUnavailable: "Precio no disponible", next: "Próximo turno", availabilityUnknown: "Ver salón", book: "Ver y reservar" },
+};
+
+function CardLinksFixture({ locale }) {
+  return <div className="grid gap-4">{["First Salon", "Second Salon"].map((name, index) => {
+    const slug = index === 0 ? "first-salon" : "second-salon";
+    return <MarketplaceSalonCard key={slug} salon={{
+      slug, business_name: name, country_code: "US", city: "Fixture", postal_code: "00000",
+      categories: [], description_json: {}, image_url: null, next_available_at: null,
+      starting_price: null, currency: "USD",
+    }} locale={locale} href={`/${locale}/salons/${slug}`} labels={cardLabels[locale]} />;
+  })}</div>;
+}
 
 function DistanceFocusFixture({ locale, pageSize = 9 }) {
   const readyRef = useRef(null);
@@ -19,6 +37,7 @@ function DistanceFocusFixture({ locale, pageSize = 9 }) {
 export default function Fixture() {
   const locale = usePathname().split("/")[1] || "fr";
   const search = useSearchParams();
+  if (search.get("cardLinks") === "1") return <CardLinksFixture locale={locale} />;
   if (search.get("distanceFocus") === "1") return <DistanceFocusFixture locale={locale} />;
   if (search.get("distanceAnnouncement") === "1") return <DistanceFocusFixture locale={locale} pageSize={1} />;
   if (search.get("zoneFixture") === "1") return <form><VisitorTimeZoneField
