@@ -68,6 +68,15 @@ test('sandbox database transactions and RLS',{skip:!connection},async()=>{
  assert.equal(JSON.parse(sql(event(r,'evt_paid'))).status,'paid');
  assert.equal(sql("select count(*) from public.stripe_sandbox_events where event_id='evt_paid'"),'1');
  assert.equal(JSON.parse(sql(event(r,'evt_old','checkout.session.expired'))).status,'paid');
+ // An async failure may settle only its own synthetic reservation. A later
+ // success needs reconciliation, and a failure never downgrades a paid deposit.
+ const failed=JSON.parse(sql(reserve('40000000-0000-0000-0000-000000000009',"(current_date+13+time '10:00') at time zone 'UTC'")));
+ assert.equal(JSON.parse(sql(event(failed,'evt_asyncfailed','checkout.session.async_payment_failed'))).status,'failed');
+ assert.equal(JSON.parse(sql(event(failed,'evt_asyncfailed','checkout.session.async_payment_failed'))).status,'failed');
+ assert.equal(sql("select count(*) from public.stripe_sandbox_events where event_id='evt_asyncfailed'"),'1');
+ assert.equal(JSON.parse(sql(event(failed,'evt_latesuccess','checkout.session.async_payment_succeeded'))).status,'reconciliation_required');
+ assert.equal(JSON.parse(sql(event(r,'evt_paidfailure','checkout.session.async_payment_failed'))).status,'paid');
+ assert.equal(sql('select count(*) from public.appointments'),'0');
  const duplicates=await Promise.all([1,2].map(()=>run(psql,['-X','-w','-v','ON_ERROR_STOP=1','-At','-d',connection,'-c',event(r,'evt_parallel')])));
  assert.equal(duplicates.length,2);
  assert.equal(sql("select count(*) from public.stripe_sandbox_events where event_id='evt_parallel'"),'1');
