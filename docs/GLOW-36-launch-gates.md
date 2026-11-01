@@ -1,18 +1,122 @@
 # GLOW-36 launch gate record
 
-This is a repository evidence inventory as of 2026-10-18, not permission to
-launch and not a claim that every gate is green today. Keep GLOW-36 In Progress
+This is a dated repository evidence inventory begun on 2026-10-18, not permission
+to launch and not a claim that every gate is green today. Keep GLOW-36 In Progress
 until the product owner records a go/no-go decision against one exact production
 commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
+
+## Verified 2026-11-01 16:29 UTC production checkpoint, not launch approval
+
+At 2026-11-01 16:29 UTC, GitHub `mocktar2021/glowflow` `master` was
+`cdf73b53e1b4b43f51dfb59756aa60e2491aa3cc`. Its master-push
+[GlowFlow CI](https://github.com/mocktar2021/glowflow/actions/runs/41326277971),
+[Database security](https://github.com/mocktar2021/glowflow/actions/runs/41326278050),
+and [browser checks](https://github.com/mocktar2021/glowflow/actions/runs/41326277964)
+all completed successfully. This is combined-branch evidence for that exact
+commit, not a pass for any later commit or hosted database revision.
+
+Vercel team `team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu`, reported production deployment
+`dpl_Cwa83rC3tvLux1Vo9AsfRSyj8Ygc` READY for that exact GitHub SHA, and a
+separate alias check mapped `glowflow.mocktar.com` to it. Twenty-two read-only
+GETs through the Vercel-connected fetch checked `/` plus each FR/EN/ES landing,
+salon search, login, privacy, terms, support, and signed-out client-directory
+route. All yielded HTML 200 after any same-origin redirect and identified the
+same deployment; the client-directory responses showed sign-in content rather
+than the private directory. This fetch follows same-origin redirects, so it
+does not independently establish the redirect status code. A one-hour Vercel
+runtime-error scan found no errors in the sampled window.
+
+These public and signed-out checks do not verify a signed-in workflow, hosted
+Supabase authorization or recovery, provider health, a charge or refund, legal
+approval, or launch readiness. No booking, payment, hosted SQL, or provider
+message was initiated for this checkpoint. Recheck all identities and gates
+against the actual release candidate before an owner go/no-go decision.
+
+## Read-only 2026-11-01 17:16-17:19 UTC Supabase checkpoint, not launch approval
+
+The connected Supabase organization listing identified `goutxcrujaxjjssbjfsn`
+as Mocktar Technologies. Its project listing and project metadata identified
+`rfwhqutkiztxkagbhevp` as **glowflow** in that organization, `us-east-1`,
+`ACTIVE_HEALTHY`. The hosted migration ledger returned 35 version/name pairs.
+All 35 match `supabase/migration-history-map.json`; the repository map has one
+additional version, `20261018000135_schedule_confirmed_appointment_notifications`.
+That GLOW-27 migration records consented email schedules; its checked-in SQL
+does not enable a worker, provider, cron job, or customer messaging. A missing
+ledger entry does **not** prove that the hosted schema differs: no hosted schema
+fingerprint, SQL, or authorization test was run. Reconcile this exact ledger
+gap and verify the schema under a separately approved change/test plan before
+claiming the hosted database matches the release candidate.
+
+The [Supabase Security Advisor](https://supabase.com/docs/guides/deployment/going-into-prod)
+reported one WARN, [leaked-password protection disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection),
+and one INFO, [RLS enabled with no policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+on `public.stripe_sandbox_events`. The checked-in sandbox migration enables
+RLS, revokes `public`/`anon`/`authenticated` privileges, and grants only
+`service_role`, so the latter notice is consistent with an intentional
+deny-all client policy, not evidence of a client-access vulnerability.
+The Performance Advisor reported 29 notices: 14 unindexed foreign keys,
+12 unused indexes, two multiple-permissive-policy warnings, and one Auth
+connection-allocation notice. These are advisory findings, not a performance
+or authorization test. The advisor findings were observed at
+2026-11-01 17:16:27 UTC; review them again for the actual release candidate.
+
+This checkpoint changed no hosted schema, data, Auth, Storage, migration
+history, or provider setting. Leaked-password protection remains an open
+security setting for the owner to assess; the ledger difference and hosted
+authorization/fingerprint evidence remain pending. GLOW-36 remains In Progress.
+
+## 2026-11-01 local notification-consent blocker, hosted state unverified
+
+Local PostgreSQL review of the checked-in notification persistence migration
+found that `private.notification_delivery_eligible` can return SQL `NULL` for
+a due outbox row with no consent, while `claim_notification_delivery` checks
+`IF NOT eligible THEN`. In PL/pgSQL, `IF NOT NULL` does not reject the claim.
+This is a local SQL contract failure, not evidence that the hosted function has
+the same definition. No sender, worker, or provider delivery was activated or
+tested. Keep messaging disabled and GLOW-29 pending until a fail-closed fix,
+effective-time consent semantics, the missing hosted predecessor migration,
+and hosted authorization/fingerprint evidence are reviewed under a separately
+approved deployment plan. Do not treat a green public route check as proof of
+notification safety.
+
+## Historical verified 2026-11-01 15:09 UTC snapshot, not launch approval
+
+At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
+`72d52c5b5a2448f15f8e585270dbc2588ce37bb5`, the merge of
+[PR #118](https://github.com/mocktar2021/glowflow/pull/118). Its reviewed
+test-only head `6ecaa85b4939bd1c48305536edd6cdeead53c8bc` passed
+[GlowFlow CI](https://github.com/mocktar2021/glowflow/actions/runs/41318482564),
+[Database security](https://github.com/mocktar2021/glowflow/actions/runs/41318482745),
+and [browser checks](https://github.com/mocktar2021/glowflow/actions/runs/41318482651)
+with 74 of 74 browser tests passing. The merged tests include synthetic
+booking, payment, cancellation, Auth, and Storage recovery fixtures. They do
+not exercise a hosted charge, refund, or historical backup restore.
+
+Vercel team `team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu`, reported production deployment
+`dpl_J4ZdqbTP2doww5E3s66jFMijTr3K` READY for that exact `master` SHA,
+and `glowflow.mocktar.com` aliased it. Read-only GETs of `/fr`, `/en/salons`,
+and `/es/privacy` returned 200 and identified the same deployment. Vercel's
+recent 30-minute runtime-error scan reported no errors. These sampled public
+routes and logs do not verify signed-in workflows, all routes, provider health,
+or that no error exists outside the sampled window. This check did not run
+hosted Supabase SQL, write a booking, or initiate a payment.
+
+The remaining historical restore, named incident/alert coverage, current
+country-specific legal approval, hosted authorization, and paid-launch
+financial gates below remain **Pending**. Recheck GitHub, Vercel, Supabase,
+and provider identities against the actual launch candidate before any owner
+go/no-go decision. Do not carry this snapshot forward as standing approval.
 
 ## Evidence already available
 
 | Area | What the repository proves | What it does not prove |
 | --- | --- | --- |
 | Privacy, terms, support | `lib/legal-content.ts` has FR/EN/ES copy, a 2026-09-24 effective date, the public support address, and cancellation/deposit guidance. Localized routes and `tests/legal-support.test.mjs` cover presence and links. `docs/GLOW-35-release-readiness.md` records a September 24 production check. | A fresh legal review for every launch country, or that a salon has published its own applicable policy. The platform copy does not define a platform refund entitlement. |
-| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. `GLOW-24` remains Backlog. `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
+| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. A localized public notice now says when a salon has not published policy text; it does not supply cancellation or refund terms. `GLOW-24` remains Backlog. `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
 | Support and incident response | The public support address is `support@mocktar.com`. `docs/GLOW-36-recovery-drill.md` records working incident-lead and database-owner roles and a 24-hour RPO and 4-hour RTO target. `docs/GLOW-34-observability-slice.md` documents safe booking error IDs. | A currently confirmed named primary and alternate, monitored support and alert destinations, an exercised escalation, or measured achievement of the recovery targets. `GLOW-34` remains In Progress. |
 | Database recovery | `tests/recovery-run.mjs` uses only guarded loopback PostgreSQL and synthetic records. `.github/workflows/security.yml` runs the logical backup/restore drill on disposable PostgreSQL 16. `docs/GLOW-36-recovery-drill.md` records a September 24 isolated hosted current-state clone, count/Auth/bucket comparison, synthetic Storage-file recovery, and a later signed-in owner journey. | A selected historical daily or PITR recovery point, full file-volume recovery, provider settings/secrets restoration, or a measured production-equivalent RTO. A database archive does not include Storage file contents. |
 | Security and quality | `.github/workflows/ci.yml`, `security.yml`, and `browser.yml` define build/unit, database authorization/recovery, and browser checks. | A green result for an arbitrary future release commit, a current Supabase advisor review, or hosted Auth/Storage behavior from local substitutes alone. |
@@ -49,7 +153,7 @@ HTTPS GETs returned French content at `/` and 200 at the published salon's
 `/fr/book/mocktar-braiding` route. The product owner confirmed the signed-in
 dashboard and client directory loaded. [GLOW-10](https://mocktarltd.atlassian.net/browse/GLOW-10)
 records the domain checks and rollback runbook; [GLOW-16](https://mocktarltd.atlassian.net/browse/GLOW-16)
-records the client-directory scope and remaining live-flow verification.
+records the accepted client-directory scope and signed-in owner verification.
 
 Subsequently, [PR #91](https://github.com/mocktar2021/glowflow/pull/91) merged
 as `1e4e22a2ad908ee625f67b8809682944b66dda4c`. The observation above
