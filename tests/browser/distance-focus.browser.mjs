@@ -117,3 +117,25 @@ for (const [locale, actionText, nextText, firstStatus, secondStatus] of [
     assert.equal(await page.getByRole("navigation").getByText(/\b2\s*\/\s*2\b/).count(), 1, "visual pager is unchanged");
   } finally { await context.close(); }
 });
+
+for (const [locale, actionText] of [
+  ["fr", "Voir et réserver"],
+  ["en", "View and book"],
+  ["es", "Ver y reservar"],
+]) test(`${locale} mobile salon-card actions have unique keyboard-accessible names`, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const page = await context.newPage();
+    await page.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    await page.goto(`${origin}/${locale}/book/browser-fixture?cardLinks=1`);
+    const first = page.getByRole("link", { name: `${actionText}: First Salon` });
+    const second = page.getByRole("link", { name: `${actionText}: Second Salon` });
+    assert.equal(await first.count(), 1);
+    assert.equal(await second.count(), 1);
+    assert.equal(await first.textContent(), actionText, "visible action text is unchanged");
+    await first.focus();
+    assert.equal(await first.evaluate(node => node === document.activeElement), true);
+    await page.keyboard.press("Tab");
+    assert.equal(await second.evaluate(node => node === document.activeElement), true);
+  } finally { await context.close(); }
+});
