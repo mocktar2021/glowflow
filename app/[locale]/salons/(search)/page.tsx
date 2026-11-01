@@ -440,8 +440,8 @@ export default async function SalonSearchPage({
                   <option value="availability">{labels.sortAvailability}</option>
                 </select>
               </label>
-              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950" type="submit">{labels.submit}</button>
-              <Link className="px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
+              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-[#efc992]" type="submit">{labels.submit}</button>
+              <Link className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:text-[#efc992] dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
             </div>
           </form>
           <nav className="mt-6" aria-label={labels.exploreCountries}>
@@ -479,7 +479,7 @@ export default async function SalonSearchPage({
             <Search className="mx-auto size-8 text-[#b77a42]" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">{hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-stone-300">{hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}</p>
-            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] dark:border-white/15 dark:hover:bg-white/10" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
+            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
           </div>
         ) : (
           <>
@@ -500,9 +500,9 @@ export default async function SalonSearchPage({
 
             {totalPages > 1 ? (
               <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${labels.page} ${page}`}>
-                {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
+                {page > 1 ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
                 <span className="text-sm text-slate-600 dark:text-stone-300">{labels.page} {page} / {totalPages}</span>
-                {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
+                {page < totalPages ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
               </nav>
             ) : null}
           </>
