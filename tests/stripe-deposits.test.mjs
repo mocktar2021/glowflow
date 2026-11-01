@@ -57,7 +57,7 @@ async function routeHarness({ owner = true, tenantMatches = true, configEnabled 
   } };
   const route = await moduleAt("../app/api/checkout/route.ts", {
     "@/lib/supabase/server": { createClient: async () => client },
-    "@/lib/supabase/admin": { createAdminClient: () => { calls.push("admin"); return { rpc: async (name, args) => { calls.push({ name, args }); return name.startsWith("reserve") ? { data: reserveRow } : attachError ? { error: {} } : { data: { ...reserveRow, status: "pending", checkout_url: "https://checkout.stripe.com/c/pay/test" } }; } }; } },
+    "@/lib/supabase/admin": { createAdminClient: () => { calls.push("admin"); return { rpc: async (name, args) => { calls.push({ name, args }); return name.startsWith("reserve") ? { data: reserveRow } : attachError ? { error: attachError === true ? {} : attachError } : { data: { ...reserveRow, status: "pending", checkout_url: "https://checkout.stripe.com/c/pay/test" } }; } }; } },
     "@/lib/stripe": { createStripeClient: () => { calls.push("stripe"); return { accounts: { retrieve: async () => ({ id: env.STRIPE_SANDBOX_ACCOUNT_ID }) }, v2: { core: { accounts: { retrieve: async () => ({ id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, environment: "sandbox", product: "glowflow" }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } }) } } }, checkout: { sessions: { create: async (params, options) => { calls.push({ params, options }); return { id: "cs_test_fixture", livemode: false, url: "https://checkout.stripe.com/c/pay/test", metadata: params.metadata, amount_total: row.amount, currency: "eur" }; } } } }; } },
     "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => configEnabled ? { origin: env.GLOWFLOW_APP_URL, platformAccountId: env.STRIPE_SANDBOX_ACCOUNT_ID } : null },
     "@/lib/stripe-deposits": helpers,
@@ -89,6 +89,41 @@ test("attached checkout retries create no second session and persistence failure
   const h = await routeHarness({ reserveRow: current }); assert.equal((await h.route.POST(request())).status, 200); assert.equal(h.calls.filter((call) => call.params).length, 0);
   const failed = await routeHarness({ reserveRow: { ...current, status: "reserved" }, attachError: true });
   assert.equal((await failed.route.POST(request())).status, 503);
+});
+
+test("checkout persistence diagnostics redact hostile provider details without false alerts", async () => {
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  try {
+    const sensitive = "client@example.invalid rk_test_private whsec_private pi_private";
+    const current = { ...row, expires_at: new Date(Date.now() + 35 * 60000).toISOString() };
+    const failed = await routeHarness({ reserveRow: current, attachError: { message: sensitive, code: "08006" } });
+    const response = await failed.route.POST(request());
+    assert.equal(response.status, 503, "failed persistence remains retryable");
+    assert.deepEqual(await response.json(), { error: "reconciliation_required" });
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("x-glowflow-error-id"), null, "no response contract change");
+    assert.equal(logs.length, 1, "failed attach emits one diagnostic event");
+    for (const values of logs) {
+      assert.equal(values.length, 1, "diagnostic must not pass provider details as another log argument");
+      assert.equal(typeof values[0], "string", "diagnostic must be one fixed JSON string");
+    }
+    const loggedValues = logs.flat();
+    assert.deepEqual(loggedValues.map((line) => JSON.parse(line)), [{
+      event: "glowflow_payment_failure", environment: "sandbox", stage: "checkout_attach", code: "operation_failed",
+    }]);
+    for (const line of loggedValues) for (const secret of [...sensitive.split(" "), row.id, input.fullName, input.phone]) {
+      assert.ok(!line.includes(secret), "diagnostic contains a sensitive fixture");
+    }
+
+    const malformed = await routeHarness();
+    assert.equal((await malformed.route.POST(request({ ...input, stripeAccount: "acct_other" }))).status, 400);
+    const anonymous = await routeHarness({ owner: false });
+    assert.equal((await anonymous.route.POST(request())).status, 403);
+    const disabled = await routeHarness({ configEnabled: false });
+    assert.equal((await disabled.route.POST(request())).status, 503);
+    assert.equal(logs.length, 1, "expected rejects and disabled sandbox do not emit failure alerts");
+  } finally { console.error = original; }
 });
 
 test("owner mismatch and malformed JSON do not reach privileged services", async () => {

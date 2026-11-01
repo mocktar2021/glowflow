@@ -37,6 +37,14 @@ async function loadPage(rpc, configured = true) {
   return loaded.exports.default;
 }
 
+async function loadTimeZoneField() {
+  const source = await readFile(new URL("../components/glowflow/visitor-time-zone-field.tsx", import.meta.url), "utf8");
+  const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const loaded = { exports: {} };
+  new Function("require", "exports", js)(name => name === "@/lib/marketplace-time-zones" ? timeZones : require(name), loaded.exports);
+  return loaded.exports.VisitorTimeZoneField;
+}
+
 test("sort values are allowlisted and default to relevance", () => {
   for (const value of search.salonSortValues) assert.equal(search.salonSearchSort(value), value);
   for (const value of ["", "distance", "price; drop table", "PRICE_ASC"]) assert.equal(search.salonSearchSort(value), "relevance");
@@ -122,6 +130,87 @@ test("maximum price uses selected country's minor units and warns without a coun
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ maxPrice: "45" }) }));
   assert.equal(calls[1].args.maximum_price, null);
   assert.match(html, /Choose a country to filter prices in its currency/);
+});
+
+test("active advanced filters remain visible when opening a filtered search link", async () => {
+  const Page = await loadPage(async () => ({ data: [], error: null }));
+
+  for (const filters of [
+    { postcode: "27405" },
+    { category: "hair" },
+    { maxPrice: "45" },
+    { availableBefore: "2026-11-15" },
+  ]) {
+    const html = renderToStaticMarkup(await Page({
+      params: Promise.resolve({ locale: "en" }),
+      searchParams: Promise.resolve(filters),
+    }));
+    assert.match(html, /<details open=""/);
+  }
+
+  const unfiltered = renderToStaticMarkup(await Page({
+    params: Promise.resolve({ locale: "en" }),
+    searchParams: Promise.resolve({ q: "braids" }),
+  }));
+  assert.match(unfiltered, /<details class=/);
+  assert.doesNotMatch(unfiltered, /<details open=""/);
+});
+
+test("advanced search controls retain a visible keyboard focus outline in every locale", async () => {
+  const Page = await loadPage(async () => ({ data: [], error: null }));
+  const TimeZoneField = await loadTimeZoneField();
+
+  function assertVisibleFocus(control, context) {
+    assert.ok(control, `${context} control is present`);
+    assert.match(control, /focus-visible:outline-solid/);
+    assert.match(control, /focus-visible:outline-2/);
+    assert.match(control, /focus-visible:outline-offset-2/);
+    assert.match(control, /focus-visible:outline-\[#b77a42\]/);
+  }
+
+  for (const locale of ["fr", "en", "es"]) {
+    const html = renderToStaticMarkup(await Page({
+      params: Promise.resolve({ locale }),
+      searchParams: Promise.resolve({}),
+    }));
+    for (const [tag, name] of [["input", "postcode"], ["select", "category"], ["input", "maxPrice"], ["input", "availableBefore"]]) {
+      const control = html.match(new RegExp(`<${tag}\\b[^>]*\\bname="${name}"[^>]*>`))?.[0];
+      assertVisibleFocus(control, `${locale}: ${name}`);
+    }
+    const timeZoneHtml = renderToStaticMarkup(React.createElement(TimeZoneField, {
+      initialZone: "UTC", detectBrowserZone: false, options: ["UTC"], label: "Time zone", help: "Filter time zone",
+    }));
+    const timeZoneControl = timeZoneHtml.match(/<select\b[^>]*\bname="timeZone"[^>]*>/)?.[0];
+    assertVisibleFocus(timeZoneControl, `${locale}: timeZone`);
+  }
+});
+
+test("shared country links normalize supported codes and ignore unsupported codes visibly", async () => {
+  const calls = [];
+  const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };
+  const Page = await loadPage(async (_name, args) => { calls.push(args); return { data: [result], error: null }; });
+
+  const supported = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: " us " }) }));
+  assert.equal(calls[0].filter_country_code, "US");
+  assert.match(supported, /<option value="US" selected="">/);
+  assert.match(supported, /href="\/en\/salons\?country=US&amp;page=2"/);
+
+  for (const [locale, notice] of [
+    ["fr", "Ce pays n’est pas disponible"],
+    ["en", "That country is not available"],
+    ["es", "Ese país no está disponible"],
+  ]) {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale }), searchParams: Promise.resolve({ country: "ZZ" }) }));
+    assert.equal(calls.at(-1).filter_country_code, null);
+    assert.match(html, new RegExp(notice));
+    assert.match(html, new RegExp(`href="/${locale}/salons\\?page=2"`));
+    assert.doesNotMatch(html, /country=ZZ/);
+  }
+
+  const priceHtml = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "en" }), searchParams: Promise.resolve({ country: "ZZ", sort: "price_asc", maxPrice: "40" }) }));
+  assert.equal(calls.at(-1).maximum_price, null);
+  assert.match(priceHtml, /Choose a country to compare prices in one currency/);
+  assert.match(priceHtml, /Choose a country to filter prices in its currency/);
 });
 
 test("invalid or out-of-range pages show first-page results instead of an empty state", async () => {

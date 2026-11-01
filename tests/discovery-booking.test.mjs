@@ -6,6 +6,7 @@ import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { localizedProductText, productDefaultLocale } from "../lib/product-localization.ts";
+import { selectPublishedPolicy } from "../lib/published-policy.ts";
 const require = createRequire(import.meta.url);
 async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
@@ -22,14 +23,14 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, products = [] } = {}) {
+function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, products = [], policies = {} } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
     const query = { select() { return query; }, eq(key, value) { filters.push([key, value]); return query; }, order() { return result(false); }, single() { return result(true); }, maybeSingle() { return result(true); } };
     function result(single) {
       queries.push({ table, filters });
-      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished }];
+      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished, policies_json: policies }];
       const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : table === "markets" ? [{ country_code: "ES", default_locale: "es" }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
@@ -71,6 +72,7 @@ test("localized profile service links carry only active services for this salon"
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
     "@/lib/markets": markets,
     "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
   });
   for (const [locale, label] of [["fr", "Réserver cette prestation"], ["en", "Book this service"], ["es", "Reservar este servicio"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
@@ -91,12 +93,47 @@ test("published product text follows selection and falls back to the salon count
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
     "@/lib/markets": markets,
     "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
   });
   for (const [locale, expectedName] of [["fr", "Producto español"], ["en", "English product"], ["es", "Producto español"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
     assert.ok(nodes(tree).some(node => node.type === "h4" && node.props.children === expectedName));
     assert.ok(nodes(tree).some(node => node.props?.alt === "Imagen española"));
   }
+}));
+test("published salon profile explains missing policies in every visitor language", async () => withConfiguration(async () => {
+  const db = database();
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  for (const [locale, message] of [
+    ["fr", "Conditions d’annulation non publiées. Contactez le salon pour les connaître."],
+    ["en", "Cancellation policies are not published. Contact the salon for details."],
+    ["es", "Las condiciones de cancelación no están publicadas. Contacta con el salón para conocerlas."],
+  ]) {
+    const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
+    assert.ok(nodes(tree).some(node => node.type === "p" && node.props.children === message && node.props.lang === locale));
+  }
+}));
+test("fallback salon policy keeps the published language for accessibility", async () => withConfiguration(async () => {
+  const db = database({ policies: { fr: "Conditions du salon." } });
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  const tree = await Page({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
+  assert.ok(nodes(tree).some(node => node.type === "p" && node.props.children === "Conditions du salon." && node.props.lang === "fr"));
 }));
 test("booking route preserves selected service, locale and trusted salon currency/time zone", async () => withConfiguration(async () => {
   const Page = await booking(database());
