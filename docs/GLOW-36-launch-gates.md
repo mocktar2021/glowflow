@@ -7,6 +7,35 @@ commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
 
+## Current verified release snapshot, not launch approval
+
+At 2026-11-01 15:09 UTC, GitHub `mocktar2021/glowflow` `master` was
+`72d52c5b5a2448f15f8e585270dbc2588ce37bb5`, the merge of
+[PR #118](https://github.com/mocktar2021/glowflow/pull/118). Its reviewed
+test-only head `6ecaa85b4939bd1c48305536edd6cdeead53c8bc` passed
+[GlowFlow CI](https://github.com/mocktar2021/glowflow/actions/runs/41318482564),
+[Database security](https://github.com/mocktar2021/glowflow/actions/runs/41318482745),
+and [browser checks](https://github.com/mocktar2021/glowflow/actions/runs/41318482651)
+with 74 of 74 browser tests passing. The merged tests include synthetic
+booking, payment, cancellation, Auth, and Storage recovery fixtures. They do
+not exercise a hosted charge, refund, or historical backup restore.
+
+Vercel team `team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu`, reported production deployment
+`dpl_J4ZdqbTP2doww5E3s66jFMijTr3K` READY for that exact `master` SHA,
+and `glowflow.mocktar.com` aliased it. Read-only GETs of `/fr`, `/en/salons`,
+and `/es/privacy` returned 200 and identified the same deployment. Vercel's
+recent 30-minute runtime-error scan reported no errors. These sampled public
+routes and logs do not verify signed-in workflows, all routes, provider health,
+or that no error exists outside the sampled window. This check did not run
+hosted Supabase SQL, write a booking, or initiate a payment.
+
+The remaining historical restore, named incident/alert coverage, current
+country-specific legal approval, hosted authorization, and paid-launch
+financial gates below remain **Pending**. Recheck GitHub, Vercel, Supabase,
+and provider identities against the actual launch candidate before any owner
+go/no-go decision. Do not carry this snapshot forward as standing approval.
+
 ## Evidence already available
 
 | Area | What the repository proves | What it does not prove |
