@@ -11,7 +11,7 @@ permissions:
 jobs:
   rls:
     name: RLS and role authorization
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
       postgres:
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: 22
       - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client-16
       - name: Check source authorization boundaries
         run: node --test tests/rls-source-guards.test.mjs tests/rls-run.test.mjs
       - name: Run real PostgreSQL transaction and role tests
@@ -41,4 +41,6 @@ jobs:
       - name: Run logical backup and restore drill
         env:
           GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
+          PG_DUMP_BIN: /usr/lib/postgresql/16/bin/pg_dump
+          PG_RESTORE_BIN: /usr/lib/postgresql/16/bin/pg_restore
         run: node tests/recovery-run.mjs
