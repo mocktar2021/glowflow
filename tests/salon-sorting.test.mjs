@@ -148,6 +148,24 @@ test("active advanced filters remain visible when opening a filtered search link
   assert.doesNotMatch(unfiltered, /<details open=""/);
 });
 
+test("advanced search controls retain a visible keyboard focus outline in every locale", async () => {
+  const Page = await loadPage(async () => ({ data: [], error: null }));
+
+  for (const locale of ["fr", "en", "es"]) {
+    const html = renderToStaticMarkup(await Page({
+      params: Promise.resolve({ locale }),
+      searchParams: Promise.resolve({}),
+    }));
+    for (const [tag, name] of [["input", "postcode"], ["select", "category"], ["input", "maxPrice"], ["input", "availableBefore"]]) {
+      const control = html.match(new RegExp(`<${tag}\\b[^>]*\\bname="${name}"[^>]*>`))?.[0];
+      assert.ok(control, `${locale}: ${name} control is present`);
+      assert.match(control, /focus-visible:outline-2/);
+      assert.match(control, /focus-visible:outline-offset-2/);
+      assert.match(control, /focus-visible:outline-\[#b77a42\]/);
+    }
+  }
+});
+
 test("shared country links normalize supported codes and ignore unsupported codes visibly", async () => {
   const calls = [];
   const result = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", total_count: 20 };

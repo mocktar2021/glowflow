@@ -401,11 +401,11 @@ export default async function SalonSearchPage({
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="text-sm font-medium">
                   {labels.postal}
-                  <input name="postcode" defaultValue={postalCode} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="postcode" defaultValue={postalCode} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <label className="text-sm font-medium">
                   {labels.category}
-                  <select name="category" defaultValue={category} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5">
+                  <select name="category" defaultValue={category} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5">
                     <option value="">{labels.allCategories}</option>
                     <option value="hair">{labels.hair}</option>
                     <option value="nails">{labels.nails}</option>
@@ -414,11 +414,11 @@ export default async function SalonSearchPage({
                 </label>
                 <label className="text-sm font-medium">
                   {labels.maximumPrice}{selectedMarket ? ` (${selectedMarket.currency})` : ""}
-                  <input name="maxPrice" type="number" min="0.01" step="0.01" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="maxPrice" type="number" min="0.01" step="0.01" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <label className="text-sm font-medium">
                   {labels.availableBefore}
-                  <input name="availableBefore" type="date" defaultValue={availableDate} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="availableBefore" type="date" defaultValue={availableDate} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <VisitorTimeZoneField
                   initialZone={selectedTimeZone}
