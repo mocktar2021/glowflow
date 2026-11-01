@@ -37,6 +37,14 @@ async function loadPage(rpc, configured = true) {
   return loaded.exports.default;
 }
 
+async function loadTimeZoneField() {
+  const source = await readFile(new URL("../components/glowflow/visitor-time-zone-field.tsx", import.meta.url), "utf8");
+  const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
+  const loaded = { exports: {} };
+  new Function("require", "exports", js)(name => name === "@/lib/marketplace-time-zones" ? timeZones : require(name), loaded.exports);
+  return loaded.exports.VisitorTimeZoneField;
+}
+
 test("sort values are allowlisted and default to relevance", () => {
   for (const value of search.salonSortValues) assert.equal(search.salonSearchSort(value), value);
   for (const value of ["", "distance", "price; drop table", "PRICE_ASC"]) assert.equal(search.salonSearchSort(value), "relevance");
@@ -150,6 +158,14 @@ test("active advanced filters remain visible when opening a filtered search link
 
 test("advanced search controls retain a visible keyboard focus outline in every locale", async () => {
   const Page = await loadPage(async () => ({ data: [], error: null }));
+  const TimeZoneField = await loadTimeZoneField();
+
+  function assertVisibleFocus(control, context) {
+    assert.ok(control, `${context} control is present`);
+    assert.match(control, /focus-visible:outline-2/);
+    assert.match(control, /focus-visible:outline-offset-2/);
+    assert.match(control, /focus-visible:outline-\[#b77a42\]/);
+  }
 
   for (const locale of ["fr", "en", "es"]) {
     const html = renderToStaticMarkup(await Page({
@@ -158,11 +174,13 @@ test("advanced search controls retain a visible keyboard focus outline in every 
     }));
     for (const [tag, name] of [["input", "postcode"], ["select", "category"], ["input", "maxPrice"], ["input", "availableBefore"]]) {
       const control = html.match(new RegExp(`<${tag}\\b[^>]*\\bname="${name}"[^>]*>`))?.[0];
-      assert.ok(control, `${locale}: ${name} control is present`);
-      assert.match(control, /focus-visible:outline-2/);
-      assert.match(control, /focus-visible:outline-offset-2/);
-      assert.match(control, /focus-visible:outline-\[#b77a42\]/);
+      assertVisibleFocus(control, `${locale}: ${name}`);
     }
+    const timeZoneHtml = renderToStaticMarkup(React.createElement(TimeZoneField, {
+      initialZone: "UTC", detectBrowserZone: false, options: ["UTC"], label: "Time zone", help: "Filter time zone",
+    }));
+    const timeZoneControl = timeZoneHtml.match(/<select\b[^>]*\bname="timeZone"[^>]*>/)?.[0];
+    assertVisibleFocus(timeZoneControl, `${locale}: timeZone`);
   }
 });
 
