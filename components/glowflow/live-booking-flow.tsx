@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import type { Locale } from "@/lib/i18n";
+import { fallbackMarkets } from "@/lib/markets";
 import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 
 const noHydrationSubscription = () => () => {};
@@ -176,6 +177,14 @@ const copy = {
   },
 } as const;
 
+function localizedServiceTitle(values: Record<string, string> | null | undefined, locale: Locale, countryDefaultLocale: Locale) {
+  for (const language of [locale, countryDefaultLocale, "fr", "en", "es"]) {
+    const title = values?.[language];
+    if (typeof title === "string" && title.trim()) return title.trim();
+  }
+  return copy[locale].serviceMissing;
+}
+
 function dateInZone(timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
@@ -200,6 +209,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     throw new Error("Booking requires a service from this salon's catalog.");
   }
   const labels = copy[locale];
+  const countryDefaultLocale = fallbackMarkets.find((market) => market.country_code === salon.countryCode)?.default_locale ?? "fr";
   const paymentLabels = sandboxPaymentCopy[locale];
   const retry = useRef<{ payload: string; key: string } | null>(null);
   const contactRef = useRef<HTMLInputElement>(null);
@@ -338,7 +348,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         <h1 ref={confirmationRef} tabIndex={-1} className="mt-6 text-3xl font-semibold tracking-[-0.045em]">{labels.success}</h1>
         <p className="mt-3 text-slate-600 dark:text-stone-300">{labels.confirmation}</p>
         <div className="mt-7 rounded-2xl border border-[#e8ded1] bg-white p-5 text-left dark:border-white/10 dark:bg-white/5">
-          <p className="font-semibold">{title?.[locale] ?? title?.fr ?? title?.en ?? title?.es ?? labels.serviceMissing}</p>
+          <p className="font-semibold">{localizedServiceTitle(title, locale, countryDefaultLocale)}</p>
           <p className="mt-2 text-sm">{formatter.format(new Date(confirmation.confirmed_start))} – {formatter.format(new Date(confirmation.confirmed_end))}</p>
           <p className="mt-1 text-sm text-slate-600 dark:text-stone-300">{labels.timeZone}: {details?.time_zone ?? salon.timeZone}</p>
           <dl className="mt-5 space-y-4 text-sm">
@@ -371,7 +381,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           <p className="mt-3 leading-7 text-slate-600 dark:text-stone-300">{labels.subtitle}</p>
           <p className="mt-6 flex items-center gap-2 text-sm"><MapPin className="size-4 text-[#9a622f]" />{salon.city ? `${salon.city}, ` : ""}{salon.countryCode}</p>
           <div className="mt-8 rounded-2xl bg-white/70 p-5 dark:bg-black/15">
-            <p className="font-semibold">{service.title_json[locale] ?? service.title_json.fr}</p>
+            <p className="font-semibold">{localizedServiceTitle(service.title_json, locale, countryDefaultLocale)}</p>
             <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.duration}: {service.duration_minutes} min</p>
             <p className="mt-1 text-sm text-slate-600 dark:text-stone-300">{labels.deposit}: {money(service.deposit_amount, service.currency, locale)}</p>
             <p className="mt-4 text-2xl font-semibold">{money(service.price, service.currency, locale)}</p>
@@ -393,7 +403,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
                 setError("");
                 setServiceId(event.target.value);
               }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
-              {services.map((item) => <option key={item.id} value={item.id}>{item.title_json[locale] ?? item.title_json.fr}</option>)}
+              {services.map((item) => <option key={item.id} value={item.id}>{localizedServiceTitle(item.title_json, locale, countryDefaultLocale)}</option>)}
             </select>
           </label>
           {staffChoices.length ? <label className="block font-semibold">{labels.staff}

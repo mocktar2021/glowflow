@@ -14,6 +14,7 @@ async function load(path, dependencies = {}) {
 }
 const payment = await load("../lib/sandbox-payment-copy.ts");
 const bookingStaff = await load("../lib/public-booking-staff.ts");
+const marketConfig = await load("../lib/markets.ts");
 const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
 const slot = { slot_start: "2026-09-12T10:00:00Z", staff_id: "public-staff-id" };
 async function harness(initial = {}) {
@@ -32,6 +33,7 @@ async function harness(initial = {}) {
     "next/link": ({ children }) => children,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": payment,
+    "@/lib/markets": marketConfig,
   });
   return { values, refs, render(extra = {}) { stateIndex = refIndex = effectIndex = 0; return LiveBookingFlow({ ...props, ...extra }); }, runEffects() { for (const effect of effects) if (effect.pending) { effect.pending = false; effect.cleanup = effect.fn(); } }, cleanup() { effects.forEach((effect) => effect.cleanup?.()); } };
 }

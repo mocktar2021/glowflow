@@ -13,6 +13,7 @@ async function load(file, dependencies) {
   new Function("require", "exports", js)((name) => dependencies[name] ?? require(name), loaded.exports);
   return loaded.exports;
 }
+const marketConfig = await load("../lib/markets.ts", {});
 const serviceId = "11111111-1111-4111-8111-111111111111";
 const originalServiceId = "22222222-2222-4222-8222-222222222222";
 const requestKey = "33333333-3333-4333-8333-333333333333";
@@ -85,6 +86,7 @@ async function markup(locale, details, salonName = base.salon_name) {
     react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 7 ? confirmation : initial, () => {}]; } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
+    "@/lib/markets": marketConfig,
   });
   return renderToStaticMarkup(React.createElement(LiveBookingFlow, { locale, salon: { name: "Published page name", slug: "salon-a", city: null, countryCode: "US", currency: "EUR", timeZone: "America/Los_Angeles" }, services: [{ id: serviceId, title_json: {}, duration_minutes: 30, price: 1, deposit_amount: 0, currency: "EUR" }] }));
 }
@@ -117,6 +119,12 @@ test("missing policy and address are explicit, and published text is escaped", a
   const html = await markup("en", { time_zone: "UTC", address: "<script>bad</script>", policies: { en: "<img src=x onerror=bad>" }, catalog_price: null, currency: null, service_title: null });
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>|<img src=x/);
+});
+
+test("confirmation falls back from an empty visitor-language service title", async () => {
+  const html = await markup("fr", { time_zone: "UTC", address: null, policies: null, catalog_price: null, currency: null, service_title: { fr: "", en: "English service", es: " " } });
+  assert.match(html, /English service/);
+  assert.doesNotMatch(html, /Détails de la prestation indisponibles/);
 });
 
 test("malformed public JSON, currency and time zone degrade without breaking a committed booking", async () => {
