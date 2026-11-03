@@ -26,6 +26,7 @@ for (const [suite, databasePrefix, databaseUrlEnv] of [
   ['schema-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['reminder-scheduling-database.test.mjs', 'glowflow_reminder_test_', 'GLOWFLOW_REMINDER_SCHEDULING_TEST_DATABASE_URL'],
   ['payment-recording-database.test.mjs', 'glowflow_payment_recording_test_', 'GLOWFLOW_PAYMENT_RECORDING_TEST_DATABASE_URL'],
 ]) {
   const database = `${databasePrefix}${Date.now()}_${randomInt(1_000_000)}`;
