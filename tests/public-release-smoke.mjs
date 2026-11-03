@@ -3,7 +3,7 @@ import path from "node:path";
 
 const origin = "https://glowflow.mocktar.com";
 const locales = ["fr", "en", "es"];
-const publicPages = ["", "/salons", "/login", "/privacy", "/terms", "/support"];
+const publicPages = ["", "/salons", "/salons/locations/US", "/salons/locations/US/Greensboro", "/login", "/privacy", "/terms", "/support"];
 
 function expectedRedirect(response, target, route) {
   if (![307, 308].includes(response.status)) throw new Error(`${route}: expected an authentication or locale redirect, got ${response.status}`);
