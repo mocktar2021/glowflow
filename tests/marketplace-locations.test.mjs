@@ -250,7 +250,7 @@ test("published cover image appears in result cards with an initials fallback", 
   assert.match(withCover, /href="\/en\/salons\/locations\/US\/Greensboro"/);
   assert.match(withCover, /Price unavailable/);
   const withoutCover = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: null } }));
-  assert.match(withoutCover, /<div[^>]*>ES<\/div>/);
+  assert.match(withoutCover, /<div[^>]*aria-hidden="true"[^>]*>ES<\/div>/, "decorative initials should not be announced before the salon name");
   const localTime = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, timeZone: "America/Los_Angeles", salon: { ...salon, image_url: null, next_available_at: "2026-11-15T14:00:00Z" } }));
   assert.match(localTime, /6:00 AM/);
   assert.match(localTime, /America\/Los_Angeles/);
