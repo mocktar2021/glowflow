@@ -40,7 +40,7 @@ export function MarketplaceSalonCard({
           <Image src={imageUrl} alt="" fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover" />
         </div>
       ) : (
-        <div className="grid h-36 place-items-center bg-[linear-gradient(135deg,#ead7c1,#f5ece2_52%,#dec0a1)] text-3xl font-semibold text-slate-900 dark:bg-[linear-gradient(135deg,#473529,#2b2724)] dark:text-[#efc992]">
+        <div aria-hidden="true" className="grid h-36 place-items-center bg-[linear-gradient(135deg,#ead7c1,#f5ece2_52%,#dec0a1)] text-3xl font-semibold text-slate-900 dark:bg-[linear-gradient(135deg,#473529,#2b2724)] dark:text-[#efc992]">
           {salonInitials(salon.business_name)}
         </div>
       )}
