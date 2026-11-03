@@ -28,7 +28,10 @@ values
   ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000003',
    'staff-a@example.invalid', sha256(convert_to(repeat('S', 43), 'UTF8')), now(), now() + interval '1 day', null),
   ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
-   'second.staff@example.invalid', sha256(convert_to(repeat('C', 43), 'UTF8')), now(), now() + interval '1 day', null);
+   'second.staff@example.invalid', sha256(convert_to(repeat('C', 43), 'UTF8')), now(), now() + interval '1 day', null),
+  -- A former/foreign owner cannot authorize a current tenant membership.
+  ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003',
+   'second.staff@example.invalid', sha256(convert_to(repeat('P', 43), 'UTF8')), now(), now() + interval '1 day', null);
 
 select public.test_assert(
   (select count(*) from information_schema.columns
@@ -37,7 +40,7 @@ select public.test_assert(
   'invitation stores only a token hash, not the plaintext token'
 );
 select public.test_assert(
-  (select count(*) from private.staff_invitations where octet_length(token_hash) = 32) = 7,
+  (select count(*) from private.staff_invitations where octet_length(token_hash) = 32) = 8,
   'all stored token digests are SHA-256'
 );
 select public.test_assert(
@@ -153,5 +156,18 @@ select public.test_assert(
    where token_hash = sha256(convert_to(repeat('T',43),'UTF8'))
      and accepted_at is null) = 1,
   'rejected re-invitation remains unconsumed'
+);
+set role authenticated;
+set request.jwt.claim.sub = '20000000-0000-0000-0000-000000000093';
+select public.test_rejected(
+  'select public.accept_staff_invitation(repeat(''P'',43),''Former Owner Invite'',''en'')',
+  '22023'
+);
+reset role;
+select public.test_assert(
+  (select count(*) from private.staff_invitations
+   where token_hash = sha256(convert_to(repeat('P',43),'UTF8'))
+     and accepted_at is null) = 1,
+  'foreign or former owner invitation remains unconsumed'
 );
 reset request.jwt.claim.sub;
