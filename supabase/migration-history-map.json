@@ -254,6 +254,13 @@
       "sourceVersion": "20261018000135",
       "marker": false,
       "normalizedSha256": "3781a6771051c5131ad4ceb3592a00dbb2e36a10ae27efe30ef72470aa63692f"
+    },
+    {
+      "version": "20261019035718",
+      "name": "guard_direct_staff_membership_insert",
+      "sourceVersion": "20261019035718",
+      "marker": false,
+      "normalizedSha256": "f25018bb824414f8c40d7c9633e2f0f8b31dd9fc27bb35ebb1a7d26d162bcc4e"
     }
   ]
 }
