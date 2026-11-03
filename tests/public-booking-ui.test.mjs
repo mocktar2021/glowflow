@@ -148,6 +148,7 @@ test("localized booking resolves only published tenant services and passes an ex
   const primary = "11111111-1111-4111-8111-111111111111";
   const foreign = "22222222-2222-4222-8222-222222222222";
   const tables = {
+    markets: [{ country_code: "FR", default_locale: "fr" }],
     tenants: [
       { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", country_code: "FR", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
       { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", country_code: "ES", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
@@ -194,7 +195,7 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal(result.type, "live");
       assert.equal(result.props.locale, locale);
       assert.equal(result.props.initialServiceId, primary);
-      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" });
+      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", defaultLocale: "fr", currency: "EUR", timeZone: "Europe/Paris" });
       assert.deepEqual(result.props.services.map(service => service.id), [primary]);
       assert.deepEqual(result.props.bookingStaffByService[primary], [{ id: "33333333-3333-4333-8333-333333333333", name: "Ari" }]);
       assert.equal("private_note" in result.props.salon, false);

@@ -119,6 +119,12 @@ test("missing policy and address are explicit, and published text is escaped", a
   assert.doesNotMatch(html, /<script>|<img src=x/);
 });
 
+test("confirmation falls back from an empty visitor-language service title", async () => {
+  const html = await markup("fr", { time_zone: "UTC", address: null, policies: null, catalog_price: null, currency: null, service_title: { fr: "", en: "English service", es: " " } });
+  assert.match(html, /English service/);
+  assert.doesNotMatch(html, /Détails de la prestation indisponibles/);
+});
+
 test("malformed public JSON, currency and time zone degrade without breaking a committed booking", async () => {
   const { value } = await post(database({ malformed: true }));
   assert.equal(value.confirmation.details.time_zone, null);
