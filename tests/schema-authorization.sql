@@ -192,7 +192,7 @@ select public.test_assert(
 -- One salon per login for MVP: even an owner of the target salon cannot
 -- attach an Auth identity that already has a membership elsewhere.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000003';
-select public.test_rejected('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000002'',''10000000-0000-0000-0000-000000000002'',''Staff A again'',''staff-a@example.invalid'',''staff'')','23505');
+select public.test_rejected('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000002'',''10000000-0000-0000-0000-000000000002'',''Staff A again'',''staff-a@example.invalid'',''staff'')','42501');
 select public.test_assert(
   (select count(*) from public.users where id='20000000-0000-0000-0000-000000000002')=0,
   'second salon has no membership for an already-linked login'
