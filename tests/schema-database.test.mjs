@@ -50,6 +50,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   sql(readFileSync(new URL('tests/public-booking-service-staff.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-booking-slot-integrity.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-salon-distance.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/staff-invitation-authorization.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {
@@ -64,6 +65,32 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
       child.stdin.end(input);
     });
   }
+
+  const invitationAttempt = `
+    begin;
+    set local role authenticated;
+    set local request.jwt.claim.sub = '20000000-0000-0000-0000-000000000093';
+    select public.accept_staff_invitation(repeat('C',43), 'Second Staff', 'en');
+    select pg_sleep(1);
+    commit;
+  `;
+  const concurrentInvitations = await Promise.all([
+    concurrentSql(invitationAttempt),
+    concurrentSql(invitationAttempt),
+  ]);
+  assert.equal(concurrentInvitations.filter(result => result.status === 0).length, 1,
+    'only one concurrent redemption of a single invitation may commit');
+  const rejectedInvitation = concurrentInvitations.find(result => result.status !== 0);
+  assert.ok(rejectedInvitation);
+  assert.match(rejectedInvitation.stderr, /staff_invitation_unavailable/);
+  assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000093' and tenant_id='10000000-0000-0000-0000-000000000001' and role='staff'"), '1');
+  assert.equal(sql("select count(*) from private.staff_invitations where token_hash=sha256(convert_to(repeat('C',43),'UTF8')) and accepted_by='20000000-0000-0000-0000-000000000093'"), '1');
+
+  sql(readFileSync(new URL('supabase/rollbacks/20261103172555_disable_verified_staff_invitation_acceptance.sql', root), 'utf8'));
+  assert.equal(sql("select has_function_privilege('authenticated','public.accept_staff_invitation(text,text,text)','execute')"), 'f',
+    'fail-closed rollback disables acceptance');
+  assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000093'"), '1',
+    'rollback preserves accepted membership and invitation history');
 
   const duplicateBooking = (startTime, holdSeconds) => `
     begin;
