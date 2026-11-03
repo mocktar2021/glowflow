@@ -23,6 +23,9 @@ $$;
 create schema auth;
 create schema storage;
 create schema extensions;
+-- Hosted GlowFlow has pgcrypto in extensions; mirror that location so
+-- migration functions can use a fixed, empty search_path safely.
+create extension if not exists pgcrypto with schema extensions;
 grant usage on schema public, auth, storage to anon, authenticated, service_role;
 grant usage on schema extensions to anon, authenticated, service_role;
 
