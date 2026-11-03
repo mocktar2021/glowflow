@@ -95,6 +95,7 @@ begin
    and owner_membership.tenant_id = tenant.id
    and owner_membership.role = 'owner'
   where tenant.id = invitation.tenant_id
+    and tenant.owner_id = invitation.inviter_id
   for share of tenant, owner_membership;
 
   if not found then
