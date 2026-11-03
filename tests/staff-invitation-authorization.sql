@@ -6,7 +6,9 @@ insert into auth.users (id, email, email_confirmed_at) values
   ('20000000-0000-0000-0000-000000000090', 'New.Staff@Example.Invalid', now()),
   ('20000000-0000-0000-0000-000000000091', 'unverified@example.invalid', null),
   ('20000000-0000-0000-0000-000000000092', 'wrong@example.invalid', now()),
-  ('20000000-0000-0000-0000-000000000093', 'second.staff@example.invalid', now());
+  ('20000000-0000-0000-0000-000000000093', 'second.staff@example.invalid', now()),
+  ('20000000-0000-0000-0000-000000000094', 'dual.staff@example.invalid', now()),
+  ('20000000-0000-0000-0000-000000000095', 'delayed.staff@example.invalid', now());
 update auth.users set email_confirmed_at = now()
 where id = '20000000-0000-0000-0000-000000000002';
 
@@ -31,7 +33,11 @@ values
    'second.staff@example.invalid', sha256(convert_to(repeat('C', 43), 'UTF8')), now(), now() + interval '1 day', null),
   -- A former/foreign owner cannot authorize a current tenant membership.
   ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003',
-   'second.staff@example.invalid', sha256(convert_to(repeat('P', 43), 'UTF8')), now(), now() + interval '1 day', null);
+   'second.staff@example.invalid', sha256(convert_to(repeat('P', 43), 'UTF8')), now(), now() + interval '1 day', null),
+  ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+   'dual.staff@example.invalid', sha256(convert_to(repeat('J', 43), 'UTF8')), now(), now() + interval '1 day', null),
+  ('10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000003',
+   'dual.staff@example.invalid', sha256(convert_to(repeat('K', 43), 'UTF8')), now(), now() + interval '1 day', null);
 
 select public.test_assert(
   (select count(*) from information_schema.columns
@@ -40,7 +46,7 @@ select public.test_assert(
   'invitation stores only a token hash, not the plaintext token'
 );
 select public.test_assert(
-  (select count(*) from private.staff_invitations where octet_length(token_hash) = 32) = 8,
+  (select count(*) from private.staff_invitations where octet_length(token_hash) = 32) = 10,
   'all stored token digests are SHA-256'
 );
 select public.test_assert(
