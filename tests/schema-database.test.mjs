@@ -51,6 +51,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   sql(readFileSync(new URL('tests/public-booking-slot-integrity.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/public-salon-distance.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/staff-invitation-authorization.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/staff-invitation-issuer-authorization.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {
@@ -65,6 +66,28 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
       child.stdin.end(input);
     });
   }
+
+  const concurrentIssuerAttempt = `
+    begin;
+    set local request.jwt.claim.sub = '20000000-0000-0000-0000-000000000001';
+    select length(raw_token) from private.prepare_staff_invitation('concurrent.issuer@example.invalid');
+    select pg_sleep(0.25);
+    commit;
+  `;
+  const concurrentIssuers = await Promise.all([
+    concurrentSql(concurrentIssuerAttempt),
+    concurrentSql(concurrentIssuerAttempt),
+  ]);
+  assert.equal(concurrentIssuers.filter(result => result.status === 0).length, 2,
+    'both serialized issuer calls must commit');
+  assert.equal(sql(`select count(*) from private.staff_invitations
+    where tenant_id='10000000-0000-0000-0000-000000000001'
+      and email_normalized='concurrent.issuer@example.invalid'`), '2');
+  assert.equal(sql(`select count(*) from private.staff_invitations
+    where tenant_id='10000000-0000-0000-0000-000000000001'
+      and email_normalized='concurrent.issuer@example.invalid'
+      and accepted_at is null and revoked_at is null`), '1',
+    'concurrent preparations leave one active token');
 
   const invitationAttempt = `
     begin;
@@ -173,6 +196,11 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
     'fail-closed rollback disables acceptance');
   assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000093'"), '1',
     'rollback preserves accepted membership and invitation history');
+  sql(readFileSync(new URL('supabase/rollbacks/20261103214314_disable_staff_invitation_preparation.sql', root), 'utf8'));
+  assert.equal(sql("select to_regprocedure('private.prepare_staff_invitation(text)') is null"), 't',
+    'issuer rollback removes only the inactive preparation function');
+  assert.equal(sql("select count(*) from private.staff_invitations where email_normalized='issuer@example.invalid'"), '3',
+    'issuer rollback preserves the audit rows across both salons');
 
   const duplicateBooking = (startTime, holdSeconds) => `
     begin;

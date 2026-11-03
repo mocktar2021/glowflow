@@ -275,6 +275,13 @@
       "sourceVersion": "20261103172555",
       "marker": false,
       "normalizedSha256": "c2e737d310cb34ad9e06ea4face4afd600f9a18d7e33d1bd54f8833527dbd35a"
+    },
+    {
+      "version": "20261103214314",
+      "name": "prepare_staff_invitation_resend",
+      "sourceVersion": "20261103214314",
+      "marker": false,
+      "normalizedSha256": "b0b8a818a96c8813dbd599495e49d4d0265883159687b7a2417127a88a2a3051"
     }
   ]
 }
