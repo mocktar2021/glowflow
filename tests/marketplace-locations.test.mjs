@@ -181,6 +181,57 @@ test("country location uses its configured language when the visitor has no pref
   assert.deepEqual(marketLookups, ["markets"]);
 });
 
+test("location navigation and result announcements are accessible in every locale", async () => {
+  const salon = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", postal_code: "27405", categories: ["hair"], image_url: null, description_json: {}, next_available_at: null, starting_price: null, currency: "USD", total_count: 20 };
+  let response = { data: [salon], error: null };
+  const { default: Page } = await load(locationPagePath, {
+    "next/link": "a",
+    "next/headers": { cookies: async () => ({ get: () => ({ value: "en" }) }) },
+    "next/navigation": { notFound() { throw new Error("not-found"); } },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+    "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value), salonProfileLocale: (_country, visitor, fallback) => visitor ?? fallback },
+    "@/lib/marketplace-locations": locations,
+    "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => response }) },
+  }, { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
+  const expected = {
+    fr: { results: "salons trouvés", empty: "Aucun salon publié ici pour le moment.", unavailable: "La recherche est momentanément indisponible." },
+    en: { results: "salons found", empty: "No salons are published here yet.", unavailable: "Search is temporarily unavailable." },
+    es: { results: "salones encontrados", empty: "Todavía no hay salones publicados aquí.", unavailable: "La búsqueda no está disponible temporalmente." },
+  };
+
+  for (const locale of ["fr", "en", "es"]) {
+    response = { data: [salon], error: null };
+    for (const city of [undefined, ["Greensboro"]]) {
+      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale, country: "US", city }), searchParams: Promise.resolve({ page: "2" }) }));
+      const navs = [...html.matchAll(/<nav\b[^>]*>[\s\S]*?<\/nav>/g)].map(match => match[0]);
+      assert.equal(navs.length, 2, "Breadcrumb and pagination remain separate landmarks");
+      const breadcrumbLinks = [...navs[0].matchAll(/<a\b[^>]*>/g)].map(match => match[0]);
+      const paginationLinks = [...navs[1].matchAll(/<a\b[^>]*>/g)].map(match => match[0]);
+      assert.equal(breadcrumbLinks.length, city ? 2 : 1);
+      assert.equal(paginationLinks.length, 2, "Middle page has previous and next targets");
+      for (const link of [...breadcrumbLinks, ...paginationLinks]) {
+        assert.match(link, /min-h-11/, "Navigation targets are at least 44px high");
+        assert.match(link, /focus-visible:outline-2/, "Keyboard focus is visible");
+        assert.match(link, /focus-visible:outline-offset-2/);
+        assert.match(link, /dark:focus-visible:outline-/);
+      }
+      assert.doesNotMatch(html, /<section[^>]*aria-live=/, "The result-card grid must not be a live region");
+      assert.equal(html.match(/<p role="status"[^>]*>([^<]+)<\/p>/)?.[1], "20 " + expected[locale].results);
+    }
+
+    response = { data: [], error: null };
+    const empty = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale, country: "US" }), searchParams: Promise.resolve({}) }));
+    assert.equal(empty.match(/<p role="status"[^>]*>([^<]+)<\/p>/)?.[1], expected[locale].empty);
+
+    response = { data: null, error: { message: "unavailable" } };
+    const unavailable = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale, country: "US" }), searchParams: Promise.resolve({}) }));
+    assert.equal(unavailable.match(/<p role="status"[^>]*>([^<]+)<\/p>/)?.[1], expected[locale].unavailable);
+  }
+});
+
 test("published cover image appears in result cards with an initials fallback", async () => {
   const { MarketplaceSalonCard } = await load("../components/glowflow/marketplace-salon-card.tsx", {
     "next/link": "a",
