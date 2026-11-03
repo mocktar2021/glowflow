@@ -70,7 +70,10 @@ for (const [locale, title, search, history, nailPreferences, shade, reportedInfi
       assert.equal(new URL(page.url()).search, "", "contact search stays out of the URL");
       const profileResponse = await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
       assert.equal(profileResponse.status(), 200);
-      assert.doesNotMatch(await profileResponse.text(), /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
+      const profileHtml = await profileResponse.text();
+      assert.doesNotMatch(profileHtml, /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
+      assert.doesNotMatch(profileHtml, /SYNTHETIC-HAIR-PRIVATE-DO-NOT-SERIALIZE/, "unknown formula keys must not enter the HTML or RSC payload");
+      assert.doesNotMatch(profileHtml, /SYNTHETIC-PATCH-PRIVATE-DO-NOT-SERIALIZE/, "unknown patch-test keys must not enter the HTML or RSC payload");
       await page.getByRole("heading", { name: "Synthetic Alice" }).waitFor();
       await page.getByRole("heading", { name: history }).waitFor();
       const nails = page.getByRole("region", { name: nailPreferences });
