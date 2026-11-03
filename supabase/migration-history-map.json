@@ -268,6 +268,13 @@
       "sourceVersion": "20261101172437",
       "marker": false,
       "normalizedSha256": "07412122236baeb9fed8bf54285d1ed17ac445cfdcbec123f00b4103d1118904"
+    },
+    {
+      "version": "20261103172555",
+      "name": "verified_staff_invitation_contract",
+      "sourceVersion": "20261103172555",
+      "marker": false,
+      "normalizedSha256": "c2e737d310cb34ad9e06ea4face4afd600f9a18d7e33d1bd54f8833527dbd35a"
     }
   ]
 }
