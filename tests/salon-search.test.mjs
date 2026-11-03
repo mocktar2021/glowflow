@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { salonProfileLocale } from "../lib/i18n.ts";
+import { localizedDescription } from "../lib/salon-search.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -19,6 +20,7 @@ const publicGrantMigrationPath = path.join(
   "20260924183507_restrict_public_salon_profile_columns.sql",
 );
 const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/(search)/page.tsx"), "utf8");
+const distanceSearch = await readFile(path.join(root, "components/glowflow/distance-search.tsx"), "utf8");
 const resultCard = await readFile(path.join(root, "components/glowflow/marketplace-salon-card.tsx"), "utf8");
 
 test("keeps public discovery separate and protected by RLS", async () => {
@@ -83,6 +85,16 @@ test("salon country sets the profile language unless the visitor chooses one", (
   assert.match(discoveryPage, /get\("glowflow_locale"\)/);
   assert.match(discoveryPage, /from\("markets"\)/);
   assert.match(discoveryPage, /salonProfileLocale\(countryDefaultLocales\.get\(salon\.country_code\)/);
+  assert.match(discoveryPage, /countryDefaultLocale=\{countryDefaultLocales\.get\(salon\.country_code\)/);
+  assert.match(distanceSearch, /countryDefaultLocale=\{countryDefaultLocales\[salon\.country_code\]/);
+});
+
+test("result descriptions skip blanks and expose the language actually selected", () => {
+  const salon = { description_json: { fr: "Texte français", en: "  ", es: " Descripción española " } };
+  assert.deepEqual(localizedDescription(salon, "fr", "es"), { text: "Texte français", language: "fr" });
+  assert.deepEqual(localizedDescription(salon, "en", "es"), { text: "Descripción española", language: "es" });
+  assert.deepEqual(localizedDescription(salon, "en", "unknown"), { text: "Texte français", language: "fr" });
+  assert.equal(localizedDescription({ description_json: { fr: "", en: " ", es: "" } }, "en", "es"), null);
 });
 
 test("limits anonymous profile reads to explicit public columns", async () => {

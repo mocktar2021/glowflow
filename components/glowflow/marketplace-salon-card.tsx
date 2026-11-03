@@ -19,16 +19,17 @@ type CardLabels = {
 };
 
 export function MarketplaceSalonCard({
-  salon, locale, href, cityHref, labels, timeZone,
+  salon, locale, countryDefaultLocale, href, cityHref, labels, timeZone,
 }: {
   salon: SalonSearchResult;
   locale: Locale;
+  countryDefaultLocale?: string | null;
   href: string;
   cityHref?: string;
   labels: CardLabels;
   timeZone?: string;
 }) {
-  const description = localizedDescription(salon, locale);
+  const description = localizedDescription(salon, locale, countryDefaultLocale);
   const imageUrl = publicSalonImageUrl(salon.image_url);
   const location = <><MapPin className="size-4" aria-hidden="true" />{salon.city}, {salon.postal_code} · {salon.country_code}</>;
   const displayTimeZone = timeZone ?? "UTC";
@@ -58,7 +59,7 @@ export function MarketplaceSalonCard({
         ) : (
           <p className="mt-2 flex items-center gap-2 text-sm text-slate-500 dark:text-stone-400">{location}</p>
         )}
-        {description ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-stone-300">{description}</p> : null}
+        {description ? <p lang={description.language} className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-stone-300">{description.text}</p> : null}
         <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#eee4d8] pt-4 text-sm dark:border-white/10">
           <span>
             <span className="block text-xs text-slate-500 dark:text-stone-400">{salon.starting_price === null ? labels.price : labels.from}</span>

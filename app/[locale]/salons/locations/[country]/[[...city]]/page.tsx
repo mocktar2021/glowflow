@@ -99,7 +99,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
     if (!error && !data?.length && page > 1) redirect(pathname);
     if (data) results = data as SalonSearchResult[];
     const timeZonePromise = publicSalonTimeZones(results);
-    if (results.length && !isLocale(visitorPreference ?? "")) {
+    if (results.length) {
       const { data: market } = await supabase
         .from("markets")
         .select("default_locale")
@@ -151,6 +151,7 @@ export default async function LocationPage({ params, searchParams }: { params: P
                 key={salon.slug}
                 salon={salon}
                 locale={locale}
+                countryDefaultLocale={countryDefaultLocale}
                 href={`/${salonProfileLocale(countryDefaultLocale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={!location.city && marketplaceLocation(country, [salon.city]) ? marketplaceLocationHref(locale, country, salon.city) : undefined}
                 timeZone={salonTimeZones[salon.slug]}
