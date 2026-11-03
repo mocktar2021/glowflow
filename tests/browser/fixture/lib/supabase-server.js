@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 // Identities and history are fictitious; there is no Supabase connection.
 export async function createClient() {
   const identity = (await cookies()).get("fixture-identity")?.value;
-  const identities = { owner: "owner-a", staff: "staff-a", "staff-no-insert": "staff-a", "cross-tenant": "outsider", "query-error": "owner-a", "payment-error": "owner-a" };
+  const identities = { owner: "owner-a", staff: "staff-a", "staff-no-insert": "staff-a", "cross-tenant": "outsider", "query-error": "owner-a", "history-name-error": "owner-a", "payment-error": "owner-a" };
   const userId = identities[identity];
   const members = [
     { id: "owner-a", tenant_id: "tenant-a", role: "owner", full_name: "Fixture Owner" },
@@ -70,7 +70,12 @@ export async function createClient() {
           if (identity === "query-error") return { data: null, error: { message: "Fictional database diagnostic" } };
           return rows.length <= 1 ? { data: rows[0] ? { ...rows[0], ...updateValues } : null, error: null } : { data: null, error: { message: "Expected at most one row" } };
         },
-        then(resolve, reject) { return Promise.resolve({ data: rows, error: null }).then(resolve, reject); },
+        then(resolve, reject) {
+          const result = identity === "history-name-error" && table === "clients"
+            ? { data: null, error: { message: "Fictional client lookup diagnostic" } }
+            : { data: rows, error: null };
+          return Promise.resolve(result).then(resolve, reject);
+        },
       };
     },
     async rpc(name, args = {}) {
