@@ -31,6 +31,8 @@ test('RLS declaration guard rejects missing and later disabled protection', () =
   }
 
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid,tenant_id uuid);']]), /private_clients/);
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' create table public.copied_clients as select * from public.private_clients;']]), /copied_clients/);
+  assert.deepEqual(assertRlsDeclarations([['safe.sql', protectedTable + ' create table public.copied_clients as select * from public.private_clients; alter table public.copied_clients enable row level security;']]), ['copied_clients', 'private_clients']);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); alter table public.private_clients enable row level security; alter table public.private_clients disable row level security;']]), /private_clients/);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); -- alter table public.private_clients enable row level security;']]), /private_clients/);
 });
