@@ -24,7 +24,7 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, products = [], policies = {}, services = catalog } = {}) {
+function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, marketDefaultLocale = "es", products = [], policies = {}, services = catalog } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
@@ -32,7 +32,7 @@ function database({ profilePublished = true, profileCountry = tenant.country_cod
     function result(single) {
       queries.push({ table, filters });
       const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished, policies_json: policies }];
-      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? services : table === "markets" ? [{ country_code: "ES", default_locale: "es" }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
+      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? services : table === "markets" ? [{ country_code: "ES", default_locale: marketDefaultLocale }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
     return query;
@@ -145,6 +145,7 @@ test("booking route preserves selected service, locale and trusted salon currenc
     assert.deepEqual(tree.props.services.map(s => s.id), [first, chosen]);
     assert.equal(tree.props.salon.currency, "EUR");
     assert.equal(tree.props.salon.countryCode, "ES");
+    assert.equal(tree.props.salon.defaultLocale, "es");
     assert.equal(tree.props.salon.timeZone, "Europe/Madrid");
     assert.notEqual(tree.key, (await Page(request(locale, first))).key, "new selected-service navigation resets old form state");
   }
@@ -168,6 +169,21 @@ test("public booking fails closed when the discovered profile country differs fr
   const Page = await booking(database({ profileCountry: "FR" }));
   await assert.rejects(Page(request("es", chosen)), /not-found/);
 }));
+test("booking uses the configured market language even when it differs from the static country fallback", async () => withConfiguration(async () => {
+  const sparse = { ...catalog[1], title_json: { fr: "", en: "English market title", es: "Spanish country title" } };
+  const Page = await booking(database({ marketDefaultLocale: "en", services: [sparse] }));
+  const tree = await Page(request("fr", chosen));
+  assert.equal(tree.props.salon.countryCode, "ES");
+  assert.equal(tree.props.salon.defaultLocale, "en");
+  const payment = await load("../lib/sandbox-payment-copy.ts");
+  const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
+    "@/lib/sandbox-payment-copy": payment,
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+  });
+  const html = renderToStaticMarkup(createElement(LiveBookingFlow, tree.props));
+  assert.match(html, /English market title/);
+  assert.doesNotMatch(html, /Spanish country title/);
+}));
 test("selected service preserves sandbox owner/configuration gates and reservation status", async () => withConfiguration(async () => {
   const Page = await booking(database(), { sandbox: true });
   assert.equal((await Page(request("en", chosen, { sandbox: "1" }))).props.sandbox, true);
@@ -179,7 +195,6 @@ test("live form selects requested catalog service and rejects foreign component 
   const payment = await load("../lib/sandbox-payment-copy.ts");
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     "@/lib/sandbox-payment-copy": payment,
-    "@/lib/markets": marketConfig,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });
   const props = { locale: "en", salon: { ...tenant, countryCode: tenant.country_code, timeZone: tenant.time_zone }, services: catalog.slice(0, 2), initialServiceId: chosen };
@@ -211,7 +226,6 @@ test("booking keeps a sparse published service title visible across locale hando
   const payment = await load("../lib/sandbox-payment-copy.ts");
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     "@/lib/sandbox-payment-copy": payment,
-    "@/lib/markets": marketConfig,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });
   for (const [locale, title_json, expected] of [
@@ -222,7 +236,7 @@ test("booking keeps a sparse published service title visible across locale hando
   ]) {
     const sparse = { ...catalog[0], title_json };
     const html = renderToStaticMarkup(createElement(LiveBookingFlow, {
-      locale, salon: { ...tenant, countryCode: tenant.country_code, timeZone: tenant.time_zone }, services: [sparse], initialServiceId: first,
+      locale, salon: { ...tenant, countryCode: tenant.country_code, defaultLocale: "es", timeZone: tenant.time_zone }, services: [sparse], initialServiceId: first,
     }));
     assert.equal(localizedProductText(title_json, locale, "es") || "Service details unavailable", expected);
     assert.equal(html.split(expected).length - 1, 2, "summary and selector use the same non-empty title as the profile");
@@ -235,7 +249,6 @@ test("changing service preserves sandbox query, hash and history state for local
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn(), useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); } },
     "@/lib/sandbox-payment-copy": payment,
-    "@/lib/markets": marketConfig,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });
   const previous = globalThis.window;

@@ -76,12 +76,19 @@ export default async function BookingPage({
     return <SandboxPaymentStatusPanel locale={locale} salonSlug={slug} reservationId={query.sandboxReservation} />;
   }
 
-  const { data: rawServices } = await supabase
-    .from("services")
-    .select("id,title_json,duration_minutes,price,deposit_amount,currency")
-    .eq("tenant_id", tenant.id)
-    .eq("is_active", true)
-    .order("created_at");
+  const [{ data: rawServices }, { data: market }] = await Promise.all([
+    supabase.from("services")
+      .select("id,title_json,duration_minutes,price,deposit_amount,currency")
+      .eq("tenant_id", tenant.id)
+      .eq("is_active", true)
+      .order("created_at"),
+    supabase.from("markets")
+      .select("default_locale")
+      .eq("country_code", tenant.country_code)
+      .maybeSingle(),
+  ]);
+  const marketLanguage = market?.default_locale;
+  const defaultLocale = marketLanguage && isLocale(marketLanguage) ? marketLanguage : "fr";
 
   const services = (rawServices ?? []) as Service[];
   if (!services.length) notFound();
@@ -107,6 +114,7 @@ export default async function BookingPage({
         slug: tenant.slug,
         city: tenant.city,
         countryCode: tenant.country_code,
+        defaultLocale,
         currency: tenant.currency,
         timeZone: tenant.time_zone,
       }}

@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import type { Locale } from "@/lib/i18n";
-import { fallbackMarkets } from "@/lib/markets";
 import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 
 const noHydrationSubscription = () => () => {};
@@ -41,7 +40,7 @@ type Confirmation = {
 
 type Props = {
   locale: Locale;
-  salon: { name: string; slug: string; city: string | null; countryCode: string; currency: string; timeZone: string };
+  salon: { name: string; slug: string; city: string | null; countryCode: string; currency: string; timeZone: string; defaultLocale?: Locale };
   services: Service[];
   bookingStaffByService?: Record<string, Array<{ id: string; name: string }>>;
   initialServiceId?: string;
@@ -209,7 +208,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     throw new Error("Booking requires a service from this salon's catalog.");
   }
   const labels = copy[locale];
-  const countryDefaultLocale = fallbackMarkets.find((market) => market.country_code === salon.countryCode)?.default_locale ?? "fr";
+  const countryDefaultLocale = salon.defaultLocale ?? "fr";
   const paymentLabels = sandboxPaymentCopy[locale];
   const retry = useRef<{ payload: string; key: string } | null>(null);
   const contactRef = useRef<HTMLInputElement>(null);
