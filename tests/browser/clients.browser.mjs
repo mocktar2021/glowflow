@@ -211,3 +211,19 @@ test("forged foreign client ID cannot be saved by a staff member", async () => {
     assert.equal(await page.getByRole("status").count(), 0);
   } finally { await context.close(); }
 });
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} unknown private hair and patch keys stay out of the client profile payload`, async () => {
+    const { context, page } = await pageFor("staff");
+    try {
+      const response = await page.goto(`${origin}/${locale}/dashboard/clients/30000000-0000-0000-0000-000000000004`);
+      assert.equal(response.status(), 200);
+      const html = await response.text();
+      assert.doesNotMatch(html, /SYNTHETIC-HAIR-PRIVATE-DO-NOT-SERIALIZE/,
+        "unknown formula keys must not enter HTML or the RSC payload");
+      assert.doesNotMatch(html, /SYNTHETIC-PATCH-PRIVATE-DO-NOT-SERIALIZE/,
+        "unknown patch-test keys must not enter HTML or the RSC payload");
+      await page.getByRole("heading", { name: "Synthetic Hair History", exact: true, level: 1 }).waitFor();
+    } finally { await context.close(); }
+  });
+}
