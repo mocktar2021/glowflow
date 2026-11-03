@@ -128,13 +128,13 @@ export default async function LocationPage({ params, searchParams }: { params: P
       {jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} /> : null}
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-4">
-          <Link href={`/${locale}/salons`} className="text-lg font-semibold tracking-tight">GlowFlow</Link>
+          <Link href={`/${locale}/salons`} className="inline-flex min-h-11 items-center rounded text-lg font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">GlowFlow</Link>
           <LanguageSwitcher locale={locale} />
         </header>
         <nav aria-label={location.city ? labels.city : labels.country} className="mt-8 flex flex-wrap items-center gap-2 text-sm">
-          <Link href={`/${locale}/salons`} className="underline underline-offset-4">{labels.marketplace}</Link>
+          <Link href={`/${locale}/salons`} className="inline-flex min-h-11 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">{labels.marketplace}</Link>
           <span aria-hidden="true">/</span>
-          {location.city ? <><Link href={marketplaceLocationHref(locale, country)} className="underline underline-offset-4">{countryName}</Link><span aria-hidden="true">/</span><span aria-current="page">{location.city}</span></> : <span aria-current="page">{countryName}</span>}
+          {location.city ? <><Link href={marketplaceLocationHref(locale, country)} className="inline-flex min-h-11 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">{countryName}</Link><span aria-hidden="true">/</span><span aria-current="page">{location.city}</span></> : <span aria-current="page">{countryName}</span>}
         </nav>
         <section className="mt-8 rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e] sm:p-10">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8c5728] dark:text-[#efc992]">{location.city ? labels.city : labels.country}</p>
@@ -142,9 +142,9 @@ export default async function LocationPage({ params, searchParams }: { params: P
           <p className="mt-4 text-slate-600 dark:text-stone-300">{labels.intro}</p>
           <Link href={`/${locale}/salons?${searchQuery.toString()}`} className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">{labels.browse}</Link>
         </section>
-        <section className="mt-9" aria-live="polite">
-          {loadError ? <p role="status" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 dark:border-rose-900/50 dark:bg-rose-950/20">{labels.unavailable}</p> : results.length === 0 ? <p className="rounded-2xl border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]">{labels.empty}</p> : <>
-            <p className="mb-5 text-sm font-semibold text-slate-600 dark:text-stone-300">{total} {total === 1 ? labels.oneResult : labels.results}</p>
+        <section className="mt-9">
+          {loadError ? <p role="status" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 dark:border-rose-900/50 dark:bg-rose-950/20">{labels.unavailable}</p> : results.length === 0 ? <p role="status" className="rounded-2xl border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]">{labels.empty}</p> : <>
+            <p role="status" className="mb-5 text-sm font-semibold text-slate-600 dark:text-stone-300">{total} {total === 1 ? labels.oneResult : labels.results}</p>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {results.map((salon) => <MarketplaceSalonCard
                 key={salon.slug}
@@ -157,9 +157,9 @@ export default async function LocationPage({ params, searchParams }: { params: P
               />)}
             </div>
             {totalPages > 1 ? <nav className="mt-8 flex items-center justify-center gap-4" aria-label={labels.page}>
-              {page > 1 ? <Link href={`${pathname}${page > 2 ? `?page=${page - 1}` : ""}`} className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold">{labels.previous}</Link> : null}
+              {page > 1 ? <Link href={`${pathname}${page > 2 ? `?page=${page - 1}` : ""}`} className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">{labels.previous}</Link> : null}
               <span className="text-sm">{labels.page} {page} / {totalPages}</span>
-              {page < totalPages ? <Link href={`${pathname}?page=${page + 1}`} className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold">{labels.nextPage}</Link> : null}
+              {page < totalPages ? <Link href={`${pathname}?page=${page + 1}`} className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">{labels.nextPage}</Link> : null}
             </nav> : null}
           </>}
         </section>
