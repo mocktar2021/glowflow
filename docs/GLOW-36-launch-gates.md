@@ -244,6 +244,14 @@ record.
       separate Storage-file source. Record elapsed time and achieved recovery
       point using the evidence template below. Never restore over production to
       test this gate.
+- [ ] For every migration included in this release, record the exact file and
+      fingerprint, hosted ledger/schema preflight, and separate approval for
+      the hosted change. Test its scoped rollback or forward-fix on an isolated
+      database at the intended predecessor state, including data-preservation
+      and authorization checks. Name the operator and the decision point for
+      reverting application code versus applying a database recovery step.
+      A rollback script in the repository is not evidence that the recovery
+      path was tested. If no database change is planned, record that explicitly.
 - [ ] Confirm the exact GitHub launch SHA and green CI, database-security, and
       browser runs for it. Review security advisors and tenant/anonymous role
       results for the intended database revision. Do not substitute an older
@@ -279,20 +287,22 @@ approval. A pilot exception does not turn an unmet paid-launch gate into a pass.
 | GitHub repository, exact `master` SHA, CI/security/browser run URLs | Pending |
 | Vercel team/project, deployment ID, production target, READY time, alias | Pending |
 | Supabase organization/project, migration ledger and schema fingerprints | Pending |
+| Included migrations, individual recovery plans and isolated test evidence | Pending |
 | Payment and messaging provider mode and accountable owners, without secrets | Pending |
 | Named incident lead, backup operator, alternates, support/alert contacts | Pending |
 | Monitoring window, rollback trigger, prior READY deployment | Pending |
 
 For every checklist gate above, add a row in the release record using this
 format. Keep separate rows for legal/policy publication, support and alerting,
-historical database plus Storage recovery, security/RLS, FR/EN/ES journeys,
-domain/TLS, test-data cleanup, and, for a paid launch, payments/refunds/tax/
-receipts/reconciliation. Record provider evidence independently of repository
-tests.
+historical database plus Storage recovery, migration recovery, security/RLS,
+FR/EN/ES journeys, domain/TLS, test-data cleanup, and, for a paid launch,
+payments/refunds/tax/receipts/reconciliation. Record provider evidence
+independently of repository tests.
 
 | Gate | Applies to this release? | Pass / Failed / Pending / Not applicable | Evidence URL or artifact | Checked at (UTC) and by whom | Open risk, exception owner, retest trigger |
 | --- | --- | --- | --- | --- | --- |
 | Example: historical database and Storage restore | Yes | Pending | No selected historical-point drill yet | Not checked | Product owner to approve an isolated drill; rerun if backup policy changes |
+| Example: migration-specific recovery | If release includes SQL | Pending | No isolated rollback or forward-fix result recorded | Not checked | Database operator to test at exact predecessor state before hosted approval |
 
 The product owner signs a final **Go** or **No-go** only after reviewing every
 applicable row. Record any supervised-pilot exception with its owner, expiry,
