@@ -86,6 +86,88 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000093' and tenant_id='10000000-0000-0000-0000-000000000001' and role='staff'"), '1');
   assert.equal(sql("select count(*) from private.staff_invitations where token_hash=sha256(convert_to(repeat('C',43),'UTF8')) and accepted_by='20000000-0000-0000-0000-000000000093'"), '1');
 
+  const differentTokenAttempt = token => `
+    begin;
+    set local role authenticated;
+    set local request.jwt.claim.sub = '20000000-0000-0000-0000-000000000094';
+    select public.accept_staff_invitation(repeat('${token}',43), 'Dual Staff', 'fr');
+    select pg_sleep(1);
+    commit;
+  `;
+  const differentInvitations = await Promise.all([
+    concurrentSql(differentTokenAttempt('J')),
+    concurrentSql(differentTokenAttempt('K')),
+  ]);
+  assert.equal(differentInvitations.filter(result => result.status === 0).length, 1,
+    'two valid invitations for one Auth identity cannot create two salon memberships');
+  assert.match(differentInvitations.find(result => result.status !== 0)?.stderr ?? '',
+    /staff_invitation_unavailable/);
+  assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000094' and role='staff'"), '1');
+  assert.equal(sql("select count(*) from private.staff_invitations where token_hash in (sha256(convert_to(repeat('J',43),'UTF8')),sha256(convert_to(repeat('K',43),'UTF8'))) and accepted_at is not null"), '1',
+    'only the winning invitation is consumed');
+  assert.equal(sql("select count(*) from private.staff_invitations where token_hash in (sha256(convert_to(repeat('J',43),'UTF8')),sha256(convert_to(repeat('K',43),'UTF8'))) and accepted_at is null"), '1',
+    'the losing invitation remains unconsumed');
+  assert.equal(sql("select count(*) from private.staff_invitations as invitation join public.users as member on member.id=invitation.accepted_by and member.tenant_id=invitation.tenant_id where member.id='20000000-0000-0000-0000-000000000094'"), '1',
+    'winning invitation and membership identify the same salon');
+
+  // Freeze a transaction before expiry, then make it wait on the invitation
+  // row until after expiry. Transaction-start now() would incorrectly accept.
+  sql(`insert into private.staff_invitations
+    (tenant_id,inviter_id,email_normalized,token_hash,expires_at)
+    values ('10000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001','delayed.staff@example.invalid',
+      sha256(convert_to(repeat('L',43),'UTF8')),
+      clock_timestamp()+interval '8 seconds')`);
+  const holder = spawn(process.env.PSQL_BIN || 'psql',
+    ['-X', '-w', '-v', 'ON_ERROR_STOP=1', '-At', '-d', connection],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
+  let holderOut = '';
+  let holderErr = '';
+  let readyResolve;
+  let readyReject;
+  const lockReady = new Promise((resolve, reject) => {
+    readyResolve = resolve;
+    readyReject = reject;
+  });
+  const holderDone = new Promise(resolve => {
+    holder.stdout.setEncoding('utf8').on('data', chunk => {
+      holderOut += chunk;
+      if (holderOut.includes('LOCK_READY')) readyResolve();
+    });
+    holder.stderr.setEncoding('utf8').on('data', chunk => { holderErr += chunk; });
+    holder.on('error', error => readyReject(error));
+    holder.on('close', status => {
+      if (!holderOut.includes('LOCK_READY')) readyReject(new Error(holderErr || 'invitation lock was not acquired'));
+      resolve({ status, stderr: holderErr });
+    });
+  });
+  holder.stdin.end(`
+    begin;
+    select 'LOCK_READY' from private.staff_invitations
+      where token_hash=sha256(convert_to(repeat('L',43),'UTF8')) for update;
+    select pg_sleep(9);
+    commit;
+  `);
+  await lockReady;
+  const delayedAttempt = concurrentSql(`
+    begin;
+    select 'BEFORE_EXPIRY' from private.staff_invitations
+      where token_hash=sha256(convert_to(repeat('L',43),'UTF8'))
+        and clock_timestamp() < expires_at;
+    set local role authenticated;
+    set local request.jwt.claim.sub = '20000000-0000-0000-0000-000000000095';
+    select public.accept_staff_invitation(repeat('L',43), 'Delayed Staff', 'en');
+    commit;
+  `);
+  const [heldLock, delayed] = await Promise.all([holderDone, delayedAttempt]);
+  assert.equal(heldLock.status, 0, heldLock.stderr);
+  assert.match(delayed.stdout, /BEFORE_EXPIRY/,
+    'recipient transaction started before invitation expiry');
+  assert.notEqual(delayed.status, 0, 'lock-delayed redemption after expiry must fail');
+  assert.match(delayed.stderr, /staff_invitation_unavailable/);
+  assert.equal(sql("select count(*) from public.users where id='20000000-0000-0000-0000-000000000095'"), '0');
+  assert.equal(sql("select count(*) from private.staff_invitations where token_hash=sha256(convert_to(repeat('L',43),'UTF8')) and accepted_at is null"), '1');
+
   sql(readFileSync(new URL('supabase/rollbacks/20261103172555_disable_verified_staff_invitation_acceptance.sql', root), 'utf8'));
   assert.equal(sql("select has_function_privilege('authenticated','public.accept_staff_invitation(text,text,text)','execute')"), 'f',
     'fail-closed rollback disables acceptance');
