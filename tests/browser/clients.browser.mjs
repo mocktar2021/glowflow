@@ -70,10 +70,7 @@ for (const [locale, title, search, history, nailPreferences, shade, reportedInfi
       assert.equal(new URL(page.url()).search, "", "contact search stays out of the URL");
       const profileResponse = await page.goto(`${origin}/${locale}/dashboard/clients/${clientId}`);
       assert.equal(profileResponse.status(), 200);
-      const profileHtml = await profileResponse.text();
-      assert.doesNotMatch(profileHtml, /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
-      assert.doesNotMatch(profileHtml, /SYNTHETIC-HAIR-PRIVATE-DO-NOT-SERIALIZE/, "unknown formula keys must not enter the HTML or RSC payload");
-      assert.doesNotMatch(profileHtml, /SYNTHETIC-PATCH-PRIVATE-DO-NOT-SERIALIZE/, "unknown patch-test keys must not enter the HTML or RSC payload");
+      assert.doesNotMatch(await profileResponse.text(), /SYNTHETIC-NAIL-PRIVATE-DO-NOT-SERIALIZE/, "unknown preference keys must not enter the HTML or RSC payload");
       await page.getByRole("heading", { name: "Synthetic Alice" }).waitFor();
       await page.getByRole("heading", { name: history }).waitFor();
       const nails = page.getByRole("region", { name: nailPreferences });
@@ -214,3 +211,19 @@ test("forged foreign client ID cannot be saved by a staff member", async () => {
     assert.equal(await page.getByRole("status").count(), 0);
   } finally { await context.close(); }
 });
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} unknown private hair and patch keys stay out of the client profile payload`, async () => {
+    const { context, page } = await pageFor("staff");
+    try {
+      const response = await page.goto(`${origin}/${locale}/dashboard/clients/30000000-0000-0000-0000-000000000004`);
+      assert.equal(response.status(), 200);
+      const html = await response.text();
+      assert.doesNotMatch(html, /SYNTHETIC-HAIR-PRIVATE-DO-NOT-SERIALIZE/,
+        "unknown formula keys must not enter HTML or the RSC payload");
+      assert.doesNotMatch(html, /SYNTHETIC-PATCH-PRIVATE-DO-NOT-SERIALIZE/,
+        "unknown patch-test keys must not enter HTML or the RSC payload");
+      await page.getByRole("heading", { name: "Synthetic Hair History", exact: true, level: 1 }).waitFor();
+    } finally { await context.close(); }
+  });
+}
