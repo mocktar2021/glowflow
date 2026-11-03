@@ -587,3 +587,30 @@ test("ambiguous public booking failure retries the same request key", async t =>
   assert.deepEqual(writes[1], writes[0], "an uncertain first result must reuse its idempotency key and payload");
   assert.deepEqual(externalRequests, []);
 });
+
+test("changed contact after an ambiguous public booking response gets a new request key", async t => {
+  const { page, writes, externalRequests } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    if (requests.length === 1) return route.abort("failed");
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en") } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: "Booking failed. Review your information." }).waitFor();
+  assert.equal(writes.length, 1);
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 0);
+
+  await selectBookingTime(page);
+  await page.locator('[name="email"]').fill("updated@example.invalid");
+  await page.getByRole("button", { name: confirmationLabels.en.submit, exact: true }).click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.length, 2);
+  const { requestKey: firstKey, ...firstPayload } = writes[0];
+  const { requestKey: secondKey, ...secondPayload } = writes[1];
+  assert.match(firstKey, /^[0-9a-f-]{36}$/);
+  assert.match(secondKey, /^[0-9a-f-]{36}$/);
+  assert.notEqual(secondKey, firstKey, "changed contact details cannot reuse an ambiguous reservation key");
+  assert.deepEqual(secondPayload, { ...firstPayload, email: "updated@example.invalid" });
+  assert.deepEqual(externalRequests, []);
+});
