@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const fixture = path.join(root, "tests/browser/fixture");
 const clientId = "30000000-0000-0000-0000-000000000001";
 const foreignId = "30000000-0000-0000-0000-000000000002";
+const malformedNailsId = "30000000-0000-0000-0000-000000000003";
 let server, browser, origin;
 let output = "";
 
@@ -97,6 +98,27 @@ for (const [locale, title, search, history, nailPreferences, shade, reportedInfi
       assert.equal(await member.page.getByText("Foreign private note").count(), 0);
       assert.equal(await member.page.getByText("Foreign nail secret").count(), 0);
     } finally { await member.context.close(); }
+  });
+}
+
+for (const [locale, heading, emptyMessage] of [
+  ["fr", "Préférences ongulaires", "Aucune préférence ongulaire enregistrée."],
+  ["en", "Nail preferences", "No nail preferences recorded."],
+  ["es", "Preferencias de uñas", "No hay preferencias de uñas registradas."],
+]) {
+  test(`${locale} malformed synthetic nail preferences render a private mobile empty state`, async () => {
+    const { context, page } = await pageFor("staff");
+    try {
+      const response = await page.goto(`${origin}/${locale}/dashboard/clients/${malformedNailsId}`);
+      assert.equal(response.status(), 200);
+      assert.doesNotMatch(await response.text(), /SYNTHETIC-MALFORMED-NAIL-PRIVATE-DO-NOT-SERIALIZE/,
+        "unknown private JSONB keys must not enter HTML or the RSC payload");
+      const nails = page.getByRole("region", { name: heading });
+      await nails.getByText(emptyMessage, { exact: true }).waitFor();
+      assert.equal(await nails.locator("dt, img").count(), 0,
+        "invalid preference values must not become visible fields or markup");
+      assert.equal(await page.getByText("SYNTHETIC-MALFORMED-NAIL-PRIVATE-DO-NOT-SERIALIZE").count(), 0);
+    } finally { await context.close(); }
   });
 }
 
