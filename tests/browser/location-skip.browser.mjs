@@ -17,7 +17,10 @@ before(async () => {
   const port = probe.address().port;
   await new Promise(resolve => probe.close(resolve));
   origin = "http://127.0.0.1:" + port;
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/SUPABASE|STRIPE|GLOWFLOW_APP|VERCEL/.test(key)));
+  const allowed = new Set(["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "WINDIR", "USERPROFILE"]);
+  const ambient = { ...process.env, DATABASE_URL: "synthetic-secret-never-inherit" };
+  const env = Object.fromEntries(Object.entries(ambient).filter(([key]) => allowed.has(key.toUpperCase())));
+  assert.equal(Object.hasOwn(env, "DATABASE_URL"), false, "fixture must not inherit an ambient database credential");
   server = spawn(process.execPath, [path.join(root, "node_modules/next/dist/bin/next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: fixture, env: { ...env, NEXT_TELEMETRY_DISABLED: "1" }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
   });
