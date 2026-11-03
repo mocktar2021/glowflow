@@ -263,6 +263,13 @@
       "normalizedSha256": "f25018bb824414f8c40d7c9633e2f0f8b31dd9fc27bb35ebb1a7d26d162bcc4e"
     },
     {
+      "version": "20261101172437",
+      "name": "fail_closed_future_notification_consent",
+      "sourceVersion": "20261101172437",
+      "marker": false,
+      "normalizedSha256": "07412122236baeb9fed8bf54285d1ed17ac445cfdcbec123f00b4103d1118904"
+    },
+    {
       "version": "20261103172555",
       "name": "verified_staff_invitation_contract",
       "sourceVersion": "20261103172555",

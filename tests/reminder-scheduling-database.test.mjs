@@ -52,6 +52,8 @@ test("confirmed appointments enqueue only consented email revisions without send
   const rolledBack = "50000000-0000-0000-0000-000000000004";
   const threeHoursAway = "50000000-0000-0000-0000-000000000006";
   const oneHourAway = "50000000-0000-0000-0000-000000000007";
+  const futureClient = "30000000-0000-0000-0000-000000000004";
+  const futureBooking = "50000000-0000-0000-0000-000000000008";
 
   sql(`
     insert into auth.users(id,email) values
@@ -186,10 +188,71 @@ test("confirmed appointments enqueue only consented email revisions without send
   assert.equal(count(rolledBack), 0, "rollback removes both appointment and queued revision");
   assert.equal(sql(`select count(*) from public.appointments where id='${rolledBack}'`), "0");
 
+  // A client clock may be up to five minutes ahead. Future opt-in is stored
+  // for audit but cannot authorize scheduling or a claim before DB time.
+  sql(`insert into public.clients(id,tenant_id,full_name,email)
+    values ('${futureClient}','${tenantA}','Future Consent','future@example.invalid')`);
+  sql(appointment(futureBooking, futureClient, 20));
+  assert.equal(count(futureBooking), 0, "unknown consent cannot enqueue");
+  const manualKey = "60000000-0000-0000-0000-000000000102";
+  sql(`set role service_role; select count(*) from public.schedule_appointment_notifications(
+    '${futureBooking}','email','${manualKey}')`);
+  const futureConfirmation = sql(`select id from public.notification_outbox
+    where appointment_id='${futureBooking}' and notification_kind='confirmation'`);
+  assert.equal(sql(`select private.notification_delivery_eligible('${futureConfirmation}',now())`), "f",
+    "unknown consent must return false, not SQL NULL");
+  assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery(
+    '${futureConfirmation}','60000000-0000-0000-0000-000000000107',now())`),
+  /notification_not_eligible/);
+  sql(`set role service_role; select public.record_client_notification_consent(
+    '${tenantA}','${futureClient}','email','consented',
+    '60000000-0000-0000-0000-000000000101',now()+interval '4 minutes')`);
+  assert.equal(sql(`select private.notification_delivery_eligible('${futureConfirmation}',now()+interval '4 minutes')`), "f",
+    "even a future claim time cannot make future opt-in effective early");
+  assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerA}';
+    select coalesce(consent_status,'missing') from public.get_notification_status_rows('${tenantA}',100)
+    where id='${futureConfirmation}'`).split("\n").at(-1), "missing");
+  assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery(
+    '${futureConfirmation}','60000000-0000-0000-0000-000000000103',now()+interval '4 minutes')`),
+  /notification_not_eligible/);
+
+  // A future opt-out must override current consent immediately, even if a
+  // later-dated future opt-in is also present. Preserve the audit timestamps.
+  const latestConfirmation = sql(`select id from public.notification_outbox
+    where appointment_id='${appointmentA}' and notification_kind='confirmation'
+      and schedule_generation=4`);
+  assert.equal(sql(`select private.notification_delivery_eligible('${latestConfirmation}',now())`), "t");
+  sql(`set role service_role;select public.record_client_notification_consent(
+    '${tenantA}','${clientA}','email','opted_out',
+    '60000000-0000-0000-0000-000000000104',now()+interval '3 minutes')`);
+  sql(`set role service_role;select public.record_client_notification_consent(
+    '${tenantA}','${clientA}','email','consented',
+    '60000000-0000-0000-0000-000000000105',now()+interval '4 minutes')`);
+  assert.equal(sql(`select private.notification_delivery_eligible('${latestConfirmation}',now()+interval '4 minutes')`), "f");
+  assert.equal(sql(`set role authenticated;set request.jwt.claim.sub='${ownerA}';
+    select consent_status from public.get_notification_status_rows('${tenantA}',100)
+    where id='${latestConfirmation}'`).split("\n").at(-1), "opted_out");
+  sql(`update public.appointments set start_time=start_time+interval '1 day'
+    where id='${appointmentA}'`);
+  assert.equal(count(), 9, "future opt-out suppresses a newly revised schedule");
+  assert.throws(() => sql(`set role service_role;select public.claim_notification_delivery(
+    '${latestConfirmation}','60000000-0000-0000-0000-000000000106',now())`),
+  /notification_not_eligible/);
+
+  const failClosedRollback = readFileSync(new URL("supabase/rollbacks/20261101172437_disable_notification_claims_and_scheduling.sql", root), "utf8");
+  sql(failClosedRollback);
+  assert.equal(sql(`select count(*) from pg_catalog.pg_trigger
+    where tgrelid='public.appointments'::regclass
+      and tgname='appointments_enqueue_confirmed_email' and not tgisinternal`), "0");
+  assert.equal(sql("select has_function_privilege('service_role','public.claim_notification_delivery(uuid,uuid,timestamptz)','execute')"), "f");
+  assert.equal(count(), 9, "fail-closed rollback preserves append-only notification history");
+  sql(`update public.appointments set start_time=start_time+interval '1 day' where id='${appointmentA}'`);
+  assert.equal(count(), 9, "fail-closed rollback stops new automatic scheduling");
+
+  const migration = readFileSync(new URL("supabase/migrations/20261101172437_fail_closed_future_notification_consent.sql", root), "utf8");
+  assert.throws(() => sql(migration), /notification_scheduler_predecessor_missing/,
+    "migration cannot silently recreate the missing predecessor scheduler");
   const rollback = readFileSync(new URL("supabase/rollbacks/20261018000135_stop_confirmed_appointment_email.sql", root), "utf8");
   sql(rollback);
   assert.equal(sql("select to_regprocedure('private.enqueue_confirmed_appointment_email()') is null"), "t");
-  assert.equal(count(), 9, "operational rollback preserves immutable history");
-  sql(`update public.appointments set start_time=start_time+interval '1 day' where id='${appointmentA}'`);
-  assert.equal(count(), 9, "rollback stops new automatic scheduling");
 });

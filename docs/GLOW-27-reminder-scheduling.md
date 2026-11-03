@@ -1,6 +1,6 @@
 # GLOW-27: consented email schedule persistence
 
-This slice records confirmation and future 24-hour and 2-hour reminder jobs in the existing append-only outbox. It does not send a message, install a worker or cron job, call a provider, or charge anything. It has not been applied to a hosted database.
+This slice records confirmation and future 24-hour and 2-hour reminder jobs in the existing append-only outbox. It does not send a message, install a worker or cron job, call a provider, or charge anything. The scheduler migration is present on hosted GlowFlow as of 2026-11-03. It enables outbox persistence, not message delivery.
 
 ## Behavior
 
@@ -14,10 +14,10 @@ The trigger is an internal `SECURITY DEFINER` function with an empty search path
 
 - Migration: `supabase/migrations/20261018000135_schedule_confirmed_appointment_notifications.sql`
 - Normalized SHA-256: `3781a6771051c5131ad4ceb3592a00dbb2e36a10ae27efe30ef72470aa63692f`
-- Target, if separately approved after merge: Supabase organization `goutxcrujaxjjssbjfsn`, GlowFlow project `rfwhqutkiztxkagbhevp` only. Never MowFlow.
-- Preflight before any hosted apply: verify project identity, complete migration history and fingerprints, required notification tables/functions/privileges, and existing outbox state. Stop on any mismatch. A code merge is not authorization to apply SQL.
+- Hosted target: Supabase organization `goutxcrujaxjjssbjfsn`, GlowFlow project `rfwhqutkiztxkagbhevp` only. The migration was separately approved and is recorded there. MowFlow was not touched.
+- Read-only verification on 2026-11-03: project identity matched, the hosted migration ledger contained `20261018000135`, the private scheduler function and enabled appointment trigger were present, and outbox and delivery-attempt counts were zero. Recheck identity, ledger, fingerprints, privileges, and worker state before any future hosted change; a code merge never authorizes further SQL.
 - Rollback: `supabase/rollbacks/20261018000135_stop_confirmed_appointment_email.sql` drops only this trigger and function. It stops future automatic enqueueing; it does not erase appointments, consent, outbox, or attempts. Previously queued entries retain the existing eligibility rules. A separate operational decision would be needed to suppress their delivery.
-- Deployment risk: database writes to confirmed appointments now depend on outbox scheduling succeeding. This makes booking and scheduling atomic, but an unexpected outbox failure can reject the booking transaction. Test and monitor this in a controlled preview before hosted migration.
+- Operational risk: database writes to confirmed appointments now depend on outbox scheduling succeeding. This makes booking and scheduling atomic, but an unexpected outbox failure can reject the booking transaction. Continue monitoring confirmed-booking writes. No provider, delivery worker, cron job, or send was enabled by this migration.
 
 ## Local verification
 
