@@ -33,7 +33,8 @@ alter default privileges in schema public grant all on sequences to service_role
 
 create table auth.users (
   id uuid primary key,
-  email text
+  email text,
+  email_confirmed_at timestamptz
 );
 create function auth.uid() returns uuid
 language sql stable set search_path = ''
