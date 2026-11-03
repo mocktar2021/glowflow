@@ -197,15 +197,18 @@ test("location navigation and result announcements are accessible in every local
     "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => response }) },
   }, { NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
   const expected = {
-    fr: { results: "salons trouvés", empty: "Aucun salon publié ici pour le moment.", unavailable: "La recherche est momentanément indisponible." },
-    en: { results: "salons found", empty: "No salons are published here yet.", unavailable: "Search is temporarily unavailable." },
-    es: { results: "salones encontrados", empty: "Todavía no hay salones publicados aquí.", unavailable: "La búsqueda no está disponible temporalmente." },
+    fr: { skipResults: "Aller aux résultats", results: "salons trouvés", empty: "Aucun salon publié ici pour le moment.", unavailable: "La recherche est momentanément indisponible." },
+    en: { skipResults: "Skip to results", results: "salons found", empty: "No salons are published here yet.", unavailable: "Search is temporarily unavailable." },
+    es: { skipResults: "Ir a los resultados", results: "salones encontrados", empty: "Todavía no hay salones publicados aquí.", unavailable: "La búsqueda no está disponible temporalmente." },
   };
 
   for (const locale of ["fr", "en", "es"]) {
     response = { data: [salon], error: null };
     for (const city of [undefined, ["Greensboro"]]) {
       const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale, country: "US", city }), searchParams: Promise.resolve({ page: "2" }) }));
+      assert.match(html, /<a href="#location-results"[^>]*class="[^"]*sr-only[^"]*focus:not-sr-only/);
+      assert.ok(html.includes(`>${expected[locale].skipResults}</a>`), "Skip link is localized");
+      assert.match(html, /<section[^>]*id="location-results"[^>]*tabindex="-1"/);
       const navs = [...html.matchAll(/<nav\b[^>]*>[\s\S]*?<\/nav>/g)].map(match => match[0]);
       assert.equal(navs.length, 2, "Breadcrumb and pagination remain separate landmarks");
       const breadcrumbLinks = [...navs[0].matchAll(/<a\b[^>]*>/g)].map(match => match[0]);
