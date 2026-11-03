@@ -19,6 +19,7 @@ create table private.staff_invitations (
   accepted_at timestamptz,
   accepted_by uuid,
   check ((accepted_at is null) = (accepted_by is null)),
+  check (accepted_at is null or accepted_at < expires_at),
   check (accepted_at is null or revoked_at is null)
 );
 
@@ -47,6 +48,7 @@ declare
   actor_id uuid := (select auth.uid());
   verified_email text;
   inserted_id uuid;
+  acceptance_time timestamptz;
 begin
   -- A single generic error avoids disclosing whether an email, account,
   -- tenant, or invitation exists. Issuers must generate 32 random bytes and
@@ -69,7 +71,7 @@ begin
   if not found
      or invitation.revoked_at is not null
      or invitation.accepted_at is not null
-     or invitation.expires_at <= now() then
+     or invitation.expires_at <= clock_timestamp() then
     raise exception using errcode = '22023', message = 'staff_invitation_unavailable';
   end if;
 
@@ -116,8 +118,15 @@ begin
     raise exception using errcode = '22023', message = 'staff_invitation_unavailable';
   end if;
 
+  -- Recheck after all identity/tenant waits and the membership insert. If
+  -- expiry passed meanwhile, the exception rolls the insert back as well.
+  acceptance_time := clock_timestamp();
+  if invitation.expires_at <= acceptance_time then
+    raise exception using errcode = '22023', message = 'staff_invitation_unavailable';
+  end if;
+
   update private.staff_invitations
-  set accepted_at = now(), accepted_by = actor_id
+  set accepted_at = acceptance_time, accepted_by = actor_id
   where id = invitation.id;
   return invitation.tenant_id;
 end;
