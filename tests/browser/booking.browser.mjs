@@ -152,20 +152,22 @@ test("locale switch preserves sandbox query and hash", async t => {
   await page.waitForURL(`${origin}/en/book/browser-fixture?sandbox=1#booking`);
   await page.getByRole("heading", { name: labels.en.title }).waitFor();
 });
-for (const status of ["paid", "failed", "expired"]) {
-  test(`pending transitions to ${status} only after authoritative refresh`, async t => {
-    const { page, setStatus, release } = await pageFor(t, "en", { delay: true });
-    await page.goto(`${origin}/en/book/browser-fixture?sandboxReservation=${reservationId}&paid=true`);
-    await page.getByRole("status").filter({ hasText: labels.en.pending }).waitFor();
-    assert.equal(await page.getByText(labels.en.paid, { exact: false }).count(), 0);
-    release();
-    await page.getByRole("link", { name: labels.en.pay }).waitFor();
-    assert.equal(await page.getByRole("link", { name: labels.en.pay }).getAttribute("href"), "https://checkout.stripe.com/c/pay/cs_test_fixture");
-    setStatus(status);
-    await page.getByRole("button", { name: labels.en.refresh }).click();
-    await page.getByRole("status").filter({ hasText: labels.en[status] }).waitFor();
-    assert.equal(await page.getByRole("link", { name: labels.en.pay }).count(), 0);
-  });
+for (const locale of ["fr", "en", "es"]) {
+  for (const status of ["paid", "failed", "expired"]) {
+    test(`${locale} pending transitions to ${status} only after authoritative refresh`, async t => {
+      const { page, setStatus, release } = await pageFor(t, locale, { delay: true });
+      await page.goto(`${origin}/${locale}/book/browser-fixture?sandboxReservation=${reservationId}&paid=true`);
+      await page.getByRole("status").filter({ hasText: labels[locale].pending }).waitFor();
+      assert.equal(await page.getByText(labels[locale].paid, { exact: false }).count(), 0);
+      release();
+      await page.getByRole("link", { name: labels[locale].pay }).waitFor();
+      assert.equal(await page.getByRole("link", { name: labels[locale].pay }).getAttribute("href"), "https://checkout.stripe.com/c/pay/cs_test_fixture");
+      setStatus(status);
+      await page.getByRole("button", { name: labels[locale].refresh }).click();
+      await page.getByRole("status").filter({ hasText: labels[locale][status] }).waitFor();
+      assert.equal(await page.getByRole("link", { name: labels[locale].pay }).count(), 0);
+    });
+  }
 }
 test("unavailable status hides stale checkout continuation", async t => {
   const { page, setUnavailable } = await pageFor(t, "es");
