@@ -69,7 +69,8 @@ export function JoinForm({ locale, signedIn, confirmed, initialName }: {
   useEffect(() => {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
     const candidate = fragment.get("token") ?? "";
-    setToken(validStaffInvitationToken(candidate) ? candidate : "");
+    // Strict Mode may re-run this effect after the fragment is cleared.
+    setToken(previous => validStaffInvitationToken(candidate) ? candidate : previous ?? "");
     // Keep the raw token out of the visible URL and referrer after first load.
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);

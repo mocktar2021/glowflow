@@ -96,6 +96,7 @@ test("new staff signup redirects only to inert completion and never stores token
   );
   const signup = fixture.calls.find(call => Array.isArray(call) && call[0] === "signUp")[1];
   assert.equal(signup.options.emailRedirectTo, "https://glowflow.mocktar.com/auth/callback?next=/en/join/complete");
+  assert.equal(signup.options.data.glowflow_account_intent, "staff_invitation");
   assert.ok(!JSON.stringify(signup).includes(token));
   assert.ok(!fixture.calls.some(call => Array.isArray(call) && call[0] === "rpc"));
 });

@@ -90,7 +90,7 @@ export async function signUpToAcceptInvitation(
     password,
     options: {
       emailRedirectTo: `${origin}/auth/callback?next=/${locale}/join/complete`,
-      data: { full_name: fullName, locale },
+      data: { full_name: fullName, locale, glowflow_account_intent: "staff_invitation" },
     },
   });
   if (error) return unavailable;

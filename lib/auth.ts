@@ -28,6 +28,18 @@ export async function ensureOwnerWorkspace() {
   }
 
   const metadata = authData.user.user_metadata;
+  if (metadata.glowflow_account_intent === "staff_invitation") {
+    // User metadata is editable: this marker only suppresses onboarding.
+    // It never authorizes staff access; the database membership does that.
+    // Existing staff may use the normal sign-in screen after acceptance.
+    // Before acceptance, never turn an invited Auth identity into an owner.
+    const { data: membership, error: membershipError } = await supabase
+      .from("users")
+      .select("tenant_id")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    return { error: !membershipError && membership?.tenant_id ? null : "staff_invitation_required" };
+  }
   const { error } = await supabase.rpc("create_owner_workspace", {
     salon_name: metadata.salon_name ?? "My Salon",
     requested_slug: metadata.salon_slug ?? "my-salon",
