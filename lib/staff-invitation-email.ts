@@ -8,7 +8,23 @@ export type InvitationMessage = {
   text: string;
 };
 
-const origin = "https://glowflow.mocktar.com";
+/** Require an explicit server-side origin so QA links cannot silently target live. */
+export function staffInvitationEmailOrigin(): string | null {
+  const configured = process.env.GLOWFLOW_APP_URL;
+  if (!configured || configured !== configured.trim()) return null;
+  try {
+    const url = new URL(configured);
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password
+        || url.port || url.pathname !== "/" || url.search || url.hash
+        || (configured !== url.origin && configured !== `${url.origin}/`)) return null;
+    const approvedHosts = ["glowflow.mocktar.com", "glowflow.beauty"];
+    if (!approvedHosts.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`))) return null;
+    if (process.env.VERCEL_ENV === "preview" && approvedHosts.includes(url.hostname)) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
 
 const copy = {
   fr: {
@@ -37,6 +53,8 @@ const copy = {
 /** Token links use fragments so the token is never sent in a GET request. */
 export function renderStaffInvitationEmail(rawToken: string): InvitationMessage {
   if (!validStaffInvitationToken(rawToken)) throw new Error("Invalid invitation token");
+  const origin = staffInvitationEmailOrigin();
+  if (!origin) throw new Error("Invitation origin unavailable");
 
   const sections = (Object.entries(copy) as Array<[keyof typeof copy, typeof copy.fr | typeof copy.en | typeof copy.es]>)
     .map(([locale, labels]) => {

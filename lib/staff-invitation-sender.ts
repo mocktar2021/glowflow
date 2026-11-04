@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { renderStaffInvitationEmail } from "@/lib/staff-invitation-email";
+import { renderStaffInvitationEmail, staffInvitationEmailOrigin } from "@/lib/staff-invitation-email";
 import { staffInvitationsEnabled, validStaffInvitationToken } from "@/lib/staff-invitations";
 
 type Accepted = { kind: "accepted"; messageId: string };
@@ -41,6 +41,7 @@ function configured() {
   const key = process.env.GLOWFLOW_INVITE_OUTBOX_KEY;
   return staffInvitationsEnabled()
     && process.env.GLOWFLOW_STAFF_INVITE_DELIVERY_ENABLED === "true"
+    && staffInvitationEmailOrigin() !== null
     && typeof key === "string"
     && Buffer.byteLength(key) >= 32
     && Buffer.byteLength(key) <= 256;
