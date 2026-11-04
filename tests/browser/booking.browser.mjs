@@ -719,16 +719,21 @@ const v2MissingLabels = {
   en: { service: "Booked service", address: "Address not published.", price: "Price unavailable.", policies: "Cancellation policies are not published." },
   es: { service: "Servicio reservado", address: "Dirección no publicada.", price: "Precio no disponible.", policies: "Las condiciones de cancelación no están publicadas." },
 };
+const v2InactiveLabels = {
+  fr: "Ce rendez-vous n’est plus actif. Contactez le salon avant de réserver à nouveau.",
+  en: "This appointment is no longer active. Contact the salon before booking again.",
+  es: "Esta cita ya no está activa. Contacta con el salón antes de reservar de nuevo.",
+};
 function v2Confirmation(locale) {
   return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
 }
-function v2Server(locale, { loseCommit = false, commitBeforeLoss = true } = {}) {
+function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, appointmentStatus = "confirmed" } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
-  const confirmation = v2Confirmation(locale);
+  const confirmation = { ...v2Confirmation(locale), appointment_status: appointmentStatus };
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
     writes.push(payload);
@@ -848,6 +853,7 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   await context.clearCookies();
   await page.reload();
   await page.getByRole("alert").filter({ hasText: "booking session was lost" }).waitFor();
+  assert.equal(await page.getByText(/booking session was lost/).count(), 1, "manual warning must not repeat itself");
   assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
   assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
   await page.locator("form").dispatchEvent("submit");
@@ -855,6 +861,27 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
   assert.deepEqual(externalRequests, []);
 });
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 canceled appointment warns about inactive status without claiming a lost browser session`, async t => {
+    const server = v2Server(locale, { loseCommit: true, appointmentStatus: "canceled" });
+    const { page, writes, externalRequests } = await pageFor(t, locale, { v2Booking: server.handler, v2Cookie: true,
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    const url = `${origin}/${locale}/book/browser-fixture?v2=1`;
+    await page.goto(url);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
+    await page.reload();
+    await page.getByRole("alert").filter({ hasText: v2InactiveLabels[locale] }).waitFor();
+    assert.equal(await page.getByText(v2InactiveLabels[locale], { exact: true }).count(), 1);
+    assert.equal(await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).count(), 0);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+    assert.equal(writes.filter(value => value.action === "commit").length, 1);
+    assert.deepEqual(externalRequests, []);
+  });
+}
 
 test("v2 cookie-only prepared reload restores its marker before the same-intent commit", async t => {
   const server = v2Server("en");

@@ -770,7 +770,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
             <h2 className="text-xl font-semibold">{labels.v2Loading}</h2>
           </section> : uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
             <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{v2Warning || labels.uncertain}</h2>
-            <p className="mt-3 leading-7">{v2ManualOnly ? labels.v2Manual : labels.uncertainHelp}</p>
+            {!v2ManualOnly ? <p className="mt-3 leading-7">{labels.uncertainHelp}</p> : null}
             {!v2ManualOnly ? <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
               {submitting ? labels.saving : labels.checkOriginal}
             </button> : null}
