@@ -296,6 +296,13 @@
       "sourceVersion": "20261104184112",
       "marker": false,
       "normalizedSha256": "a80e04827d7743780a75ad38c0709abedd928d66a8dbe98b282942a754ee174d"
+    },
+    {
+      "version": "20261104234445",
+      "name": "glow56_public_booking_quota",
+      "sourceVersion": "20261104234445",
+      "marker": false,
+      "normalizedSha256": "4710fe3609697395bc11278a6ecaca228715777ee0ade88f131b27b115a92c17"
     }
   ]
 }
