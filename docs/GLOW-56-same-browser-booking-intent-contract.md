@@ -127,7 +127,15 @@ dormant, unseeded migration must still fail closed.
 On the dedicated `bootstrap` action, generate the browser token with a
 cryptographic random source and set
 `__Host-glowflow_booking_session` as a host-only, `Secure`, `HttpOnly`, `Path=/`
-cookie. Prefer `SameSite=Strict` if
+cookie. The value contains a version, server-issued and expiry times, a random
+nonce, and an HMAC-SHA256 signature bound to the request host. A server-only
+`GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY` supplies exactly 32 random bytes
+encoded as unpadded base64url. Reject unsigned, tampered, future-issued,
+expired, and cross-host values before any database lookup, including after a
+browser-session hash has been purged. Do not silently mint a fresh cookie over
+an invalid one, since an unresolved booking may still exist. Signing-key
+rotation needs a separate recovery plan before activation. Prefer
+`SameSite=Strict` if
 QA verifies marketplace-to-booking navigation and same-browser recovery;
 otherwise document the reason for `Lax` and keep the same CSRF checks. Cookie
 `Max-Age` comes from the required, validated **server-only**
@@ -136,8 +144,9 @@ feature flag is enabled. The approved ceiling is 86400 seconds; the intended
 activation setting for the chosen bundle is exactly 86400 seconds. A shorter
 window changes the recovery promise and needs separate review. The server must
 also reject a copied cookie after its 24-hour lifetime, not merely rely on
-the browser to discard it.
-An absent or invalid value blocks new cookie issuance and every `prepare`;
+the browser to discard it. An absent or invalid signing key blocks cookie
+issuance and validation. An absent or invalid cookie-lifetime value blocks
+new cookie issuance and every `prepare`;
 existing valid-cookie sessions may still reconcile, commit the original intent,
 cancel, or acknowledge so ambiguous bookings can drain safely. Do not hardcode
 a duration or expose it through `NEXT_PUBLIC_` configuration. The same origin
