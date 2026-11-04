@@ -8,6 +8,7 @@ const sources = Object.fromEntries(await Promise.all([
   "lib/staff-invitation-runner.ts",
   "lib/staff-invitation-resend.ts",
   "lib/staff-invitation-sender.ts",
+  "lib/staff-invitation-email.ts",
   "lib/staff-invitations.ts",
 ].map(async file => [file, ts.transpileModule(await readFile(new URL(file, root), "utf8"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -40,6 +41,7 @@ function load(file, dependencies, globals) {
 function fixture({
   flags = [true, true, true],
   sender = "invites@email.glowflow.mocktar.com",
+  origin = "https://qa.glowflow.mocktar.com",
   claims = [claim],
   response = Response.json({ id: "provider-message-id" }),
   settleError = null,
@@ -54,6 +56,8 @@ function fixture({
     GLOWFLOW_RESEND_API_KEY: secret,
     GLOWFLOW_RESEND_FROM_EMAIL: sender,
     GLOWFLOW_RESEND_REPLY_TO_EMAIL: "support@example.invalid",
+    GLOWFLOW_APP_URL: origin,
+    VERCEL_ENV: "preview",
   };
   const globals = {
     process: { env },
@@ -67,6 +71,10 @@ function fixture({
     ])),
   };
   const flagsModule = load("lib/staff-invitations.ts", {}, globals);
+  const emailModule = load("lib/staff-invitation-email.ts", {
+    "server-only": {},
+    "@/lib/staff-invitations": flagsModule,
+  }, globals);
   const adapter = load("lib/staff-invitation-resend.ts", { "server-only": {} }, globals);
   const senderModule = load("lib/staff-invitation-sender.ts", {
     "server-only": {},
@@ -79,10 +87,7 @@ function fixture({
           : { data: !settleError, error: settleError };
       } };
     } },
-    "@/lib/staff-invitation-email": { renderStaffInvitationEmail(rawToken) {
-      assert.equal(rawToken, token);
-      return { subject: "Invitation", html: "<p>Invite</p>", text: "Invite" };
-    } },
+    "@/lib/staff-invitation-email": emailModule,
     "@/lib/staff-invitations": flagsModule,
   }, globals);
   const runner = load("lib/staff-invitation-runner.ts", {
@@ -128,6 +133,13 @@ test("an empty outbox is idle and never calls Resend", async () => {
   assert.ok(!f.calls.some(call => call[0] === "fetch"));
 });
 
+test("a preview origin pointing at the live host cannot claim or send", async () => {
+  const f = fixture({ origin: "https://glowflow.mocktar.com" });
+  assert.equal(await f.run(), "disabled");
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.logs, []);
+});
+
 test("accepted, rejected, and uncertain responses settle once without logging private data", async () => {
   for (const [response, expected] of [
     [Response.json({ id: "provider-message-id" }), "sent"],
@@ -141,6 +153,9 @@ test("accepted, rejected, and uncertain responses settle once without logging pr
     const sends = f.calls.filter(call => call[0] === "fetch");
     assert.equal(sends.length, 1);
     assert.equal(sends[0][2].headers["Idempotency-Key"], claim.idempotency_key);
+    const body = JSON.parse(sends[0][2].body);
+    assert.ok(body.html.includes(`https://qa.glowflow.mocktar.com/fr/join#token=${token}`));
+    assert.ok(!body.html.includes('href="https://glowflow.mocktar.com'));
     assert.deepEqual(f.logs, []);
   }
 });
