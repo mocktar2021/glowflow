@@ -1,17 +1,18 @@
-import { Bell, CalendarClock, CalendarDays, CreditCard, Globe, LogOut, Package, Scissors, UsersRound } from "lucide-react";
+import { Bell, CalendarClock, CalendarDays, CreditCard, Globe, LogOut, MailPlus, Package, Scissors, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
+import { staffInvitationManagementEnabled } from "@/lib/staff-invitations";
 import { signOut } from "../auth-actions";
 
 export const dynamic = "force-dynamic";
 
 const copy = {
-  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", clients: "Clients", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", profile: "Profil public", payments: "Paiements", notifications: "Historique des notifications" },
-  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", clients: "Clients", services: "Service catalog", products: "Products", availability: "Team and availability", profile: "Public profile", payments: "Payments", notifications: "Notification history" },
-  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", clients: "Clientes", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", profile: "Perfil público", payments: "Pagos", notifications: "Historial de notificaciones" },
+  fr: { greeting: "Bonjour", subtitle: "Votre espace de travail pour gérer le salon.", signOut: "Se déconnecter", navigation: "Gestion du salon", calendar: "Calendrier", walkIns: "Sans rendez-vous", clients: "Clients", services: "Prestations", products: "Produits", availability: "Équipe et disponibilités", invitations: "Inviter l'équipe", profile: "Profil public", payments: "Paiements", notifications: "Historique des notifications" },
+  en: { greeting: "Hi", subtitle: "Your workspace for running the salon.", signOut: "Sign out", navigation: "Salon management", calendar: "Calendar", walkIns: "Walk-ins", clients: "Clients", services: "Service catalog", products: "Products", availability: "Team and availability", invitations: "Invite team", profile: "Public profile", payments: "Payments", notifications: "Notification history" },
+  es: { greeting: "Hola", subtitle: "Tu espacio de trabajo para gestionar el salón.", signOut: "Cerrar sesión", navigation: "Gestión del salón", calendar: "Calendario", walkIns: "Sin cita", clients: "Clientes", services: "Servicios", products: "Productos", availability: "Equipo y disponibilidad", invitations: "Invitar al equipo", profile: "Perfil público", payments: "Pagos", notifications: "Historial de notificaciones" },
 } as const;
 
 export default async function DashboardPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -33,6 +34,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       { route: "services", title: labels.services, icon: Scissors },
       { route: "products", title: labels.products, icon: Package },
       { route: "availability", title: labels.availability, icon: CalendarClock },
+      ...(staffInvitationManagementEnabled() ? [{ route: "team/invitations", title: labels.invitations, icon: MailPlus }] : []),
       { route: "public-profile", title: labels.profile, icon: Globe },
       { route: "payments", title: labels.payments, icon: CreditCard },
     ] : []),
