@@ -13,6 +13,46 @@ function paymentDestination(locale: Locale, result: string): never {
   redirect(`/${locale}/dashboard/payments?${result}`);
 }
 
+const onboardingFailureReasons = ["owner_required", "market_unavailable", "reconciliation_required"] as const;
+type OnboardingFailureReason = typeof onboardingFailureReasons[number] | "sandbox_unavailable";
+
+function onboardingFailureReason(error: unknown): OnboardingFailureReason {
+  try {
+    const message = error instanceof Error ? error.message : undefined;
+    if (onboardingFailureReasons.some((reason) => reason === message)) {
+      return message as OnboardingFailureReason;
+    }
+  } catch {
+    // Provider error objects may have throwing getters or proxy traps.
+  }
+  return "sandbox_unavailable";
+}
+
+function onboardingFailureStatusCode(error: unknown): number | undefined {
+  try {
+    const statusCode = error && typeof error === "object"
+      ? (error as Record<string, unknown>).statusCode : undefined;
+    return typeof statusCode === "number" && Number.isInteger(statusCode) &&
+      statusCode >= 400 && statusCode <= 599 ? statusCode : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function reportOnboardingFailure(error: unknown, reason: OnboardingFailureReason): void {
+  try {
+    // Only fixed context and a primitive HTTP status may reach logs. In
+    // particular, never serialize the provider object or its error message.
+    console.error(JSON.stringify({
+      event: "stripe_sandbox_onboarding_failed",
+      reason,
+      statusCode: onboardingFailureStatusCode(error),
+    }));
+  } catch {
+    // A hostile error getter or unavailable logger must not block the safe redirect.
+  }
+}
+
 export async function recordManualPayment(locale: string, formData: FormData) {
   if (!isLocale(locale)) redirect("/fr/dashboard");
   const appointmentId = z.string().uuid().safeParse(String(formData.get("appointment_id") ?? ""));
@@ -53,22 +93,8 @@ export async function startSandboxOnboarding(locale: string) {
   try {
     url = await sandboxOnboardingUrl(locale);
   } catch (error) {
-    const known = ["owner_required", "market_unavailable", "reconciliation_required"];
-    const code = error instanceof Error && known.includes(error.message) ? error.message : "sandbox_unavailable";
-    // Log only diagnostic fields. Stripe messages and raw errors may contain private data.
-    const details = error && typeof error === "object" ? error as Record<string, unknown> : {};
-    const safeToken = (value: unknown, pattern: RegExp) =>
-      typeof value === "string" && pattern.test(value) ? value : undefined;
-    console.error(JSON.stringify({
-      event: "stripe_sandbox_onboarding_failed",
-      reason: code,
-      type: safeToken(details.type, /^Stripe[A-Za-z]+Error$/),
-      stripeCode: safeToken(details.code, /^[a-z_]{1,80}$/),
-      requestId: safeToken(details.requestId, /^req_[A-Za-z0-9]{1,100}$/),
-      statusCode: typeof details.statusCode === "number" &&
-        Number.isInteger(details.statusCode) && details.statusCode >= 400 &&
-        details.statusCode <= 599 ? details.statusCode : undefined,
-    }));
+    const code = onboardingFailureReason(error);
+    reportOnboardingFailure(error, code);
     redirect(`/${locale}/dashboard/payments?error=${code}`);
   }
   redirect(url);
