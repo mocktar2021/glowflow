@@ -18,7 +18,7 @@ const claim = {
   attempt_number: 1,
 };
 
-function fixture({ enabled = true, claims = [claim], claimError = null, settleData = true, settleError = null } = {}) {
+function fixture({ enabled = true, originConfigured = true, claims = [claim], claimError = null, settleData = true, settleError = null } = {}) {
   const calls = [];
   const dependencies = {
     "server-only": {},
@@ -31,7 +31,7 @@ function fixture({ enabled = true, claims = [claim], claimError = null, settleDa
           : { data: settleData, error: settleError };
       } };
     } },
-    "@/lib/staff-invitation-email": { renderStaffInvitationEmail(rawToken) {
+    "@/lib/staff-invitation-email": { staffInvitationEmailOrigin: () => originConfigured ? "https://glowflow.mocktar.com" : null, renderStaffInvitationEmail(rawToken) {
       calls.push(["render", rawToken]);
       return { subject: "invite", html: "<p>invite</p>", text: "invite" };
     } },
@@ -53,6 +53,12 @@ function fixture({ enabled = true, claims = [claim], claimError = null, settleDa
 
 test("default-off sender never claims or calls transport", async () => {
   const f = fixture({ enabled: false });
+  assert.equal(await f.process(() => { throw new Error("must not send"); }), "disabled");
+  assert.deepEqual(f.calls, []);
+});
+
+test("missing or invalid invitation origin never claims an outbox row", async () => {
+  const f = fixture({ originConfigured: false });
   assert.equal(await f.process(() => { throw new Error("must not send"); }), "disabled");
   assert.deepEqual(f.calls, []);
 });
