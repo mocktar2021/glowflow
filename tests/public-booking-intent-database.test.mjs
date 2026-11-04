@@ -169,6 +169,9 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
   const confirmed = state(commit(token("a"), first.intent_id));
   assert.equal(confirmed.state, "confirmed");
   assert.equal(confirmed.confirmation.confirmed_start, s0);
+  const savedServiceTitle = confirmed.confirmation.service_title;
+  assert.deepEqual(savedServiceTitle, JSON.parse(sql(`select service_title_json
+    from public.appointments where id='${confirmed.confirmation.appointment_id}'`)));
   assert.equal(state(commit(token("a"), first.intent_id)).confirmation.appointment_id,
     confirmed.confirmation.appointment_id);
   assert.equal(state(reconcile(token("a"))).confirmation.appointment_id,
@@ -176,11 +179,34 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
   assert.equal(state(cancel(token("a"), first.intent_id)).state, "confirmed", "cancel must not undo a booking");
   assert.equal(sql(`select count(*) from private.public_booking_intents
     where id='${first.intent_id}' and client_full_name is null and client_email is null`), "1");
-  sql(`update public.services set is_active=false where id='${service}';
+  sql(`update public.services set is_active=false,
+    title_json='{"fr":"Titre modifié","en":"Changed title","es":"Título cambiado"}'::jsonb
+    where id='${service}';
     update public.salon_public_profiles set is_published=false where tenant_id='${tenant}'`);
+  assert.notDeepEqual(JSON.parse(sql(`select title_json from public.services where id='${service}'`)),
+    savedServiceTitle, "catalog edit must change the current title");
   assert.equal(state(prepare(token("a"), s1)).state, "confirmed",
     "stored success must be recoverable after catalog/publication changes");
-  assert.equal(state(reconcile(token("a"), first.intent_id)).state, "confirmed");
+  const recovered = state(reconcile(token("a"), first.intent_id));
+  assert.equal(recovered.state, "confirmed");
+  assert.deepEqual(recovered.confirmation.service_title, savedServiceTitle,
+    "recovery must use the booked title snapshot, not the edited catalog title");
+  sql(`update public.appointments set start_time='${s1}'::timestamptz
+    where id='${confirmed.confirmation.appointment_id}'`);
+  assert.equal(sql(`select count(*) from public.appointments as appointment
+    join private.public_booking_intents as intent on intent.appointment_id=appointment.id
+    where intent.id='${first.intent_id}'
+      and appointment.public_booking_request_key=intent.request_key
+      and appointment.start_time='${s1}'::timestamptz`), "1",
+  "same-key appointment fixture must have a different start than the intent");
+  assert.equal(state(reconcile(token("a"), first.intent_id)).state, "unknown",
+    "a same-key appointment at the wrong time cannot be recovered as confirmation");
+  assert.equal(state(commit(token("a"), first.intent_id)).state, "unknown",
+    "committed replay cannot confirm a different appointment time");
+  sql(`update public.appointments set start_time='${s0}'::timestamptz
+    where id='${confirmed.confirmation.appointment_id}'`);
+  assert.deepEqual(state(reconcile(token("a"), first.intent_id)).confirmation.service_title,
+    savedServiceTitle, "restored appointment recovers the original title snapshot");
   sql(`update public.services set is_active=true where id='${service}';
     update public.salon_public_profiles set is_published=true where tenant_id='${tenant}'`);
   assert.equal(state(prepare(token("a"), s1)).state, "confirmed", "unacknowledged success blocks another booking");

@@ -95,9 +95,10 @@ comment on table private.public_booking_intents is
 
 -- Committed replay must read the stored appointment before current catalog,
 -- publication, or requested-start validation. The request key is part of the
--- lookup so a mismatched appointment can never be reported as confirmation.
+-- lookup so a mismatched appointment or changed start can never be reported as confirmation.
 create function private.public_booking_intent_confirmation(
-  target_tenant_id uuid, target_appointment_id uuid, target_request_key uuid
+  target_tenant_id uuid, target_appointment_id uuid, target_request_key uuid,
+  target_requested_start timestamptz
 ) returns jsonb
 language sql stable security invoker set search_path = ''
 as $$
@@ -106,22 +107,21 @@ as $$
     'confirmed_start', appointment.start_time,
     'confirmed_end', appointment.end_time,
     'salon_name', tenant.name,
-    'service_title', service.title_json,
+    'service_title', appointment.service_title_json,
     'currency', tenant.currency,
     'saved_locale', appointment.booking_locale,
     'appointment_status', appointment.status
   )
   from public.appointments as appointment
   join public.tenants as tenant on tenant.id = appointment.tenant_id
-  join public.services as service on service.id = appointment.service_id
-    and service.tenant_id = appointment.tenant_id
   where appointment.id = target_appointment_id
     and appointment.tenant_id = target_tenant_id
-    and appointment.public_booking_request_key = target_request_key;
+    and appointment.public_booking_request_key = target_request_key
+    and appointment.start_time = target_requested_start;
 $$;
-revoke all on function private.public_booking_intent_confirmation(uuid,uuid,uuid)
+revoke all on function private.public_booking_intent_confirmation(uuid,uuid,uuid,timestamptz)
   from public, anon, authenticated;
-grant execute on function private.public_booking_intent_confirmation(uuid,uuid,uuid)
+grant execute on function private.public_booking_intent_confirmation(uuid,uuid,uuid,timestamptz)
   to service_role;
 
 -- Shared lock order: browser advisory lock, browser-session row, intent row.
@@ -202,7 +202,8 @@ begin
   if found then
     if existing.state = 'committed' then
       stored_confirmation := private.public_booking_intent_confirmation(
-        existing.tenant_id, existing.appointment_id, existing.request_key);
+        existing.tenant_id, existing.appointment_id, existing.request_key,
+        existing.requested_start);
       if stored_confirmation is null then
         return pg_catalog.jsonb_build_object('state', 'unknown');
       end if;
@@ -320,7 +321,8 @@ begin
   end if;
   if intent.state = 'committed' then
     stored_confirmation := private.public_booking_intent_confirmation(
-      intent.tenant_id, intent.appointment_id, intent.request_key);
+      intent.tenant_id, intent.appointment_id, intent.request_key,
+      intent.requested_start);
     if stored_confirmation is null then
       return pg_catalog.jsonb_build_object('state', 'unknown');
     end if;
@@ -370,7 +372,8 @@ begin
       client_full_name = null, client_phone = null, client_email = null
   where stored.id = intent.id;
   stored_confirmation := private.public_booking_intent_confirmation(
-    intent.tenant_id, booked.appointment_id, intent.request_key);
+    intent.tenant_id, booked.appointment_id, intent.request_key,
+    intent.requested_start);
   if stored_confirmation is null then
     raise exception using errcode = '55000', message = 'booking_intent_missing_confirmation';
   end if;
@@ -453,7 +456,8 @@ begin
       'intent_id', intent.id, 'generation', intent.released_generation, 'reason', intent.state);
   end if;
   stored_confirmation := private.public_booking_intent_confirmation(
-    intent.tenant_id, intent.appointment_id, intent.request_key);
+    intent.tenant_id, intent.appointment_id, intent.request_key,
+    intent.requested_start);
   if stored_confirmation is null then
     return pg_catalog.jsonb_build_object('state', 'unknown');
   end if;
@@ -504,7 +508,8 @@ begin
   end if;
   if intent.state = 'committed' then
     stored_confirmation := private.public_booking_intent_confirmation(
-      intent.tenant_id, intent.appointment_id, intent.request_key);
+      intent.tenant_id, intent.appointment_id, intent.request_key,
+      intent.requested_start);
     if stored_confirmation is null then
       return pg_catalog.jsonb_build_object('state', 'unknown');
     end if;
