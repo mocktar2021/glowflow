@@ -53,8 +53,9 @@ after(async () => {
   }
   await writeFile(path.join(artifacts, "server.log"), output);
 });
-async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, timeZoneId, postCheckoutUrl = null, statusCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_fixture" } = {}) {
+async function pageFor(t, locale = "fr", { status = "pending", unavailable = false, delay = false, publicBooking = null, v2Booking = null, v2Cookie = false, timeZoneId, postCheckoutUrl = null, statusCheckoutUrl = "https://checkout.stripe.com/c/pay/cs_test_fixture" } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, timeZoneId });
+  if (v2Cookie) await context.addCookies([{ name: "fixture-v2-session", value: "ready", url: origin, httpOnly: true }]);
   const page = await context.newPage();
   page.setDefaultTimeout(45000);
   page.setDefaultNavigationTimeout(90000); // Allow first-route compilation on slower local machines.
@@ -78,6 +79,10 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
       assert.equal(route.request().method(), "GET", "sandbox must never submit a real booking");
       return route.fulfill({ json: { slots: [slot] } });
     }
+    if (url.pathname === "/api/public-booking/v2") {
+      assert.ok(v2Booking, "v2 booking API must be provided by an isolated fixture");
+      return v2Booking(route, writes);
+    }
     if (url.pathname === "/api/preferences/locale") return route.fulfill({ json: { saved: true } });
     if (url.pathname === "/api/checkout") {
       if (route.request().method() === "POST") {
@@ -96,7 +101,7 @@ async function pageFor(t, locale = "fr", { status = "pending", unavailable = fal
       assert.equal(await page.locator("[data-nextjs-dialog], .vite-error-overlay").count(), 0);
     } finally { await context.close(); }
   });
-  return { page, writes, externalRequests, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
+  return { page, context, writes, externalRequests, setStatus: value => state = value, setUnavailable: value => unavailableState = value, release };
 }
 test("visitor time-zone chooser detects browser zone only for new searches and allows override", async t => {
   const { page } = await pageFor(t, "en", { timeZoneId: "America/Los_Angeles" });
@@ -705,3 +710,292 @@ test(`a retry ${status} cannot unlock while the original request can still commi
   assert.deepEqual(externalRequests, []);
 });
 }
+
+const v2IntentId = "77777777-7777-4777-8777-777777777777";
+const v2Generation = "88888888-8888-4888-8888-888888888888";
+const v2NextGeneration = "99999999-9999-4999-8999-999999999999";
+function v2Server(locale, { loseCommit = false, commitBeforeLoss = true } = {}) {
+  const appointments = new Map();
+  let state = "none";
+  let generation = v2Generation;
+  let originalPayload = null;
+  let lostOnce = false;
+  const confirmation = { ...confirmedBooking(locale), appointment_status: "confirmed" };
+  const handler = async (route, writes) => {
+    const payload = route.request().postDataJSON();
+    writes.push(payload);
+    const cookie = route.request().headers().cookie?.includes("fixture-v2-session=ready");
+    if (payload.action === "bootstrap") {
+      return route.fulfill({ json: { ready: true, new_session: !cookie },
+        ...(!cookie ? { headers: { "set-cookie": "fixture-v2-session=ready; HttpOnly; Path=/; SameSite=Lax" } } : {}) });
+    }
+    if (!cookie) return route.fulfill({ status: 409, json: { state: "unknown" } });
+    if (payload.action === "reconcile") {
+      if (payload.intentId && payload.intentId !== v2IntentId) return route.fulfill({ json: { state: "unknown" } });
+      if (state === "none") return route.fulfill({ json: { state: "none", generation } });
+      if (state === "prepared") return route.fulfill({ json: { state, generation, intent_id: v2IntentId } });
+      if (state === "not_committed") return route.fulfill({ json: payload.intentId
+        ? { state, generation, intent_id: v2IntentId } : { state: "none", generation } });
+      return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
+    }
+    if (payload.action === "prepare") {
+      if (payload.expectedGeneration !== generation) return route.fulfill({ status: 409, json: { state: "unknown" } });
+      if (state === "none") { state = "prepared"; originalPayload = payload; }
+      if (state === "prepared") return route.fulfill({ json: { state, generation, intent_id: v2IntentId } });
+      return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
+    }
+    if (payload.action === "commit") {
+      if (payload.intentId !== v2IntentId) return route.fulfill({ json: { state: "unknown" } });
+      if (state === "prepared") {
+        if (loseCommit && !lostOnce) {
+          lostOnce = true;
+          if (commitBeforeLoss) { state = "confirmed"; appointments.set(v2IntentId, confirmation); }
+          return route.abort("failed");
+        }
+        state = "confirmed";
+        appointments.set(v2IntentId, confirmation);
+      }
+      return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
+    }
+    if (payload.action === "cancel") {
+      if (state === "prepared") { state = "not_committed"; generation = v2NextGeneration; }
+      return route.fulfill({ json: state === "not_committed"
+        ? { state, generation, intent_id: v2IntentId }
+        : { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
+    }
+    if (payload.action === "acknowledge") {
+      generation = v2NextGeneration;
+      state = "none";
+      return route.fulfill({ json: { state: "none", generation } });
+    }
+    throw Error(`unexpected fixture action ${payload.action}`);
+  };
+  return { handler, appointments, getOriginalPayload: () => originalPayload, getState: () => state };
+}
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 committed lost response recovers across reload and a new tab without a new prepare`, async t => {
+    const server = v2Server(locale, { loseCommit: true });
+    const { page, context, writes, externalRequests } = await pageFor(t, locale, { v2Booking: server.handler, v2Cookie: true,
+      publicBooking: async route => route.fulfill({ json: { slots: [slot, { ...slot, slot_start: "2030-01-15T11:00:00Z" }] } }),
+    });
+    const url = `${origin}/${locale}/book/browser-fixture?v2=1`;
+    await page.goto(url);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.tagName === "H2");
+    assert.equal(server.appointments.size, 1);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    const markers = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending.")));
+    assert.deepEqual(markers, [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+    assert.doesNotMatch(JSON.stringify(markers), /Fictional Browser Client|browser@example.invalid|2030-01-15T/);
+    await page.reload();
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    const nextTab = await context.newPage();
+    await nextTab.goto(url);
+    await nextTab.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+    assert.equal(writes.filter(value => value.action === "commit").length, 1);
+    assert.equal(server.appointments.size, 1);
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+test("v2 prepared response loss stays locked after reload until same-intent retry", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(server.getState(), "prepared");
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 2);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 marker-only reload after cookie loss shows manual recovery and no changed submission", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  const { page, context, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await context.clearCookies();
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: "booking session was lost" }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 cookie-only prepared reload restores its marker before the same-intent commit", async t => {
+  const server = v2Server("en");
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  const url = `${origin}/en/book/browser-fixture?v2=1`;
+  await page.goto(url);
+  await page.locator('[name="bookingTime"]').waitFor();
+  await page.evaluate(() => localStorage.clear());
+  // Model a server-side prepare that completed just before the page vanished.
+  const prepared = await page.evaluate(async generation => {
+    const response = await fetch("/api/public-booking/v2", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "prepare", salonSlug: "browser-fixture",
+        serviceId: "11111111-1111-4111-8111-111111111111",
+        staffId: "33333333-3333-4333-8333-333333333333", startTime: "2030-01-15T10:00:00Z",
+        fullName: "Fictional Browser Client", phone: "", email: "browser@example.invalid", locale: "en",
+        expectedGeneration: generation }),
+    });
+    return response.json();
+  }, v2Generation);
+  assert.equal(prepared.state, "prepared");
+  assert.equal(await page.evaluate(() => localStorage.length), 0);
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 local marker write failure blocks the appointment-creating commit", async t => {
+  const server = v2Server("en");
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith("glowflow.booking.pending.")) throw new DOMException("Storage denied", "QuotaExceededError");
+      return original.call(this, key, value);
+    };
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: "booking session was lost" }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 0);
+  assert.equal(server.appointments.size, 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 stale tab cannot prepare with the generation rotated by another tab acknowledgement", async t => {
+  const server = v2Server("en");
+  const { page: oldTab, context, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  const url = `${origin}/en/book/browser-fixture?v2=1`;
+  await oldTab.goto(url);
+  await oldTab.locator('[name="bookingTime"]').waitFor();
+  const bookingTab = await context.newPage();
+  await bookingTab.goto(url);
+  await fillBooking(bookingTab, "en");
+  await bookingTab.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  await bookingTab.getByRole("button", { name: "Book another appointment" }).click();
+  await bookingTab.locator('[name="bookingTime"]').waitFor();
+  await fillBooking(oldTab, "en");
+  await oldTab.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 2, "stale prepare is rejected by the server epoch");
+  assert.equal(writes.filter(value => value.action === "commit").length, 1, "no second appointment-creating commit");
+  assert.equal(server.appointments.size, 1);
+  assert.equal(await oldTab.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker", async t => {
+  const secondId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  let generation = v2Generation;
+  let oldCommitted = false;
+  let oldAcknowledged = false;
+  let secondPrepared = false;
+  let releaseOld, releaseSecond;
+  const oldBarrier = new Promise(resolve => { releaseOld = resolve; });
+  const secondBarrier = new Promise(resolve => { releaseSecond = resolve; });
+  const oldConfirmation = { ...confirmedBooking("en"), appointment_status: "confirmed" };
+  const secondConfirmation = { ...confirmedBooking("en"), appointment_id: secondId, appointment_status: "confirmed" };
+  const handler = async (route, writes) => {
+    const payload = route.request().postDataJSON();
+    writes.push(payload);
+    if (payload.action === "bootstrap") return route.fulfill({ json: { ready: true, new_session: false } });
+    if (payload.action === "reconcile") {
+      const id = payload.intentId;
+      if (id === v2IntentId || (!id && oldCommitted && !oldAcknowledged)) {
+        return route.fulfill({ json: { state: "confirmed", generation: id && oldAcknowledged ? v2NextGeneration : generation,
+          intent_id: v2IntentId, confirmation: oldConfirmation } });
+      }
+      if (id === secondId || (!id && secondPrepared)) {
+        return route.fulfill({ json: { state: "prepared", generation, intent_id: secondId } });
+      }
+      return route.fulfill({ json: { state: "none", generation } });
+    }
+    if (payload.action === "prepare") {
+      if (payload.expectedGeneration !== generation) return route.fulfill({ status: 409, json: { state: "unknown" } });
+      if (oldAcknowledged) { secondPrepared = true; return route.fulfill({ json: { state: "prepared", generation, intent_id: secondId } }); }
+      return route.fulfill({ json: { state: "prepared", generation, intent_id: v2IntentId } });
+    }
+    if (payload.action === "commit" && payload.intentId === v2IntentId) {
+      oldCommitted = true;
+      await oldBarrier;
+      return route.fulfill({ json: { state: "confirmed", generation: v2Generation,
+        intent_id: v2IntentId, confirmation: oldConfirmation } });
+    }
+    if (payload.action === "commit" && payload.intentId === secondId) {
+      await secondBarrier;
+      return route.fulfill({ json: { state: "confirmed", generation,
+        intent_id: secondId, confirmation: secondConfirmation } });
+    }
+    if (payload.action === "acknowledge" && payload.intentId === v2IntentId) {
+      oldAcknowledged = true;
+      generation = v2NextGeneration;
+      return route.fulfill({ json: { state: "none", generation } });
+    }
+    throw Error(`unexpected v2 action ${payload.action}`);
+  };
+  const { page: oldTab, context, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  const url = `${origin}/en/book/browser-fixture?v2=1`;
+  try {
+    await oldTab.goto(url);
+    await fillBooking(oldTab, "en");
+    await oldTab.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "true");
+    assert.equal(oldCommitted, true, "the first server commit happened before its response was delayed");
+    const newerTab = await context.newPage();
+    await newerTab.goto(url);
+    await newerTab.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+    await newerTab.getByRole("button", { name: "Book another appointment" }).click();
+    await newerTab.locator('[name="bookingTime"]').waitFor();
+    await fillBooking(newerTab, "en");
+    await newerTab.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "true");
+    const newerMarker = `glowflow.booking.pending.browser-fixture.${secondId}`;
+    await newerTab.waitForFunction(key => localStorage.getItem(key) === "1", newerMarker);
+    releaseOld();
+    await oldTab.getByRole("alert").filter({ hasText: "booking session was lost" }).waitFor();
+    assert.equal(await newerTab.evaluate(key => localStorage.getItem(key), newerMarker), "1",
+      "old tab may clear only its old intent marker");
+    assert.equal(writes.filter(value => value.action === "commit").length, 2);
+    assert.deepEqual(externalRequests, []);
+  } finally {
+    releaseOld();
+    releaseSecond();
+  }
+});

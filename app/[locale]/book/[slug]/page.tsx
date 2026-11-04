@@ -5,6 +5,7 @@ import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { isLocale } from "@/lib/i18n";
 import { bookingMembersByService, publishedBookingMembers } from "@/lib/public-booking-staff";
+import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -109,6 +110,7 @@ export default async function BookingPage({
       initialServiceId={initialServiceId}
       locale={locale}
       sandbox={sandbox}
+      v2={!sandbox && publicBookingV2Enabled()}
       salon={{
         name: publicSalonName,
         slug: tenant.slug,

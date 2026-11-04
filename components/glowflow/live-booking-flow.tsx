@@ -22,6 +22,7 @@ type Service = {
 type Slot = { slot_start: string; staff_id: string };
 type Confirmation = {
   appointment_id: string;
+  appointment_status?: "confirmed" | "completed" | "canceled" | "no_show";
   confirmed_start: string;
   confirmed_end: string;
   salon_name: string;
@@ -43,6 +44,24 @@ type BookingPayload = {
   fullName: string; phone: string; email: string; locale: Locale;
 };
 
+type V2Response = {
+  ready?: boolean;
+  new_session?: boolean;
+  state?: "prepared" | "confirmed" | "not_committed" | "unknown" | "none";
+  generation?: string;
+  intent_id?: string;
+  confirmation?: Confirmation;
+};
+
+async function postV2(body: Record<string, unknown>): Promise<V2Response> {
+  const response = await fetch("/api/public-booking/v2", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify(body), cache: "no-store",
+  });
+  if (!response.ok) throw new Error("v2_request_failed");
+  return response.json() as Promise<V2Response>;
+}
+
 function validConfirmation(value: unknown, requestedStart: string): value is Confirmation {
   if (!value || typeof value !== "object") return false;
   const confirmation = value as Partial<Confirmation>;
@@ -61,6 +80,7 @@ type Props = {
   bookingStaffByService?: Record<string, Array<{ id: string; name: string }>>;
   initialServiceId?: string;
   sandbox?: boolean;
+  v2?: boolean;
 };
 
 const copy = {
@@ -91,6 +111,13 @@ const copy = {
     uncertain: "Votre réservation a peut-être été enregistrée. Ne choisissez pas un autre créneau avant de vérifier celle-ci.",
     uncertainHelp: "Gardez cette page ouverte et réessayez la même demande. Si elle n’a pas été enregistrée, cette action peut créer le rendez-vous. Sans confirmation, contactez le salon avant de réserver à nouveau.",
     checkOriginal: "Réessayer la demande initiale",
+    v2Loading: "Vérification des réservations de ce navigateur…",
+    v2Manual: "La session de réservation de ce navigateur a été perdue. Contactez le salon avant de réserver à nouveau.",
+    v2Inactive: "Ce rendez-vous n’est plus actif. Contactez le salon avant de réserver à nouveau.",
+    v2NotCommitted: "La demande précédente n’a pas été enregistrée. Vous pouvez choisir un nouveau créneau.",
+    v2Cancel: "Annuler cette demande si elle n’a pas été enregistrée",
+    v2CancelHelp: "Si la réservation a déjà été enregistrée, sa confirmation s’affichera à la place.",
+    v2AgainError: "Impossible d’ouvrir une nouvelle demande. Réessayez ou contactez le salon.",
     success: "Rendez-vous confirmé",
     confirmation: "Votre rendez-vous est enregistré dans l’agenda du salon.",
     salon: "Salon",
@@ -136,6 +163,13 @@ const copy = {
     uncertain: "Your booking may have succeeded. Do not choose another time until this request is checked.",
     uncertainHelp: "Keep this page open and retry the same request. If it was not saved, retrying may create the booking. Without confirmation, contact the salon before booking again.",
     checkOriginal: "Retry original request",
+    v2Loading: "Checking this browser’s booking attempts…",
+    v2Manual: "This browser’s booking session was lost. Contact the salon before booking again.",
+    v2Inactive: "This appointment is no longer active. Contact the salon before booking again.",
+    v2NotCommitted: "The previous request was not booked. You may choose a new time.",
+    v2Cancel: "Cancel this request if it was not booked",
+    v2CancelHelp: "If the booking was already saved, its confirmation will appear instead.",
+    v2AgainError: "A new request could not be opened. Try again or contact the salon.",
     success: "Appointment confirmed",
     confirmation: "Your appointment is saved in the salon calendar.",
     salon: "Salon",
@@ -181,6 +215,13 @@ const copy = {
     uncertain: "Es posible que tu reserva se haya registrado. No elijas otra hora hasta comprobar esta solicitud.",
     uncertainHelp: "Mantén esta página abierta y reintenta la misma solicitud. Si no se guardó, el reintento puede crear la reserva. Sin confirmación, contacta con el salón antes de reservar de nuevo.",
     checkOriginal: "Reintentar la solicitud original",
+    v2Loading: "Comprobando las reservas de este navegador…",
+    v2Manual: "Se perdió la sesión de reserva de este navegador. Contacta con el salón antes de reservar de nuevo.",
+    v2Inactive: "Esta cita ya no está activa. Contacta con el salón antes de reservar de nuevo.",
+    v2NotCommitted: "La solicitud anterior no se reservó. Puedes elegir otra hora.",
+    v2Cancel: "Cancelar esta solicitud si no se reservó",
+    v2CancelHelp: "Si la reserva ya se guardó, se mostrará su confirmación.",
+    v2AgainError: "No se pudo abrir una nueva solicitud. Reinténtalo o contacta con el salón.",
     success: "Cita confirmada",
     confirmation: "Tu cita está guardada en el calendario del salón.",
     salon: "Salón",
@@ -228,7 +269,7 @@ function availableTimes(slots: Slot[], preferredStaffId: string) {
   return [...unique.values()];
 }
 
-export function LiveBookingFlow({ locale, salon, services, bookingStaffByService = {}, initialServiceId, sandbox = false }: Props) {
+export function LiveBookingFlow({ locale, salon, services, bookingStaffByService = {}, initialServiceId, sandbox = false, v2 = false }: Props) {
   if (!services.length || (initialServiceId !== undefined && !services.some((service) => service.id === initialServiceId))) {
     throw new Error("Booking requires a service from this salon's catalog.");
   }
@@ -241,6 +282,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const contactRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLHeadingElement>(null);
   const recoveryRef = useRef<HTMLHeadingElement>(null);
+  const v2Intent = useRef<string | null>(null);
+  const v2Generation = useRef<string | null>(null);
+  const v2Attempted = useRef(false);
+  const v2Bootstrap = useRef<Promise<V2Response> | null>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   // Do not accept a native selection before React can persist it to booking state.
   const hydrated = useSyncExternalStore(noHydrationSubscription, () => true, () => false);
@@ -256,9 +301,17 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
   const [preferredStaffId, setPreferredStaffId] = useState("");
+  const [v2Phase, setV2Phase] = useState<"loading" | "ready">(v2 ? "loading" : "ready");
+  const [v2ManualOnly, setV2ManualOnly] = useState(false);
+  const [v2Warning, setV2Warning] = useState("");
+  const [v2AgainError, setV2AgainError] = useState(false);
   const service = services.find((item) => item.id === serviceId) ?? services[0];
   const staffChoices = bookingStaffByService[serviceId] ?? [];
   const visibleSlots = availableTimes(slots, preferredStaffId);
+  // The intent UUID is not a bearer capability without the independent
+  // HttpOnly cookie. Per-intent keys prevent a delayed old-tab response from
+  // erasing a newer tab's pending marker.
+  const markerPrefix = `glowflow.booking.pending.${salon.slug}.`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -287,6 +340,175 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   useEffect(() => {
     if (uncertainPublicBooking) recoveryRef.current?.focus();
   }, [uncertainPublicBooking]);
+
+  function pendingIntentIds(): string[] | null {
+    try {
+      const ids: string[] = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (!key?.startsWith(markerPrefix)) continue;
+        const id = key.slice(markerPrefix.length);
+        if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)
+          || window.localStorage.getItem(key) !== "1") return null;
+        ids.push(id);
+      }
+      return ids;
+    } catch { return null; }
+  }
+
+  function markPending(intentId: string): boolean {
+    if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intentId)) return false;
+    try { window.localStorage.setItem(`${markerPrefix}${intentId}`, "1"); return true; }
+    catch { return false; }
+  }
+
+  function removeMarker(intentId: string): boolean {
+    try { window.localStorage.removeItem(`${markerPrefix}${intentId}`); }
+    catch { return false; }
+    return true;
+  }
+
+  function clearPending(intentId: string): boolean {
+    if (!removeMarker(intentId)) return false;
+    return pendingIntentIds()?.length === 0;
+  }
+
+  function lockV2(manualOnly = false, warning = "") {
+    uncertainRef.current = true;
+    setUncertainPublicBooking(true);
+    setV2ManualOnly(manualOnly);
+    setV2Warning(warning);
+    setV2Phase("ready");
+  }
+
+  function applyV2Result(result: V2Response, knownPending = v2Attempted.current, currentSnapshot = false) {
+    if (currentSnapshot) {
+      if (!result.generation || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.generation)) {
+        lockV2();
+        return;
+      }
+      v2Generation.current = result.generation;
+    }
+    if (v2Intent.current && result.intent_id && result.intent_id !== v2Intent.current) {
+      lockV2(true, labels.v2Manual);
+      return;
+    }
+    if (result.intent_id && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.intent_id)) {
+      v2Intent.current = result.intent_id;
+    }
+    if (result.state === "confirmed" && result.confirmation
+      && validConfirmation(result.confirmation, result.confirmation.confirmed_start)) {
+      const status = result.confirmation.appointment_status;
+      if (status === "canceled" || status === "no_show") {
+        lockV2(true, labels.v2Inactive);
+        return;
+      }
+      if (status !== "confirmed" && status !== "completed") { lockV2(); return; }
+      if (!result.intent_id || !clearPending(result.intent_id)) {
+        lockV2(true, labels.v2Manual);
+        return;
+      }
+      setConfirmation(result.confirmation);
+      uncertainRef.current = false;
+      setUncertainPublicBooking(false);
+      setV2Phase("ready");
+      setV2ManualOnly(false);
+      return;
+    }
+    if (result.state === "not_committed") {
+      if (!result.intent_id || !clearPending(result.intent_id)) {
+        lockV2(true, labels.v2Manual);
+        return;
+      }
+      if (!currentSnapshot) { lockV2(); return; }
+      v2Intent.current = null;
+      v2Attempted.current = false;
+      uncertainRef.current = false;
+      setUncertainPublicBooking(false);
+      setV2ManualOnly(false);
+      setV2Phase("ready");
+      setError(labels.v2NotCommitted);
+      reloadAvailability();
+      return;
+    }
+    if (result.state === "none") {
+      if (!currentSnapshot) { lockV2(); return; }
+      if (!v2Generation.current) { lockV2(); return; }
+      if (knownPending) { lockV2(true, labels.v2Manual); return; }
+      uncertainRef.current = false;
+      setUncertainPublicBooking(false);
+      setV2Phase("ready");
+      return;
+    }
+    if (result.state === "prepared" && v2Intent.current) { lockV2(); return; }
+    lockV2();
+  }
+
+  async function reconcileCurrentV2() {
+    const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
+    const outstanding = pendingIntentIds();
+    if (!outstanding) { lockV2(true, labels.v2Manual); return current; }
+    applyV2Result(current, outstanding.length > 0, true);
+    return current;
+  }
+
+  async function handleV2Response(result: V2Response) {
+    if (result.state !== "not_committed") { applyV2Result(result, true); return; }
+    if (!result.intent_id || (v2Intent.current && result.intent_id !== v2Intent.current)
+      || !removeMarker(result.intent_id)) { lockV2(true, labels.v2Manual); return; }
+    v2Intent.current = null;
+    const current = await reconcileCurrentV2();
+    if (current.state === "none" && !uncertainRef.current) {
+      v2Attempted.current = false;
+      setError(labels.v2NotCommitted);
+      reloadAvailability();
+    }
+  }
+
+  useEffect(() => {
+    if (!v2 || sandbox) return;
+    let active = true;
+    void (async () => {
+    const markers = pendingIntentIds();
+    if (!markers) { if (active) lockV2(true, labels.v2Manual); return; }
+    const hadMarker = markers.length > 0;
+      if (!v2Bootstrap.current) v2Bootstrap.current = postV2({ action: "bootstrap" });
+      try {
+        const boot = await v2Bootstrap.current;
+        if (!active) return;
+        if (boot?.ready !== true) throw new Error("bootstrap_failed");
+        if (hadMarker && boot.new_session) { lockV2(true, labels.v2Manual); return; }
+        const confirmed: V2Response[] = [];
+        const prepared: V2Response[] = [];
+        for (const intentId of markers) {
+          const result = await postV2({ action: "reconcile", salonSlug: salon.slug, intentId });
+          if (!active) return;
+          if (result.intent_id !== intentId) { lockV2(true, labels.v2Manual); return; }
+          if (result.state === "confirmed") { confirmed.push(result); continue; }
+          if (result.state === "prepared") { prepared.push(result); continue; }
+          if (result.state === "not_committed" && !removeMarker(intentId)) {
+            lockV2(true, labels.v2Manual);
+            return;
+          }
+          if (result.state !== "not_committed") {
+            lockV2(true, labels.v2Manual);
+            return;
+          }
+        }
+        if (confirmed.length > 1 || prepared.length > 1 || (confirmed.length && prepared.length)) {
+          lockV2(true, labels.v2Manual);
+          return;
+        }
+        if (confirmed.length === 1) { applyV2Result(confirmed[0], true); return; }
+        if (prepared.length === 1) { applyV2Result(prepared[0], true); return; }
+        const result = await postV2({ action: "reconcile", salonSlug: salon.slug });
+        if (active) applyV2Result(result, (pendingIntentIds()?.length ?? 1) > 0, true);
+      } catch { if (active) lockV2(hadMarker, hadMarker ? labels.v2Manual : ""); }
+    })();
+    return () => { active = false; };
+    // Bootstrap is intentionally once per mounted booking page, including Strict Mode replays.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v2, sandbox, salon.slug]);
 
   function reloadAvailability() {
     setSlot(null);
@@ -364,9 +586,88 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     }
   }
 
+  async function submitV2(payload: BookingPayload) {
+    if (!v2Generation.current) { lockV2(); return; }
+    v2Attempted.current = true;
+    lockV2();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    try {
+      const prepared = await postV2({ action: "prepare", ...payload, expectedGeneration: v2Generation.current });
+      if (prepared.state !== "prepared" || !prepared.intent_id) {
+        await handleV2Response(prepared);
+        return;
+      }
+      v2Intent.current = prepared.intent_id;
+      // Preparation cannot book. Before the first appointment-creating POST,
+      // persist only a boolean marker so a later lost cookie fails closed.
+      if (!markPending(prepared.intent_id)) { lockV2(true, labels.v2Manual); return; }
+      const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: prepared.intent_id });
+      await handleV2Response(committed);
+    } catch { lockV2(); }
+    finally { inFlight.current = false; setSubmitting(false); }
+  }
+
+  async function recoverV2() {
+    if (v2ManualOnly || inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    try {
+      const reconciled = await postV2({
+        action: "reconcile", salonSlug: salon.slug,
+        ...(v2Intent.current ? { intentId: v2Intent.current } : {}),
+      });
+      if (reconciled.state !== "prepared" || !reconciled.intent_id) {
+        await handleV2Response(reconciled);
+        return;
+      }
+      v2Intent.current = reconciled.intent_id;
+      // A cookie-only prepared attempt must restore its independent marker
+      // before a recovered original-commit retry can create an appointment.
+      if (!markPending(reconciled.intent_id)) { lockV2(true, labels.v2Manual); return; }
+      const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: reconciled.intent_id });
+      await handleV2Response(committed);
+    } catch { lockV2(); }
+    finally { inFlight.current = false; setSubmitting(false); }
+  }
+
+  async function cancelV2() {
+    if (!v2Intent.current || v2ManualOnly || inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    try {
+      const result = await postV2({ action: "cancel", salonSlug: salon.slug, intentId: v2Intent.current });
+      await handleV2Response(result);
+    } catch { lockV2(); }
+    finally { inFlight.current = false; setSubmitting(false); }
+  }
+
+  async function anotherBooking() {
+    if (!v2) { setConfirmation(null); reloadAvailability(); return; }
+    if (!v2Intent.current || inFlight.current) return;
+    inFlight.current = true;
+    setV2AgainError(false);
+    try {
+      const result = await postV2({ action: "acknowledge", salonSlug: salon.slug, intentId: v2Intent.current });
+      if (result.state !== "none" || !result.generation
+        || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.generation)) throw new Error("acknowledgement_unresolved");
+      if (pendingIntentIds()?.length !== 0) throw new Error("another_attempt_unresolved");
+      const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
+      if (current.state !== "none" || !current.generation
+        || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(current.generation)) throw new Error("current_generation_unavailable");
+      v2Generation.current = current.generation;
+      v2Intent.current = null;
+      v2Attempted.current = false;
+      setConfirmation(null);
+      reloadAvailability();
+    } catch { setV2AgainError(true); }
+    finally { inFlight.current = false; }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (uncertainRef.current || !slot || loadingSlots || inFlight.current) return;
+    if (uncertainRef.current || (v2 && v2Phase !== "ready") || !slot || loadingSlots || inFlight.current) return;
     const form = new FormData(event.currentTarget);
     const fullName = String(form.get("fullName") ?? "").trim();
     const phone = String(form.get("phone") ?? "").trim();
@@ -378,6 +679,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     }
 
     const payload: BookingPayload = { salonSlug: salon.slug, serviceId, staffId: slot.staff_id, startTime: slot.slot_start, fullName, phone, email, locale };
+    if (v2) { await submitV2(payload); return; }
     if (!retry.current || JSON.stringify(retry.current.payload) !== JSON.stringify(payload)) {
       retry.current = { payload, key: crypto.randomUUID() };
     }
@@ -385,6 +687,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   }
 
   async function retryOriginalBooking() {
+    if (v2) { await recoverV2(); return; }
     if (!uncertainPublicBooking || !retry.current || inFlight.current) return;
     await sendBooking(retry.current.payload, retry.current.key);
   }
@@ -417,19 +720,21 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </dl>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
-        <button type="button" onClick={() => { setConfirmation(null); reloadAvailability(); }} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold">{labels.another}</button>
+        {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700">{labels.v2AgainError}</p> : null}
+        <button type="button" onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 dark:focus-visible:outline-white">{labels.another}</button>
       </section>
     </main>;
   }
 
   const contactError = error === labels.contact;
+  const locked = uncertainPublicBooking || (v2 && v2Phase === "loading");
 
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
       <header className="flex items-center justify-between bg-slate-950 px-5 py-4 text-white sm:px-8">
-        {uncertainPublicBooking ? <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</span>
+        {locked ? <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</span>
           : <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</Link>}
-        {uncertainPublicBooking ? <span className="text-sm font-semibold">{locale.toUpperCase()}</span> : <LanguageSwitcher locale={locale} />}
+        {locked ? <span className="text-sm font-semibold">{locale.toUpperCase()}</span> : <LanguageSwitcher locale={locale} />}
       </header>
       <div className="grid lg:grid-cols-[0.75fr_1.25fr]">
         <aside className="bg-[#eadbc9] p-6 dark:bg-white/5 sm:p-9">
@@ -446,12 +751,18 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </div>
         </aside>
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
-          {uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
-            <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{labels.uncertain}</h2>
-            <p className="mt-3 leading-7">{labels.uncertainHelp}</p>
-            <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
+          {v2 && v2Phase === "loading" ? <section role="status" className="rounded-2xl border border-[#dfd2c1] p-5">
+            <h2 className="text-xl font-semibold">{labels.v2Loading}</h2>
+          </section> : uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
+            <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{v2Warning || labels.uncertain}</h2>
+            <p className="mt-3 leading-7">{v2ManualOnly ? labels.v2Manual : labels.uncertainHelp}</p>
+            {!v2ManualOnly ? <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
               {submitting ? labels.saving : labels.checkOriginal}
-            </button>
+            </button> : null}
+            {v2 && !v2ManualOnly && v2Intent.current ? <div className="mt-4">
+              <p className="text-sm">{labels.v2CancelHelp}</p>
+              <button type="button" disabled={submitting} onClick={cancelV2} className="mt-3 min-h-12 rounded-full border border-current px-5 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.v2Cancel}</button>
+            </div> : null}
           </section> : <>
           <label className="block font-semibold">{labels.service}
             <select name="bookingService" disabled={!hydrated || submitting} value={serviceId} onChange={(event) => {
