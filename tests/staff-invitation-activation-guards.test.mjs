@@ -28,4 +28,5 @@ test("new invitation delivery code is not wired to an application route or enabl
   const app = (await appSources(path.join(root, "app"))).join("\n");
   assert.ok(!app.includes("processNextStaffInvitationDelivery"));
   assert.ok(!app.includes("@/lib/staff-invitation-sender"));
+  assert.ok(!app.includes("@/lib/staff-invitation-resend"));
 });
