@@ -394,7 +394,7 @@ export default async function SalonSearchPage({
             </div>
 
             <details open={hasAdvancedFilters} className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
                 {labels.category}, {labels.postal}, {labels.maximumPrice}, {labels.availableBefore}
               </summary>
