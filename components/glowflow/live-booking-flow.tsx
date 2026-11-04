@@ -53,12 +53,16 @@ type V2Response = {
   confirmation?: Confirmation;
 };
 
+class V2RequestError extends Error {
+  constructor(readonly status: number) { super("v2_request_failed"); }
+}
+
 async function postV2(body: Record<string, unknown>): Promise<V2Response> {
   const response = await fetch("/api/public-booking/v2", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify(body), cache: "no-store",
   });
-  if (!response.ok) throw new Error("v2_request_failed");
+  if (!response.ok) throw new V2RequestError(response.status);
   return response.json() as Promise<V2Response>;
 }
 
@@ -381,6 +385,13 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     setV2Phase("ready");
   }
 
+  function lockV2ForRequestFailure(reason: unknown) {
+    // The v2 API uses 409 when the browser capability is absent or invalid.
+    // Retrying with that same cookie cannot reconcile an earlier attempt.
+    if (reason instanceof V2RequestError && reason.status === 409) lockV2(true, labels.v2Manual);
+    else lockV2();
+  }
+
   function applyV2Result(result: V2Response, knownPending = v2Attempted.current, currentSnapshot = false) {
     if (currentSnapshot) {
       if (!result.generation || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.generation)) {
@@ -504,7 +515,11 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         if (prepared.length === 1) { applyV2Result(prepared[0], true); return; }
         const result = await postV2({ action: "reconcile", salonSlug: salon.slug });
         if (active) applyV2Result(result, (pendingIntentIds()?.length ?? 1) > 0, true);
-      } catch { if (active) lockV2(hadMarker, hadMarker ? labels.v2Manual : ""); }
+      } catch (reason) {
+        if (!active) return;
+        if (hadMarker || (reason instanceof V2RequestError && reason.status === 409)) lockV2(true, labels.v2Manual);
+        else lockV2();
+      }
     })();
     return () => { active = false; };
     // Bootstrap is intentionally once per mounted booking page, including Strict Mode replays.
@@ -606,7 +621,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       if (!markPending(prepared.intent_id)) { lockV2(true, labels.v2Manual); return; }
       const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: prepared.intent_id });
       await handleV2Response(committed);
-    } catch { lockV2(); }
+    } catch (reason) { lockV2ForRequestFailure(reason); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
@@ -641,7 +656,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       if (!markPending(reconciled.intent_id)) { lockV2(true, labels.v2Manual); return; }
       const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: reconciled.intent_id });
       await handleV2Response(committed);
-    } catch { lockV2(); }
+    } catch (reason) { lockV2ForRequestFailure(reason); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
@@ -652,7 +667,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     try {
       const result = await postV2({ action: "cancel", salonSlug: salon.slug, intentId: v2Intent.current });
       await handleV2Response(result);
-    } catch { lockV2(); }
+    } catch (reason) { lockV2ForRequestFailure(reason); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 

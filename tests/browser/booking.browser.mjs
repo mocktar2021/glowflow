@@ -724,6 +724,11 @@ const v2InactiveLabels = {
   en: "This appointment is no longer active. Contact the salon before booking again.",
   es: "Esta cita ya no está activa. Contacta con el salón antes de reservar de nuevo.",
 };
+const v2LostSessionLabels = {
+  fr: "La session de réservation de ce navigateur a été perdue.",
+  en: "This browser’s booking session was lost.",
+  es: "Se perdió la sesión de reserva de este navegador.",
+};
 function v2Confirmation(locale) {
   return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
 }
@@ -894,6 +899,53 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   await page.locator("form").dispatchEvent("submit");
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 rejected bootstrap cookie cannot offer a futile retry`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        requests.push(payload);
+        assert.equal(payload.action, "bootstrap");
+        return route.fulfill({ status: 409, json: { state: "unknown" } });
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+    await page.getByRole("alert").filter({ hasText: v2LostSessionLabels[locale] }).waitFor();
+    assert.equal(await page.getByRole("button", { name: uncertainLabels[locale].check }).count(), 0);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    await page.locator("form").dispatchEvent("submit");
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+test("v2 cookie rejected after bootstrap cannot repeat prepare or offer recovery retry", async t => {
+  const server = v2Server("en");
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "prepare") {
+        requests.push(payload);
+        return route.fulfill({ status: 409, json: { state: "unknown" } });
+      }
+      return server.handler(route, requests);
+    },
+    v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: v2LostSessionLabels.en }).waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 0);
+  assert.equal(server.appointments.size, 0);
   assert.deepEqual(externalRequests, []);
 });
 
