@@ -5,6 +5,8 @@
 refunded minor-unit amounts by tender method, plus the day's net ledger movement.
 It rejects mixed tenants or currencies, malformed amounts and timestamps,
 overflow, and more than 2,000 input rows without returning partial totals.
+Report filters reject year zero, and an empty or whitespace-only tenant scope
+is invalid even when no rows are supplied.
 
 This helper performs no database read and grants no reporting permission. A
 future server caller must verify reporting authorization, query only the

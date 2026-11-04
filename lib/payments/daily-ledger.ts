@@ -42,6 +42,8 @@ function addChecked(left: number, right: number): number | null {
 
 function isIsoDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  // JavaScript accepts year 0000, but salon report filters use calendar years.
+  if (value.startsWith("0000-")) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
@@ -55,7 +57,8 @@ export function aggregateDailyLedger(input: {
   throughDate?: string;
 }): DailyLedgerReport {
   const { tenantId, currency, timeZone, entries, fromDate, throughDate } = input;
-  if (!tenantId || !/^[A-Z]{3}$/.test(currency) || !timeZone || timeZone.length > 64) {
+  if (typeof tenantId !== "string" || !tenantId.trim()
+    || !/^[A-Z]{3}$/.test(currency) || !timeZone || timeZone.length > 64) {
     return { status: "invalid", reason: "invalid_scope" };
   }
   if ((fromDate !== undefined && !isIsoDate(fromDate))
