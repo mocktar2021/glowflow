@@ -52,6 +52,7 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
   sql(readFileSync(new URL('tests/public-salon-distance.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/staff-invitation-authorization.sql', root), 'utf8'));
   sql(readFileSync(new URL('tests/staff-invitation-issuer-authorization.sql', root), 'utf8'));
+  sql(readFileSync(new URL('tests/staff-invitation-delivery-authorization.sql', root), 'utf8'));
 
   function concurrentSql(input) {
     return new Promise((resolve) => {
@@ -201,6 +202,9 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
     'issuer rollback removes only the inactive preparation function');
   assert.equal(sql("select count(*) from private.staff_invitations where email_normalized='issuer@example.invalid'"), '3',
     'issuer rollback preserves the audit rows across both salons');
+  sql(readFileSync(new URL('supabase/rollbacks/20261104004728_disable_staff_invitation_delivery.sql', root), 'utf8'));
+  assert.equal(sql("select has_function_privilege('service_role','public.enqueue_staff_invitation_delivery(uuid,text,uuid,text)','execute')"), 'f',
+    'delivery rollback disables new enqueue calls without erasing audit rows');
 
   const duplicateBooking = (startTime, holdSeconds) => `
     begin;
