@@ -438,6 +438,11 @@ const confirmationLabels = {
   en: { submit: "Confirm appointment", success: "Appointment confirmed", conflict: "Someone booked this time. Choose another time.", contact: "Add a phone number or email." },
   es: { submit: "Confirmar cita", success: "Cita confirmada", conflict: "Otra persona reservó esta hora. Elige otra.", contact: "Añade un teléfono o correo." },
 };
+const uncertainLabels = {
+  fr: { warning: "Votre réservation a peut-être été enregistrée", check: "Vérifier la réservation initiale" },
+  en: { warning: "Your booking may have succeeded", check: "Check original booking" },
+  es: { warning: "Es posible que tu reserva se haya registrado", check: "Comprobar la reserva original" },
+};
 function confirmedBooking(locale, start = slot.slot_start) {
   return {
     appointment_id: "55555555-5555-4555-8555-555555555555",
@@ -571,48 +576,87 @@ test("pending public booking accepts only one submission even if the form fires 
   assert.deepEqual(externalRequests, []);
 });
 
-test("ambiguous public booking failure retries the same request key", async t => {
-  const { page, writes, externalRequests } = await pageFor(t, "fr", { publicBooking: async (route, requests) => {
-    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
-    requests.push(route.request().postDataJSON());
-    if (requests.length === 1) return route.abort("failed");
-    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("fr") } });
-  } });
-  await page.goto(`${origin}/fr/book/browser-fixture`);
-  await fillBooking(page, "fr");
-  await page.getByRole("alert").filter({ hasText: "La réservation a échoué" }).waitFor();
-  assert.equal(await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).count(), 0);
-  await page.getByRole("button", { name: confirmationLabels.fr.submit, exact: true }).click();
-  await page.getByRole("heading", { name: confirmationLabels.fr.success, exact: true }).waitFor();
-  assert.equal(writes.length, 2);
-  assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
-  assert.deepEqual(writes[1], writes[0], "an uncertain first result must reuse its idempotency key and payload");
-  assert.deepEqual(externalRequests, []);
-});
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} committed booking with lost response freezes changes and reconciles the original key`, async t => {
+    const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+    const appointments = new Map();
+    const { page, writes, externalRequests } = await pageFor(t, locale, { publicBooking: async (route, requests) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot, replacement] } });
+      const payload = route.request().postDataJSON();
+      requests.push(payload);
+      if (!appointments.has(payload.requestKey)) appointments.set(payload.requestKey, confirmedBooking(locale));
+      if (requests.length === 1) return route.abort("failed"); // Server committed; only its response was lost.
+      return route.fulfill({ status: 201, json: { confirmation: appointments.get(payload.requestKey) } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.tagName === "H2");
+    assert.equal(appointments.size, 1, "first request committed before the response was lost");
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0, "the changed time cannot be selected while unresolved");
+    assert.equal(await page.locator('[name="email"]').count(), 0, "changed contact cannot be submitted while unresolved");
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.length, 1, "a synthetic form submit cannot bypass the recovery guard");
+    await page.getByRole("button", { name: uncertainLabels[locale].check }).click();
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(writes.length, 2);
+    assert.deepEqual(writes[1], writes[0], "reconciliation must retry the original payload and request key");
+    assert.equal(appointments.size, 1, "no second appointment is created");
+    assert.deepEqual(externalRequests, []);
+  });
+}
 
-test("changed contact after an ambiguous public booking response gets a new request key", async t => {
+test("a malformed acknowledgement after a committed lost response keeps the original key locked", async t => {
+  const appointments = new Map();
   const { page, writes, externalRequests } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
-    requests.push(route.request().postDataJSON());
+    const payload = route.request().postDataJSON();
+    requests.push(payload);
+    if (!appointments.has(payload.requestKey)) appointments.set(payload.requestKey, confirmedBooking("en"));
     if (requests.length === 1) return route.abort("failed");
-    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en") } });
+    if (requests.length === 2) return route.fulfill({ status: 201, json: { confirmation: {} } });
+    return route.fulfill({ status: 201, json: { confirmation: appointments.get(payload.requestKey) } });
   } });
   await page.goto(`${origin}/en/book/browser-fixture`);
   await fillBooking(page, "en");
-  await page.getByRole("alert").filter({ hasText: "Booking failed. Review your information." }).waitFor();
-  assert.equal(writes.length, 1);
-  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 0);
-
-  await selectBookingTime(page);
-  await page.locator('[name="email"]').fill("updated@example.invalid");
-  await page.getByRole("button", { name: confirmationLabels.en.submit, exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.getByRole("button", { name: uncertainLabels.en.check }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.length, 2, "malformed success cannot unlock a changed submission");
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
   await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
-  assert.equal(writes.length, 2);
-  const { requestKey: firstKey, ...firstPayload } = writes[0];
-  const { requestKey: secondKey, ...secondPayload } = writes[1];
-  assert.match(firstKey, /^[0-9a-f-]{36}$/);
-  assert.match(secondKey, /^[0-9a-f-]{36}$/);
-  assert.notEqual(secondKey, firstKey, "changed contact details cannot reuse an ambiguous reservation key");
-  assert.deepEqual(secondPayload, { ...firstPayload, email: "updated@example.invalid" });
+  assert.equal(writes.length, 3);
+  assert.deepEqual(writes[1], writes[0]);
+  assert.deepEqual(writes[2], writes[0]);
+  assert.equal(appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("definitive non-commit after ambiguous response permits a new slot and request key", async t => {
+  const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+  let appointments = 0;
+  const { page, writes, externalRequests } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: requests.length >= 2 ? [replacement] : [slot, replacement] } });
+    const payload = route.request().postDataJSON();
+    requests.push(payload);
+    if (requests.length === 1) return route.abort("failed"); // Nothing committed.
+    if (requests.length === 2) return route.fulfill({ status: 409, json: { error: "slot_unavailable" } });
+    appointments += 1;
+    return route.fulfill({ status: 201, json: { confirmation: confirmedBooking("en", replacement.slot_start) } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.getByRole("alert").filter({ hasText: confirmationLabels.en.conflict }).waitFor();
+  await page.locator(`[name="bookingTime"][value="${replacement.slot_start}"]`).waitFor();
+  await fillBooking(page, "en", replacement.slot_start);
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.deepEqual(writes[1], writes[0], "the uncertain request is retried unchanged");
+  assert.notEqual(writes[2].requestKey, writes[0].requestKey, "definite non-commit unlocks a fresh key");
+  assert.equal(writes[2].startTime, replacement.slot_start);
+  assert.equal(appointments, 1);
   assert.deepEqual(externalRequests, []);
 });

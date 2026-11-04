@@ -82,7 +82,7 @@ async function markup(locale, details, salonName = base.salon_name) {
   const confirmation = { ...base, salon_name: salonName, details };
   let stateIndex = 0;
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
-    react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 7 ? confirmation : initial, () => {}]; } },
+    react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 8 ? confirmation : initial, () => {}]; } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
   });
