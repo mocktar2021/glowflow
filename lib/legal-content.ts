@@ -1,7 +1,7 @@
 import type { Locale } from "@/lib/i18n";
 
-export const legalEffectiveDate = "2026-09-24";
-export const supportEmail = "support@mocktar.com";
+export const legalEffectiveDate = "2026-11-04";
+export const supportEmail = "glowflow@mocktar.com";
 
 type Section = { heading: string; paragraphs: string[] };
 type LegalDocument = { title: string; summary: string; sections: Section[] };

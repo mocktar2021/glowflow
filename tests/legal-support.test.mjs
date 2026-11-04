@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 test("publishes localized privacy, terms, support, and cancellation guidance", async () => {
   const content = await readFile(path.join(root, "lib/legal-content.ts"), "utf8");
   for (const locale of ["fr", "en", "es"]) assert.match(content, new RegExp(`\\b${locale}: \\{`));
-  assert.match(content, /support@mocktar\.com/);
+  assert.match(content, /glowflow@mocktar\.com/);
   assert.match(content, /Supabase/);
   assert.match(content, /Vercel/);
   assert.match(content, /Stripe/);
