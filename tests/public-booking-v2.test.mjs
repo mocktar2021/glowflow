@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -10,7 +10,16 @@ const require = createRequire(import.meta.url);
 const origin = "https://glowflow.mocktar.com";
 const endpoint = `${origin}/api/public-booking/v2`;
 const cookieName = "__Host-glowflow_booking_session";
-const token = "A".repeat(43);
+const signingKey = Buffer.alloc(32, 17);
+process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY = signingKey.toString("base64url");
+function signedToken({ issuedAt = Math.floor(Date.now() / 1000), expiresAt = issuedAt + 86400,
+  host = "glowflow.mocktar.com" } = {}) {
+  const payload = `v1.${issuedAt}.${expiresAt}.${"A".repeat(43)}`;
+  const signature = createHmac("sha256", signingKey).update(host).update("\0")
+    .update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+const token = signedToken();
 const intentId = "11111111-1111-4111-8111-111111111111";
 const otherIntentId = "22222222-2222-4222-8222-222222222222";
 const generation = "33333333-3333-4333-8333-333333333333";
@@ -116,19 +125,77 @@ test("bootstrap requires explicit cookie lifetime and uses a host-only HttpOnly 
     delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
     const { POST, calls } = await harness();
     assert.equal((await post(POST, { action: "bootstrap" }, { cookie: null })).response.status, 503);
-    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
+    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
     const { response, value } = await post(POST, { action: "bootstrap" }, { cookie: null });
     assert.deepEqual(value, { ready: true, new_session: true });
     const setCookie = response.headers.get("set-cookie") ?? "";
-    assert.match(setCookie, /^__Host-glowflow_booking_session=[A-Za-z0-9_-]{43};/);
+    assert.match(setCookie, /^__Host-glowflow_booking_session=v1\.[0-9]+\.[0-9]+\.[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43};/);
     assert.match(setCookie, /HttpOnly/);
     assert.match(setCookie, /Secure/);
     assert.match(setCookie, /SameSite=strict/i);
     assert.match(setCookie, /Path=\//);
-    assert.match(setCookie, /Max-Age=3600/);
+    assert.match(setCookie, /Max-Age=86400/);
     assert.doesNotMatch(setCookie, /Domain=/i);
     assert.deepEqual(calls, []);
     assert.deepEqual((await post(POST, { action: "bootstrap" })).value, { ready: true, new_session: false });
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
+  }
+});
+
+test("signed cookie proves issue time and host after database session purge", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const { POST, calls } = await harness();
+  const now = Math.floor(Date.now() / 1000);
+  for (const stale of [
+    signedToken({ issuedAt: now - 86401, expiresAt: now - 1 }),
+    signedToken({ issuedAt: now + 60, expiresAt: now + 86460 }),
+    signedToken({ issuedAt: now, expiresAt: now + 86401 }),
+    `${token.slice(0, -1)}${token.endsWith("A") ? "B" : "A"}`,
+    "A".repeat(43), // pre-signature draft format must not silently rebootstrap
+  ]) {
+    const bootstrap = await post(POST, { action: "bootstrap" }, { cookie: stale });
+    assert.equal(bootstrap.response.status, 409);
+    assert.equal(bootstrap.response.headers.get("set-cookie"), null);
+    assert.equal((await post(POST, { action: "reconcile", salonSlug: "browser-fixture" }, { cookie: stale })).response.status, 409);
+  }
+  const crossHost = await post(POST, { action: "bootstrap" }, {
+    cookie: token, url: "https://glowflow.beauty/api/public-booking/v2",
+    headers: { origin: "https://glowflow.beauty" },
+  });
+  assert.equal(crossHost.response.status, 409);
+  assert.equal(crossHost.response.headers.get("set-cookie"), null);
+  assert.deepEqual(calls, []);
+});
+
+test("missing signing key blocks new capabilities and cannot validate old cookies", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+  try {
+    delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+    const { POST, calls } = await harness();
+    assert.equal((await post(POST, { action: "bootstrap" }, { cookie: null })).response.status, 503);
+    assert.equal((await post(POST, { action: "reconcile", salonSlug: "browser-fixture" })).response.status, 409);
+    assert.deepEqual(calls, []);
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY = previous;
+  }
+});
+
+test("cookie configuration longer than the approved 24-hour window fails closed", async () => {
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  try {
+    const { POST, calls } = await harness();
+    for (const invalid of ["86401", String(30 * 24 * 60 * 60), "0", "not-a-number"]) {
+      process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = invalid;
+      const bootstrap = await post(POST, { action: "bootstrap" }, { cookie: null });
+      assert.equal(bootstrap.response.status, 503);
+      assert.equal(bootstrap.response.headers.get("set-cookie"), null);
+      assert.equal((await post(POST, prepare)).response.status, 503);
+    }
+    assert.deepEqual(calls, []);
   } finally {
     if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
     else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
@@ -198,6 +265,25 @@ test("a database policy error is unavailable and never falls back to the legacy 
   assert.deepEqual(value, { state: "unknown", error: "booking_unavailable" });
   assert.deepEqual(calls.map(({ name }) => name), ["prepare_public_booking_intent"]);
   assert.doesNotMatch(JSON.stringify(value), /policy_unconfigured|Fictional Client|fixture@example.invalid/);
+});
+
+test("expired browser session denial stays unknown without minting a replacement cookie", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const { POST, calls } = await harness(true, {
+    data: null, error: { code: "P0001", message: "booking_browser_session_expired" },
+  });
+  for (const body of [
+    { action: "reconcile", salonSlug: "browser-fixture", intentId },
+    prepare,
+  ]) {
+    const { response, value } = await post(POST, body);
+    assert.equal(response.status, 503);
+    assert.deepEqual(value, { state: "unknown", error: "booking_unavailable" });
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  assert.deepEqual(calls.map(({ name }) => name), [
+    "reconcile_public_booking_intent", "prepare_public_booking_intent",
+  ]);
 });
 
 test("confirmed RPC data is reduced to an explicit non-contact browser allowlist", async () => {

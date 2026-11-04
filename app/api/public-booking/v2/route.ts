@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,8 +10,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const cookieName = "__Host-glowflow_booking_session";
+const approvedCookieMaxAgeSeconds = 24 * 60 * 60;
 const maxBodyBytes = 4096;
-const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
+const tokenPattern = /^v1\.([1-9][0-9]{9,12})\.([1-9][0-9]{9,12})\.([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/;
+const keyPattern = /^[A-Za-z0-9_-]{43}$/;
 const uuid = z.string().uuid();
 const slug = z.string().trim().min(2).max(80);
 const locale = z.enum(["fr", "en", "es"]);
@@ -46,7 +48,28 @@ function configuredCookieMaxAge(): number | null {
   const raw = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
   if (!raw || !/^[1-9][0-9]*$/.test(raw)) return null;
   const seconds = Number(raw);
-  return Number.isSafeInteger(seconds) && seconds >= 300 && seconds <= 30 * 24 * 60 * 60 ? seconds : null;
+  // The approved same-browser recovery window is at most 24 hours. A longer
+  // browser capability must fail closed rather than outlive the privacy policy.
+  return Number.isSafeInteger(seconds) && seconds >= 300 && seconds <= approvedCookieMaxAgeSeconds ? seconds : null;
+}
+
+function cookieSigningKey(): Buffer | null {
+  const encoded = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+  if (!encoded || !keyPattern.test(encoded)) return null;
+  const key = Buffer.from(encoded, "base64url");
+  return key.length === 32 && key.toString("base64url") === encoded ? key : null;
+}
+
+function cookieSignature(request: NextRequest, payload: string, key: Buffer): Buffer {
+  // Bind even a copied cookie to its issuing host. QA and production must not
+  // share a browser capability if they ever share a database or signing key.
+  return createHmac("sha256", key).update(new URL(request.url).host).update("\0").update(payload).digest();
+}
+
+function newBrowserToken(request: NextRequest, maxAge: number, key: Buffer): string {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload = `v1.${issuedAt}.${issuedAt + maxAge}.${randomBytes(32).toString("base64url")}`;
+  return `${payload}.${cookieSignature(request, payload, key).toString("base64url")}`;
 }
 
 function validOrigin(request: NextRequest): boolean {
@@ -82,7 +105,20 @@ function browserToken(request: NextRequest): string | null {
     .filter((part) => part.trim().startsWith(`${cookieName}=`)).length;
   if (count !== 1) return null;
   const value = request.cookies.get(cookieName)?.value;
-  return value && tokenPattern.test(value) ? value : null;
+  const parts = value && tokenPattern.exec(value);
+  if (!parts) return null;
+  const issuedAt = Number(parts[1]);
+  const expiresAt = Number(parts[2]);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(issuedAt) || !Number.isSafeInteger(expiresAt)
+    || expiresAt - issuedAt < 300 || expiresAt - issuedAt > approvedCookieMaxAgeSeconds
+    || now < issuedAt || now >= expiresAt) return null;
+  const key = cookieSigningKey();
+  if (!key) return null;
+  const payload = value.slice(0, value.lastIndexOf("."));
+  const supplied = Buffer.from(parts[4], "base64url");
+  const expected = cookieSignature(request, payload, key);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected) ? value : null;
 }
 
 function localizedText(value: unknown): Record<string, string> {
@@ -211,10 +247,11 @@ export async function POST(request: NextRequest) {
     const existing = browserToken(request);
     if (!existing && request.cookies.has(cookieName)) return json({ state: "unknown" }, 409);
     const maxAge = configuredCookieMaxAge();
-    if (!existing && !maxAge) return json({ state: "unknown", error: "booking_unavailable" }, 503);
+    const signingKey = cookieSigningKey();
+    if (!existing && (!maxAge || !signingKey)) return json({ state: "unknown", error: "booking_unavailable" }, 503);
     const response = json({ ready: true, new_session: !existing });
     if (!existing) {
-      response.cookies.set(cookieName, randomBytes(32).toString("base64url"), {
+      response.cookies.set(cookieName, newBrowserToken(request, maxAge!, signingKey!), {
         httpOnly: true, secure: true, sameSite: "strict", path: "/", maxAge: maxAge!,
       });
     }
