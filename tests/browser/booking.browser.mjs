@@ -806,6 +806,12 @@ for (const locale of ["fr", "en", "es"]) {
     await page.waitForFunction(() => document.activeElement?.tagName === "H2");
     assert.equal(server.appointments.size, 1);
     assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.locator('[name="email"]').count(), 0);
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1,
+      "a changed-slot form submission cannot prepare another intent while the committed result is unresolved");
+    assert.equal(writes.filter(value => value.action === "commit").length, 1,
+      "a synthetic submit cannot create a second appointment while recovery is locked");
     const markers = await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending.")));
     assert.deepEqual(markers, [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
     assert.doesNotMatch(JSON.stringify(markers), /Fictional Browser Client|browser@example.invalid|2030-01-15T/);
@@ -894,6 +900,40 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   await page.locator("form").dispatchEvent("submit");
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 rejected old-cookie bootstrap keeps a pending marker manual-only across reload", async t => {
+  // The route unit suite verifies that an expired or unsigned cookie returns
+  // 409 without a replacement. This fixture verifies the browser response.
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    writes.push(payload);
+    return route.fulfill({ status: 409, json: { state: "unknown" } });
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(origin);
+  await page.evaluate(intentId => {
+    localStorage.setItem(`glowflow.booking.pending.browser-fixture.${intentId}`, "1");
+  }, v2IntentId);
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  const manual = page.getByRole("alert").filter({ hasText: "booking session was lost" });
+  await manual.waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
+  await page.reload();
+  await manual.waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "bootstrap"],
+    "the old-cookie rejection must never become a new prepare or commit");
+  assert.equal(await page.evaluate(intentId =>
+    localStorage.getItem(`glowflow.booking.pending.browser-fixture.${intentId}`), v2IntentId), "1");
   assert.deepEqual(externalRequests, []);
 });
 
@@ -1106,6 +1146,61 @@ test("v2 canceled intent can recover after a transient current-session reconcile
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
   assert.equal(server.appointments.size, 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 definitive noncommit permits a changed slot only after current-session reconciliation", async t => {
+  const replacement = { ...slot, slot_start: "2030-01-15T11:00:00Z" };
+  const secondIntentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  const appointments = new Map();
+  let secondPrepared = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "prepare" && server.getState() === "not_committed") {
+      writes.push(payload);
+      assert.equal(payload.expectedGeneration, v2NextGeneration, "new intent uses the server's rotated generation");
+      assert.equal(payload.startTime, replacement.slot_start);
+      secondPrepared = true;
+      return route.fulfill({ json: { state: "prepared", generation: v2NextGeneration, intent_id: secondIntentId } });
+    }
+    if (payload.action === "commit" && payload.intentId === secondIntentId) {
+      writes.push(payload);
+      assert.equal(secondPrepared, true);
+      appointments.set(secondIntentId, { ...v2Confirmation("en"), confirmed_start: replacement.slot_start });
+      return route.fulfill({ json: { state: "confirmed", generation: v2NextGeneration,
+        intent_id: secondIntentId, confirmation: appointments.get(secondIntentId) } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot, replacement] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 0, "the original request definitively did not commit");
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.locator('[name="bookingTime"]').first().waitFor();
+  const cancelIndex = writes.findIndex(value => value.action === "cancel");
+  assert.notEqual(cancelIndex, -1);
+  assert.equal(writes.slice(cancelIndex + 1).some(value => value.action === "reconcile" && !value.intentId), true,
+    "a fresh current-session snapshot must follow the definitive cancellation");
+  await fillBooking(page, "en", replacement.slot_start);
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  const prepares = writes.filter(value => value.action === "prepare");
+  const commits = writes.filter(value => value.action === "commit");
+  assert.equal(prepares.length, 2);
+  assert.equal(commits.length, 2);
+  assert.equal(prepares[0].startTime, slot.slot_start);
+  assert.equal(prepares[1].startTime, replacement.slot_start);
+  assert.equal(commits[0].intentId, v2IntentId);
+  assert.equal(commits[1].intentId, secondIntentId);
+  assert.equal(appointments.size, 1, "only the newly chosen slot became an appointment");
   assert.deepEqual(externalRequests, []);
 });
 
