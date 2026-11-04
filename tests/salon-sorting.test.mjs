@@ -173,6 +173,14 @@ test("advanced search controls retain a visible keyboard focus outline in every 
       params: Promise.resolve({ locale }),
       searchParams: Promise.resolve({}),
     }));
+    const summary = html.match(/<summary\b[^>]*>/)?.[0];
+    assert.ok(summary, `${locale}: advanced-filter summary is present`);
+    assert.match(summary, /min-h-11/, `${locale}: summary has a 44px touch target`);
+    assert.match(summary, /focus-visible:outline-solid/);
+    assert.match(summary, /focus-visible:outline-2/);
+    assert.match(summary, /focus-visible:outline-offset-2/);
+    assert.match(summary, /focus-visible:outline-\[#8a5728\]/);
+    assert.match(summary, /dark:focus-visible:outline-\[#efc992\]/);
     for (const [tag, name] of [["input", "postcode"], ["select", "category"], ["input", "maxPrice"], ["input", "availableBefore"]]) {
       const control = html.match(new RegExp(`<${tag}\\b[^>]*\\bname="${name}"[^>]*>`))?.[0];
       assertVisibleFocus(control, `${locale}: ${name}`);
