@@ -87,13 +87,16 @@ first, prepare instead observes `committed` and returns the stored
 confirmation. If expiry wins first, the old commit must reject.
 
 The duplicate contact copy exists only while `prepared`; scrub it when an
-intent becomes committed, canceled, or expired. No prepared-intent TTL,
-cookie lifetime, or terminal-row retention value is approved yet. The
-migration track uses a private policy singleton with **no seed**: preparation
-must fail closed until TTL/retention values receive separate approval and are
-explicitly provisioned. Missing rows must reject v2 commit, so cleanup cannot
-reopen a late POST. Appointment/client records keep their own existing
-retention rules.
+intent becomes committed, canceled, or expired. The owner approved the short
+same-browser MVP bundle on 2026-11-04: a 2-hour prepared-intent TTL, a 24-hour
+recovery cookie, and 3-day retention for terminal intent records. Effective
+prepared expiry is the earlier of the requested slot start and the 2-hour TTL.
+These values do not authorize activation or a hosted policy seed. The migration
+track uses a private policy singleton with **no seed**: preparation must fail
+closed until the reviewed values are explicitly provisioned under a separate
+hosted approval. Missing rows must reject v2 commit, so cleanup cannot reopen
+a late POST. Appointment/client records keep their own existing retention
+rules.
 
 Lazy expiry on a later visitor request is **not** sufficient: if nobody
 returns, a `prepared` row could retain contact PII indefinitely. Before the
@@ -106,13 +109,18 @@ state and wall-clock expiry. If still `prepared` and expired, it atomically
 marks `expired`, scrubs contact fields, and rotates generation once, leaving a
 tombstone that rejects a delayed commit. If commit won the intent lock first,
 cleanup sees `committed` and must not turn it into noncommit. A separate
-approved terminal-row purge can later delete scrubbed tombstones, since v2
-commit rejects missing intents. Align terminal retention with cookie lifetime
-so promised recovery remains possible during that lifetime. Delete old browser
-session hashes/generations only after cookie lifetime plus a safe grace period
-and after no intent references them; cleanup must never make an old generation
-valid again. No cleanup job, schedule, policy row, or hosted SQL is enabled by
-this design PR; the dormant, unseeded migration must still fail closed.
+approved terminal-row purge can later delete scrubbed tombstones after 3 days,
+since v2 commit rejects missing intents. The 3-day retention exceeds the
+24-hour cookie lifetime so recovery is possible throughout that lifetime.
+Delete old browser session hashes/generations only after cookie lifetime plus
+a safe grace period and after no intent references them; cleanup must never
+make an old generation valid again. A replayed raw cookie must still be
+rejected after 24 hours, including after its session hash is purged. The
+session age therefore needs a server-enforced, non-resettable proof of issue
+time; browser `Max-Age` alone is not a security boundary. The cleanup cadence,
+operator, failure alert, and session grace still require review. No cleanup
+job, schedule, policy row, or hosted SQL is enabled by this design PR; the
+dormant, unseeded migration must still fail closed.
 
 ## Same-browser capability and HTTP contract
 
@@ -124,7 +132,11 @@ QA verifies marketplace-to-booking navigation and same-browser recovery;
 otherwise document the reason for `Lax` and keep the same CSRF checks. Cookie
 `Max-Age` comes from the required, validated **server-only**
 `GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS` setting whenever the v2
-feature flag is enabled, aligned with the separately approved intent policy.
+feature flag is enabled. The approved ceiling is 86400 seconds; the intended
+activation setting for the chosen bundle is exactly 86400 seconds. A shorter
+window changes the recovery promise and needs separate review. The server must
+also reject a copied cookie after its 24-hour lifetime, not merely rely on
+the browser to discard it.
 An absent or invalid value blocks new cookie issuance and every `prepare`;
 existing valid-cookie sessions may still reconcile, commit the original intent,
 cancel, or acknowledge so ambiguous bookings can drain safely. Do not hardcode
@@ -293,7 +305,8 @@ show its actual state or a support path, never an invented active confirmation.
    and concurrency tests first. No policy row or cleanup schedule is seeded by
    this step; no payment, reminder, or message activation.
 3. Separately review, approve, and verify a scheduled expiry/PII-scrub and
-   terminal-purge path, its privacy policy values, and its operating owner.
+   terminal-purge path using the approved 2-hour/24-hour/3-day bundle, plus its
+   cadence, failure alert, session grace, and operating owner.
    Lazy request-driven transitions alone do not satisfy the activation gate.
 4. Ship API and FR/EN/ES UI behind a disabled-by-default booking-intent gate.
    Verify prepared, committed, canceled, and expired paths in an isolated
