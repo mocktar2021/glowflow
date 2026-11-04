@@ -1,7 +1,23 @@
 import path from 'node:path';
+import ts from 'typescript';
 
 const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const directive = (source, name) => new RegExp(`^\\s*['"]use ${name}['"]\\s*;?`).test(withoutComments(source));
+const directive = (source, name) => {
+  const first = source.statements[0];
+  return first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression)
+    && first.expression.text === `use ${name}`;
+};
+const privateCredentialMarker = /\bSUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)\b/;
+
+function referencesPrivateCredential(source) {
+  // The scanner skips both line and block comments while preserving the old
+  // conservative check for credential names in executable tokens and strings.
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, source);
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (privateCredentialMarker.test(scanner.getTokenText())) return true;
+  }
+  return false;
+}
 
 export function assertRlsDeclarations(sources) {
   const states = new Map();
@@ -32,6 +48,19 @@ export function assertRlsDeclarations(sources) {
 }
 
 export function assertClientBoundaries(sources) {
+  const parsed = new Map();
+  function parse(filename) {
+    if (!parsed.has(filename)) {
+      const extension = path.posix.extname(filename);
+      const kind = extension === '.tsx' ? ts.ScriptKind.TSX
+        : extension === '.jsx' ? ts.ScriptKind.JSX
+          : extension === '.js' || extension === '.mjs' ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+      const source = ts.createSourceFile(filename, sources.get(filename), ts.ScriptTarget.Latest, true, kind);
+      if (source.parseDiagnostics.length) throw new Error(`Cannot inspect client source ${filename}: syntax error`);
+      parsed.set(filename, source);
+    }
+    return parsed.get(filename);
+  }
   function resolve(from, specifier) {
     if (!specifier.startsWith('.') && !specifier.startsWith('@/')) return null;
     const base = specifier.startsWith('@/') ? specifier.slice(2) : path.posix.join(path.posix.dirname(from), specifier);
@@ -45,22 +74,47 @@ export function assertClientBoundaries(sources) {
     if (seen.has(filename)) return;
     seen.add(filename);
     const raw = sources.get(filename);
-    if (directive(raw, 'server')) return; // Next.js serializes calls to explicit server actions.
-    const source = withoutComments(raw);
+    const source = parse(filename);
+    if (directive(source, 'server')) return; // Next.js serializes calls to explicit server actions.
     const next = [...chain, filename];
-    if (filename === 'lib/supabase/admin.ts' || /SUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)/.test(source)) {
+    if (filename === 'lib/supabase/admin.ts' || referencesPrivateCredential(raw)) {
       throw new Error(`Private Supabase credentials reachable from client: ${next.join(' -> ')}`);
     }
-    const imports = [
-      ...source.matchAll(/\b(?:import|export)\s+(?:[^;"']*?\s+from\s*)?["']([^"']+)["']/g),
-      ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g),
-    ];
-    for (const match of imports) {
-      const target = resolve(filename, match[1]);
+    function follow(specifier) {
+      const target = resolve(filename, specifier);
       if (target) visit(target, next, seen);
     }
+    function walk(node) {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
+        if (!ts.isStringLiteral(node.moduleSpecifier)) throw new Error(`Nonliteral client import requires security review: ${filename}`);
+        follow(node.moduleSpecifier.text);
+      }
+      if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+        const argument = node.moduleReference.expression;
+        if (!argument || !ts.isStringLiteral(argument)) throw new Error(`Nonliteral client import requires security review: ${filename}`);
+        follow(argument.text);
+      }
+      if (ts.isCallExpression(node)) {
+        const callee = node.expression;
+        const isRequire = ts.isIdentifier(callee) && callee.text === 'require';
+        const isRequireProperty = ts.isPropertyAccessExpression(callee) && callee.name.text === 'require'
+          && ts.isIdentifier(callee.expression) && ['module', 'globalThis'].includes(callee.expression.text);
+        const isRequireElement = ts.isElementAccessExpression(callee)
+          && ts.isIdentifier(callee.expression) && ['module', 'globalThis'].includes(callee.expression.text)
+          && ts.isStringLiteralLike(callee.argumentExpression) && callee.argumentExpression.text === 'require';
+        if (callee.kind === ts.SyntaxKind.ImportKeyword || isRequire || isRequireProperty || isRequireElement) {
+          const argument = node.arguments[0];
+          if (node.arguments.length !== 1 || !argument || !ts.isStringLiteralLike(argument)) {
+            throw new Error(`Nonliteral client import requires security review: ${filename}`);
+          }
+          follow(argument.text);
+        }
+      }
+      ts.forEachChild(node, walk);
+    }
+    walk(source);
   }
-  for (const [filename, source] of sources) if (directive(source, 'client')) visit(filename, [], new Set());
+  for (const filename of sources.keys()) if (directive(parse(filename), 'client')) visit(filename, [], new Set());
 }
 
 // Adding a privileged client call site requires an explicit security review.

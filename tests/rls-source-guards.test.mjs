@@ -60,6 +60,45 @@ test('client guard catches alias, relative, re-export and dynamic credential pat
   ]));
 });
 
+test('client guard follows static template imports and rejects interpolated paths', () => {
+  const admin = ['lib/supabase/admin.ts', 'export const secret = process.env.SUPABASE_SECRET_KEY;'];
+  for (const source of [
+    '"use client"; const secret = import(`@/lib/supabase/admin`);',
+    '"use client"; const secret = require(`../lib/supabase/admin`);',
+  ]) {
+    assert.throws(() => assertClientBoundaries(new Map([
+      ['app/panel.tsx', source], admin,
+    ])), /Private Supabase credentials reachable from client/);
+  }
+  assert.throws(() => assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const suffix = "admin"; const secret = import(`@/lib/supabase/${suffix}`);'], admin,
+  ])), /Nonliteral client import requires security review/);
+  for (const source of [
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = import(path);',
+    '"use client"; const secret = import("@/lib/supabase/" + "admin");',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = require?.(path);',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = module["require"](path);',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = globalThis["require"](path);',
+  ]) {
+    assert.throws(() => assertClientBoundaries(new Map([
+      ['app/panel.tsx', source], admin,
+    ])), /Nonliteral client import requires security review/);
+  }
+  assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const safe = import(`@/lib/safe`);'],
+    ['lib/safe.ts', 'export const safe = true;'],
+  ]));
+  assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const help = "import(path) and require?.(path) are examples";'],
+  ]));
+  assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; // SUPABASE_SECRET_KEY is a documented server-only variable\nconst safe = true; // SUPABASE_SERVICE_ROLE_KEY stays private'],
+  ]));
+  assert.throws(() => assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const unsafe = process.env.SUPABASE_SECRET_KEY;'],
+  ])), /Private Supabase credentials reachable from client/);
+});
+
 test('privileged Supabase client remains limited to reviewed server operations', () => {
   const sources = codeFiles('app');
   codeFiles('lib', sources);
