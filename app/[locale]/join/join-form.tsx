@@ -67,12 +67,18 @@ export function JoinForm({ locale, signedIn, confirmed, initialName }: {
   const [signUpState, signUpAction, signingUp] = useActionState(signUpToAcceptInvitation.bind(null, locale), initialState);
 
   useEffect(() => {
-    const fragment = new URLSearchParams(window.location.hash.slice(1));
-    const candidate = fragment.get("token") ?? "";
-    // Strict Mode may re-run this effect after the fragment is cleared.
-    setToken(previous => validStaffInvitationToken(candidate) ? candidate : previous ?? "");
-    // Keep the raw token out of the visible URL and referrer after first load.
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const rawFragment = window.location.hash;
+      const fragment = new URLSearchParams(rawFragment.slice(1));
+      const candidate = fragment.get("token") ?? "";
+      // Strict Mode may re-run this effect after the fragment is cleared.
+      setToken(previous => validStaffInvitationToken(candidate) ? candidate : rawFragment ? "" : previous ?? "");
+      // Keep the raw token out of the visible URL and referrer after first load.
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    });
+    return () => { active = false; };
   }, []);
 
   if (token === null) return null;
