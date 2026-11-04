@@ -76,6 +76,8 @@ test("date filters include only the selected salon-local day across both DST cha
 test("date filters reject invalid or inverted calendar dates and still validate excluded rows", () => {
   const entries = [row("2026-03-08T05:00:00Z", 100)];
   for (const dates of [
+    { fromDate: "0000-01-01" },
+    { throughDate: "0000-12-31" },
     { fromDate: "2026-02-30" },
     { throughDate: "2026-13-01" },
     { fromDate: "2026-03-09", throughDate: "2026-03-08" },
@@ -104,6 +106,8 @@ test("rejects cross-tenant, mixed-currency, and malformed rows without partial t
 });
 
 test("rejects invalid scope, unbounded sets, and integer overflow", () => {
+  assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: " \t ", entries: [] }), { status: "invalid", reason: "invalid_scope" });
+  assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: 42, entries: [] }), { status: "invalid", reason: "invalid_scope" });
   assert.deepEqual(aggregateDailyLedger({ ...scope, timeZone: "Unknown/Zone", entries: [] }), { status: "invalid", reason: "invalid_scope" });
   assert.deepEqual(aggregateDailyLedger({ ...scope, currency: "usd", entries: [] }), { status: "invalid", reason: "invalid_scope" });
   assert.deepEqual(aggregateDailyLedger({ ...scope, entries: Array(MAX_DAILY_LEDGER_ENTRIES + 1).fill(row("2026-01-01T00:00:00Z", 1)) }), { status: "invalid", reason: "too_many_entries" });
