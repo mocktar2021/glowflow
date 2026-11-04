@@ -439,9 +439,9 @@ const confirmationLabels = {
   es: { submit: "Confirmar cita", success: "Cita confirmada", conflict: "Otra persona reservó esta hora. Elige otra.", contact: "Añade un teléfono o correo." },
 };
 const uncertainLabels = {
-  fr: { warning: "Votre réservation a peut-être été enregistrée", check: "Vérifier la réservation initiale" },
-  en: { warning: "Your booking may have succeeded", check: "Check original booking" },
-  es: { warning: "Es posible que tu reserva se haya registrado", check: "Comprobar la reserva original" },
+  fr: { warning: "Votre réservation a peut-être été enregistrée", check: "Réessayer la demande initiale" },
+  en: { warning: "Your booking may have succeeded", check: "Retry original request" },
+  es: { warning: "Es posible que tu reserva se haya registrado", check: "Reintentar la solicitud original" },
 };
 function confirmedBooking(locale, start = slot.slot_start) {
   return {

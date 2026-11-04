@@ -13,6 +13,10 @@ confirmations also remain uncertain. The warning and recovery action are
 available in French, English, and Spanish. No client contact data is written to
 browser storage.
 
+The recovery action is explicitly labeled as a retry because it can create the
+original booking if the first POST never reached the server. It is not a
+read-only status check.
+
 This is not a cross-session guarantee. Refreshing, opening another tab or
 device, clearing browser state, or leaving the page loses the in-memory pending
 request. The current API has no privacy-safe way to recover that original
@@ -37,7 +41,7 @@ minimum confirmation fields needed by the visitor. Review RLS/grants, privacy,
 rollback, and migration behavior before adding this API or applying SQL.
 
 The disposable browser fixtures model a server commit followed by a lost
-response, and an original request that commits after an early retry 409. Both
+response, and an original request that commits after an early retry 400/409. Both
 prove the active page sends no changed-key request. The local
 PostgreSQL test checks that a same-key, changed-time replay returns the first
 appointment rather than creating another. Neither test is a live booking.
