@@ -27,7 +27,10 @@ earlier booking did not occur.
 This protects an honest visitor recovering one attempt in the same browser. It
 cannot identify two independent browsers, private profiles, cleared cookies, or
 a visitor deliberately creating separate keys. Do not claim cross-device or
-identity-based deduplication for MVP.
+identity-based deduplication for MVP. If the visitor clears **all** site data,
+both the recovery cookie and the independent pending marker proposed below
+disappear. The app cannot detect that a prior attempt existed; this is an
+explicit, undetectable limit of anonymous same-browser recovery.
 
 ## Existing boundaries to preserve
 
@@ -79,12 +82,14 @@ held the lock first, prepare instead observes `committed` and returns the
 stored confirmation. If expiry wins first, the old commit must reject.
 
 The duplicate contact copy exists only while `prepared`; scrub it when an
-intent becomes committed, canceled, or expired. Proposed policy for review:
-prepared intents expire after 24 hours, the persistent recovery cookie lives
-for 7 days, and committed/tombstone rows are retained for at most 7 days before
-deletion. Missing rows must reject v2 commit, so cleanup cannot reopen a late
-POST. Confirm these values with privacy and operations before implementation.
-Appointment/client records keep their own existing retention rules.
+intent becomes committed, canceled, or expired. Illustrative values for later
+privacy and operator review, **not approved defaults**, are 24 hours for a
+prepared intent and 7 days for the persistent cookie and terminal-row
+retention. The migration track uses a private policy singleton with **no seed**:
+preparation must fail closed until TTL/retention values receive separate
+approval and are explicitly provisioned. Missing rows must reject v2 commit,
+so cleanup cannot reopen a late POST. Appointment/client records keep their
+own existing retention rules.
 
 ## Same-browser capability and HTTP contract
 
@@ -108,11 +113,35 @@ cannot merge them reliably. An orphaned prepared row whose prepare response
 was lost cannot create an appointment, because the client has no intent ID to
 send to commit, and will expire safely.
 
-This chooses an HttpOnly cookie over localStorage/sessionStorage: JavaScript
-cannot read or accidentally log the capability, and no contact PII is written
-to browser storage. An XSS could still issue same-origin requests, and anyone
-using that browser profile within the TTL has the capability; it is not visitor
-identity. Require exact allowed Origin, same-origin Fetch Metadata where
+This chooses an HttpOnly cookie over localStorage/sessionStorage **for the
+recovery capability**: JavaScript cannot read or accidentally log it, and no
+contact PII is written to browser storage. A separate, non-sensitive
+localStorage marker records only that an attempt may be unresolved if the
+cookie is later missing. Use one marker per public salon slug, with only a
+boolean/version value; store no name, contact, time, intent ID, request key,
+bearer token, or confirmation. Set it synchronously after preparation succeeds
+and **before** sending the appointment-creating commit POST. If that write
+fails or storage is unavailable, fail closed and do not send commit until an
+equivalent independent marker is available. Preparation alone cannot create
+an appointment, so a crash before marker creation leaves a safe orphan.
+
+On page load or in a new tab, reconcile before enabling a new booking whenever
+the cookie or marker exists. A marker with no cookie means **unknown**, not
+“no previous booking”; keep changed booking disabled and offer a salon support
+path. A valid cookie with no marker still requires reconciliation; restore the
+marker before any recovered original-commit retry. Remove the marker only
+after a confirmed appointment or a row-locked terminal noncommit result. A
+missing row, timeout, lost response, or user action that merely
+clears the cookie must not clear the marker or authorize a new key. The marker
+is an advisory UI fail-closed signal, never a database capability or proof of
+noncommit. Clearing all site data removes both signals and cannot be detected;
+a genuinely fresh browser may prepare, but the UI must not claim to have ruled
+out an earlier booking. The implementation review may choose a different
+independent non-sensitive marker with the same ordering and loss semantics.
+
+An XSS could still issue same-origin requests, and anyone using that browser
+profile within the TTL has the capability; it is not visitor identity. Require
+exact allowed Origin, same-origin Fetch Metadata where
 available, JSON content type on modifying POSTs, no permissive CORS, and
 `Cache-Control: private, no-store` on all responses. Apply bounded rate limits
 to preparation and recovery. Never put the cookie, raw token, contact data,
@@ -205,6 +234,12 @@ show its actual state or a support path, never an invented active confirmation.
 - Verify true noncommit, slot conflict, catalog/time changes after commitment,
   malformed confirmation, cookie loss, browser restart within TTL, and expiry.
   A false 400/409, timeout, or missing row must never unlock a changed booking.
+- Browser fixtures must persist the boolean salon marker before commit, then
+  reload with only the marker (cookie missing) and prove the UI stays locked
+  with a support path. Cover marker-only, cookie-only, both, neither on a
+  genuinely fresh visit, failed marker storage, and marker removal only after
+  authoritative confirmation/noncommit. Document that clearing all site data
+  makes any earlier anonymous attempt undetectable.
 - Concurrent tabs under one browser cookie cannot prepare different unresolved
   intents for the same tenant. An explicit “Book another” after confirmation
   can prepare a new intent; background retry cannot.
