@@ -30,17 +30,44 @@ async function load(file, dependencies) {
   return loaded.exports;
 }
 
-async function harness(enabled = true, rpcResult = { data: { state: "prepared", generation, intent_id: intentId }, error: null }) {
+async function harness(enabled = true, rpcResult = { data: { state: "prepared", generation, intent_id: intentId }, error: null }, readModel = null) {
   const calls = [];
   const deps = {
     "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => enabled },
-    "@/lib/supabase/admin": { createAdminClient: () => ({ rpc: async (name, args) => {
+    "@/lib/supabase/admin": { createAdminClient: () => ({ ...(readModel ? { from: readModel.from } : {}), rpc: async (name, args) => {
       calls.push({ name, args });
       return typeof rpcResult === "function" ? rpcResult(name, args) : rpcResult;
     } }) },
   };
   const { POST } = await load("../app/api/public-booking/v2/route.ts", deps);
   return { calls, POST, deps };
+}
+
+function publishedReadModel(overrides = {}) {
+  const rows = {
+    tenants: [{ id: "tenant-a", slug: "browser-fixture", time_zone: "Europe/Paris" }],
+    appointments: [{ id: otherIntentId, tenant_id: "tenant-a", start_time: "2030-01-15T10:00:00+00:00", service_id: intentId }],
+    services: [{ id: intentId, tenant_id: "tenant-a", price: 5200, currency: "EUR", title_json: { en: "Changed catalog title" }, private_note: "SECRET" }],
+    salon_public_profiles: [{ tenant_id: "tenant-a", is_published: true, business_name: "Published Salon", address_line1: "12 Public Street", city: "Paris", administrative_area: "", postal_code: "75001", country_code: "FR", policies_json: { fr: "Conditions publiques", en: "Published policy", es: "Condiciones públicas", private_note: "SECRET" }, private_note: "SECRET" }],
+    ...overrides,
+  };
+  const reads = [];
+  return { reads, from(table) {
+    const filters = [];
+    let columns = [];
+    return {
+      select(list) { columns = list.split(","); return this; },
+      eq(key, value) { filters.push([key, value]); return this; },
+      async single() { return finish(false); },
+      async maybeSingle() { return finish(true); },
+    };
+    function finish(optional) {
+      reads.push({ table, columns, filters });
+      const found = (rows[table] ?? []).filter(row => filters.every(([key, value]) => row[key] === value));
+      if (found.length !== 1) return { data: null, error: optional && found.length === 0 ? null : { message: "no unique row" } };
+      return { data: Object.fromEntries(columns.map(key => [key, found[0][key]])), error: null };
+    }
+  } };
 }
 
 async function post(POST, body, { cookie = token, headers = {}, url = endpoint } = {}) {
@@ -191,4 +218,70 @@ test("confirmed RPC data is reduced to an explicit non-contact browser allowlist
     salon_name: "", service_title: { en: "Test haircut" }, currency: "EUR", saved_locale: "en", details: null,
   } });
   assert.doesNotMatch(JSON.stringify(value), /fixture@example.invalid|Private owner label|secret|10000000000/);
+});
+
+const confirmedIntent = { data: { state: "confirmed", generation, intent_id: intentId, confirmation: {
+  appointment_id: otherIntentId, appointment_status: "confirmed",
+  confirmed_start: "2030-01-15T10:00:00+00:00", confirmed_end: "2030-01-15T10:30:00+00:00",
+  service_title: { fr: "Titre réservé", en: "Booked title", es: "Título reservado" },
+  currency: "EUR", saved_locale: "fr", client_email: "fixture@example.invalid",
+} }, error: null };
+
+test("v2 enriches only the exact intent-bound appointment with published details and current price", async () => {
+  const model = publishedReadModel();
+  const { POST } = await harness(true, confirmedIntent, model);
+  const { response, value } = await post(POST, { action: "reconcile", salonSlug: "browser-fixture", intentId });
+  assert.equal(response.status, 200);
+  assert.deepEqual(value.confirmation, {
+    appointment_id: otherIntentId, appointment_status: "confirmed",
+    confirmed_start: "2030-01-15T10:00:00+00:00", confirmed_end: "2030-01-15T10:30:00+00:00",
+    salon_name: "Published Salon", service_title: { fr: "Titre réservé", en: "Booked title", es: "Título reservado" },
+    currency: "EUR", saved_locale: "fr",
+    details: { time_zone: "Europe/Paris", address: "12 Public Street, Paris, 75001, FR",
+      policies: { fr: "Conditions publiques", en: "Published policy", es: "Condiciones públicas" },
+      catalog_price: 5200, currency: "EUR",
+      service_title: { fr: "Titre réservé", en: "Booked title", es: "Título reservado" } },
+  });
+  assert.deepEqual(model.reads.map(read => read.table), ["tenants", "appointments", "services", "salon_public_profiles"]);
+  assert.deepEqual(model.reads.find(read => read.table === "appointments").filters,
+    [["id", otherIntentId], ["tenant_id", "tenant-a"], ["start_time", "2030-01-15T10:00:00+00:00"]]);
+  assert.deepEqual(model.reads.find(read => read.table === "services").filters,
+    [["id", intentId], ["tenant_id", "tenant-a"]]);
+  assert.deepEqual(model.reads.find(read => read.table === "salon_public_profiles").filters,
+    [["tenant_id", "tenant-a"], ["is_published", true]]);
+  assert.deepEqual(model.reads.find(read => read.table === "services").columns, ["price", "currency"]);
+  assert.doesNotMatch(JSON.stringify(value), /SECRET|Changed catalog title|fixture@example.invalid/);
+});
+
+for (const [label, changes] of [
+  ["wrong tenant", { appointments: [{ id: otherIntentId, tenant_id: "tenant-b", start_time: "2030-01-15T10:00:00+00:00", service_id: intentId }] }],
+  ["wrong start", { appointments: [{ id: otherIntentId, tenant_id: "tenant-a", start_time: "2030-01-15T11:00:00+00:00", service_id: intentId }] }],
+  ["missing bound service", { services: [] }],
+  ["profile read error", { salon_public_profiles: [
+    { tenant_id: "tenant-a", is_published: true }, { tenant_id: "tenant-a", is_published: true },
+  ] }],
+]) {
+  test(`v2 ${label} enrichment fails to no-details without changing confirmed identity`, async () => {
+    const model = publishedReadModel(changes);
+    const { POST } = await harness(true, confirmedIntent, model);
+    const { value } = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
+    assert.equal(value.state, "confirmed");
+    assert.equal(value.confirmation.appointment_id, otherIntentId);
+    assert.equal(value.confirmation.details, null);
+    assert.equal(value.confirmation.salon_name, "");
+    assert.doesNotMatch(JSON.stringify(value), /SECRET|fixture@example.invalid/);
+  });
+}
+
+test("v2 never reveals an unpublished salon address or policies", async () => {
+  const model = publishedReadModel({ salon_public_profiles: [{ tenant_id: "tenant-a", is_published: false,
+    business_name: "Hidden Salon", address_line1: "Secret Street", policies_json: { en: "Secret policy" } }] });
+  const { POST } = await harness(true, confirmedIntent, model);
+  const { value } = await post(POST, { action: "reconcile", salonSlug: "browser-fixture" });
+  assert.equal(value.state, "confirmed");
+  assert.equal(value.confirmation.salon_name, "");
+  assert.equal(value.confirmation.details.address, null);
+  assert.deepEqual(value.confirmation.details.policies, {});
+  assert.equal(value.confirmation.details.catalog_price, 5200);
+  assert.doesNotMatch(JSON.stringify(value), /Hidden Salon|Secret Street|Secret policy/);
 });

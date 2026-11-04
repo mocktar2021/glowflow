@@ -91,6 +91,15 @@ function localizedText(value: unknown): Record<string, string> {
     ["fr", "en", "es"].includes(language) && typeof text === "string" && text.trim().length > 0));
 }
 
+function validTimeZone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); return value; } catch { return null; }
+}
+
+function validCurrency(value: unknown): string | null {
+  return value === "EUR" || value === "USD" ? value : null;
+}
+
 function publicConfirmation(value: Record<string, unknown>): Record<string, unknown> | null {
   const start = typeof value.confirmed_start === "string" ? Date.parse(value.confirmed_start) : NaN;
   const end = typeof value.confirmed_end === "string" ? Date.parse(value.confirmed_end) : NaN;
@@ -137,6 +146,54 @@ function validResult(value: unknown, action: Action, expectedIntentId: string | 
     return { state, ...(generation ? { generation } : {}), ...(intentId ? { intent_id: intentId } : {}), confirmation: safe };
   }
   return { state, ...(generation ? { generation } : {}), ...(intentId ? { intent_id: intentId } : {}) };
+}
+
+async function enrichPublicConfirmation(
+  supabase: ReturnType<typeof createAdminClient>, salonSlug: string, confirmation: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  // The intent RPC already binds this appointment to the cookie, intent,
+  // tenant, request key, and immutable start. Do not accept an appointment ID
+  // or service ID from the browser for this privileged published-data read.
+  try {
+    const { data: tenant, error: tenantError } = await supabase.from("tenants")
+      .select("id,time_zone").eq("slug", salonSlug).single();
+    if (!tenant || tenantError) return confirmation;
+    const { data: appointment, error: appointmentError } = await supabase.from("appointments")
+      .select("service_id").eq("id", confirmation.appointment_id)
+      .eq("tenant_id", tenant.id).eq("start_time", confirmation.confirmed_start).single();
+    if (!appointment || appointmentError) return confirmation;
+    const [serviceResult, profileResult] = await Promise.all([
+      supabase.from("services").select("price,currency")
+        .eq("id", appointment.service_id).eq("tenant_id", tenant.id).single(),
+      supabase.from("salon_public_profiles")
+        .select("business_name,address_line1,city,administrative_area,postal_code,country_code,policies_json")
+        .eq("tenant_id", tenant.id).eq("is_published", true).maybeSingle(),
+    ]);
+    if (serviceResult.error || !serviceResult.data || profileResult.error) return confirmation;
+    const service = serviceResult.data;
+    const profile = profileResult.error ? null : profileResult.data;
+    const address = typeof profile?.address_line1 === "string" && profile.address_line1.trim()
+      ? [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code]
+        .filter((part) => typeof part === "string" && part.trim()).join(", ") || null : null;
+    return {
+      ...confirmation,
+      salon_name: typeof profile?.business_name === "string" ? profile.business_name : "",
+      details: {
+        time_zone: validTimeZone(tenant.time_zone),
+        address,
+        policies: localizedText(profile?.policies_json),
+        catalog_price: service && Number.isSafeInteger(service.price) && service.price >= 0 ? service.price : null,
+        currency: validCurrency(service?.currency),
+        // The current catalog title may have changed since booking. The RPC
+        // returns the appointment snapshot; never replace it with service.title_json.
+        service_title: confirmation.service_title,
+      },
+    };
+  } catch {
+    // A confirmed appointment remains confirmed when optional public details
+    // cannot be read. The allowlisted no-details response is still truthful.
+    return confirmation;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -202,6 +259,10 @@ export async function POST(request: NextRequest) {
       : parsedReconcile.success ? parsedReconcile.data.intentId ?? null : null;
     const result = validResult(data, action, expectedIntentId);
     if (!result) return json({ state: "unknown", error: "booking_unavailable" }, 503);
+    if (result.state === "confirmed" && result.confirmation) {
+      const salonSlug = String(args.salon_slug);
+      result.confirmation = await enrichPublicConfirmation(supabase, salonSlug, result.confirmation);
+    }
     return json(result);
   } catch {
     return json({ state: "unknown", error: "booking_unavailable" }, 503);

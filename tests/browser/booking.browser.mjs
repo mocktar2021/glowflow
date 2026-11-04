@@ -727,13 +727,20 @@ const v2InactiveLabels = {
 function v2Confirmation(locale) {
   return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
 }
-function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, appointmentStatus = "confirmed" } = {}) {
+function v2PublishedConfirmation(locale) {
+  return { ...v2Confirmation(locale), salon_name: "Published Salon", details: {
+    time_zone: "Europe/Paris", address: "12 Public Street, Paris, 75001, FR",
+    policies: { en: "Published policy" }, catalog_price: 5200, currency: "EUR",
+    service_title: { fr: "Prestation réservée", en: "Booked service", es: "Servicio reservado" },
+  } };
+}
+function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, appointmentStatus = "confirmed", published = false } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
-  const confirmation = { ...v2Confirmation(locale), appointment_status: appointmentStatus };
+  const confirmation = { ...(published ? v2PublishedConfirmation(locale) : v2Confirmation(locale)), appointment_status: appointmentStatus };
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
     writes.push(payload);
@@ -817,6 +824,34 @@ for (const locale of ["fr", "en", "es"]) {
     assert.equal(writes.filter(value => value.action === "prepare").length, 1);
     assert.equal(writes.filter(value => value.action === "commit").length, 1);
     assert.equal(server.appointments.size, 1);
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 confirmation shows only appointment-bound published enrichment`, async t => {
+    const server = v2Server(locale, { published: true });
+    const { page, writes, externalRequests } = await pageFor(t, locale, { v2Booking: server.handler, v2Cookie: true,
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+    await fillBooking(page, locale);
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    await page.getByText(v2MissingLabels[locale].service, { exact: true }).waitFor();
+    await page.getByText("12 Public Street, Paris, 75001, FR", { exact: true }).waitFor();
+    const policy = page.getByText("Published policy", { exact: true });
+    await policy.waitFor();
+    assert.equal(await policy.getAttribute("lang"), "en", "the missing locale falls back to the available policy language");
+    const money = new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(52);
+    assert.ok((await page.locator("section dl").innerText()).includes(money));
+    assert.ok((await page.locator("section dl").innerText()).includes("Published Salon"));
+    const confirmationText = await page.locator("section").innerText();
+    assert.ok(confirmationText.includes("Europe/Paris"));
+    for (const missing of [v2MissingLabels[locale].address, v2MissingLabels[locale].price, v2MissingLabels[locale].policies]) {
+      assert.equal(confirmationText.includes(missing), false, "published details must not show an unavailable-detail fallback");
+    }
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+    assert.equal(writes.filter(value => value.action === "commit").length, 1);
     assert.deepEqual(externalRequests, []);
   });
 }
