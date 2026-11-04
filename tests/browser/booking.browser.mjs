@@ -937,6 +937,46 @@ test("v2 rejected old-cookie bootstrap keeps a pending marker manual-only across
   assert.deepEqual(externalRequests, []);
 });
 
+test("v2 expired database session after valid-cookie bootstrap cannot retry a pending booking", async t => {
+  // The route unit suite maps an expired database browser session to a 503
+  // unknown response. A valid signed cookie alone must not unlock this page.
+  const server = v2Server("en");
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "reconcile" && payload.intentId === v2IntentId) {
+      writes.push(payload);
+      return route.fulfill({ status: 503, json: { state: "unknown", error: "booking_unavailable" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(origin);
+  await page.evaluate(intentId => {
+    localStorage.setItem(`glowflow.booking.pending.browser-fixture.${intentId}`, "1");
+  }, v2IntentId);
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  const manual = page.getByRole("alert").filter({ hasText: "booking session was lost" });
+  await manual.waitFor();
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile"]);
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile"]);
+  await page.reload();
+  await manual.waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile", "bootstrap", "reconcile"],
+    "a database-expired session must not prepare or commit a changed booking");
+  assert.equal(await page.evaluate(intentId =>
+    localStorage.getItem(`glowflow.booking.pending.browser-fixture.${intentId}`), v2IntentId), "1");
+  assert.equal(server.appointments.size, 0);
+  assert.deepEqual(externalRequests, []);
+});
+
 for (const locale of ["fr", "en", "es"]) {
   test(`${locale} v2 canceled appointment warns about inactive status without claiming a lost browser session`, async t => {
     const server = v2Server(locale, { loseCommit: true, appointmentStatus: "canceled" });
