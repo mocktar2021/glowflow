@@ -38,6 +38,22 @@ type Confirmation = {
   } | null;
 };
 
+type BookingPayload = {
+  salonSlug: string; serviceId: string; staffId: string; startTime: string;
+  fullName: string; phone: string; email: string; locale: Locale;
+};
+
+function validConfirmation(value: unknown, requestedStart: string): value is Confirmation {
+  if (!value || typeof value !== "object") return false;
+  const confirmation = value as Partial<Confirmation>;
+  const start = typeof confirmation.confirmed_start === "string" ? Date.parse(confirmation.confirmed_start) : NaN;
+  const end = typeof confirmation.confirmed_end === "string" ? Date.parse(confirmation.confirmed_end) : NaN;
+  return typeof confirmation.appointment_id === "string"
+    && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(confirmation.appointment_id)
+    && Number.isFinite(start) && start === Date.parse(requestedStart)
+    && Number.isFinite(end) && end > start;
+}
+
 type Props = {
   locale: Locale;
   salon: { name: string; slug: string; city: string | null; countryCode: string; currency: string; timeZone: string; defaultLocale?: Locale };
@@ -72,6 +88,9 @@ const copy = {
     saving: "Confirmation…",
     conflict: "Ce créneau vient d’être réservé. Choisissez un autre horaire.",
     error: "La réservation a échoué. Vérifiez vos informations.",
+    uncertain: "Votre réservation a peut-être été enregistrée. Ne choisissez pas un autre créneau avant de vérifier celle-ci.",
+    uncertainHelp: "Gardez cette page ouverte et réessayez la même demande. Si elle n’a pas été enregistrée, cette action peut créer le rendez-vous. Sans confirmation, contactez le salon avant de réserver à nouveau.",
+    checkOriginal: "Réessayer la demande initiale",
     success: "Rendez-vous confirmé",
     confirmation: "Votre rendez-vous est enregistré dans l’agenda du salon.",
     salon: "Salon",
@@ -114,6 +133,9 @@ const copy = {
     saving: "Confirming…",
     conflict: "Someone booked this time. Choose another time.",
     error: "Booking failed. Review your information.",
+    uncertain: "Your booking may have succeeded. Do not choose another time until this request is checked.",
+    uncertainHelp: "Keep this page open and retry the same request. If it was not saved, retrying may create the booking. Without confirmation, contact the salon before booking again.",
+    checkOriginal: "Retry original request",
     success: "Appointment confirmed",
     confirmation: "Your appointment is saved in the salon calendar.",
     salon: "Salon",
@@ -156,6 +178,9 @@ const copy = {
     saving: "Confirmando…",
     conflict: "Otra persona reservó esta hora. Elige otra.",
     error: "La reserva falló. Revisa tus datos.",
+    uncertain: "Es posible que tu reserva se haya registrado. No elijas otra hora hasta comprobar esta solicitud.",
+    uncertainHelp: "Mantén esta página abierta y reintenta la misma solicitud. Si no se guardó, el reintento puede crear la reserva. Sin confirmación, contacta con el salón antes de reservar de nuevo.",
+    checkOriginal: "Reintentar la solicitud original",
     success: "Cita confirmada",
     confirmation: "Tu cita está guardada en el calendario del salón.",
     salon: "Salón",
@@ -210,9 +235,12 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const labels = copy[locale];
   const countryDefaultLocale = salon.defaultLocale ?? "fr";
   const paymentLabels = sandboxPaymentCopy[locale];
-  const retry = useRef<{ payload: string; key: string } | null>(null);
+  const retry = useRef<{ payload: BookingPayload; key: string } | null>(null);
+  const inFlight = useRef(false);
+  const uncertainRef = useRef(false);
   const contactRef = useRef<HTMLInputElement>(null);
   const confirmationRef = useRef<HTMLHeadingElement>(null);
+  const recoveryRef = useRef<HTMLHeadingElement>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   // Do not accept a native selection before React can persist it to booking state.
   const hydrated = useSyncExternalStore(noHydrationSubscription, () => true, () => false);
@@ -223,6 +251,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [uncertainPublicBooking, setUncertainPublicBooking] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
@@ -255,6 +284,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     if (confirmation) confirmationRef.current?.focus();
   }, [confirmation]);
 
+  useEffect(() => {
+    if (uncertainPublicBooking) recoveryRef.current?.focus();
+  }, [uncertainPublicBooking]);
+
   function reloadAvailability() {
     setSlot(null);
     setSlots([]);
@@ -263,9 +296,77 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     setAvailabilityVersion((value) => value + 1);
   }
 
+  async function sendBooking(payload: BookingPayload, requestKey: string) {
+    if (inFlight.current) return;
+    const wasUncertain = uncertainRef.current;
+    inFlight.current = true;
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch(sandbox ? "/api/checkout" : "/api/public-booking", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, requestKey }),
+      });
+      const result = await response.json() as { confirmation?: Confirmation; error?: string; url?: string; reservationId?: string };
+
+      if (sandbox) {
+        if (!response.ok || !result.reservationId) {
+          setError(result.error === "slot_unavailable" ? labels.conflict : paymentLabels.unavailable);
+          if (result.error === "slot_unavailable") reloadAvailability();
+          return;
+        }
+        if (result.url) {
+          const destination = new URL(result.url);
+          if (destination.protocol !== "https:" || destination.hostname !== "checkout.stripe.com") throw new Error("invalid_checkout_url");
+          window.location.assign(destination.href);
+        } else {
+          window.location.assign(`/${locale}/book/${salon.slug}?sandboxReservation=${encodeURIComponent(result.reservationId)}`);
+        }
+        return;
+      }
+
+      if (!response.ok || !validConfirmation(result.confirmation, payload.startTime)) {
+        const conflict = response.status === 409 && result.error === "slot_unavailable";
+        const invalid = response.status === 400 && result.error === "invalid_request";
+        if ((conflict || invalid) && !wasUncertain) {
+          retry.current = null;
+          uncertainRef.current = false;
+          setUncertainPublicBooking(false);
+          setError(conflict ? labels.conflict : labels.error);
+          if (conflict) reloadAvailability();
+          setSlot(null);
+        } else {
+          // Once uncertain, even a later 400/409 cannot prove the original
+          // request will not arrive and commit after this retry.
+          // Keep the exact original payload and key until a valid confirmation.
+          uncertainRef.current = true;
+          setUncertainPublicBooking(true);
+          setError(labels.uncertain);
+        }
+        return;
+      }
+      setConfirmation(result.confirmation);
+      retry.current = null;
+      uncertainRef.current = false;
+      setUncertainPublicBooking(false);
+      setError("");
+    } catch {
+      if (sandbox) setError(paymentLabels.unavailable);
+      else {
+        uncertainRef.current = true;
+        setUncertainPublicBooking(true);
+        setError(labels.uncertain);
+      }
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!slot || loadingSlots || submitting) return;
+    if (uncertainRef.current || !slot || loadingSlots || inFlight.current) return;
     const form = new FormData(event.currentTarget);
     const fullName = String(form.get("fullName") ?? "").trim();
     const phone = String(form.get("phone") ?? "").trim();
@@ -276,59 +377,16 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       return;
     }
 
-    setSubmitting(true);
-    setError("");
-    const payload = { salonSlug: salon.slug, serviceId, staffId: slot.staff_id, startTime: slot.slot_start, fullName, phone, email, locale };
-    const fingerprint = JSON.stringify(payload);
-    if (!retry.current || retry.current.payload !== fingerprint) retry.current = { payload: fingerprint, key: crypto.randomUUID() };
-    try {
-    const response = await fetch(sandbox ? "/api/checkout" : "/api/public-booking", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        salonSlug: salon.slug,
-        serviceId,
-        staffId: slot.staff_id,
-        startTime: slot.slot_start,
-        fullName,
-        phone,
-        email,
-        locale,
-        requestKey: retry.current.key,
-      }),
-    });
-    const result = await response.json() as { confirmation?: Confirmation; error?: string; url?: string; reservationId?: string };
-    setSubmitting(false);
+    const payload: BookingPayload = { salonSlug: salon.slug, serviceId, staffId: slot.staff_id, startTime: slot.slot_start, fullName, phone, email, locale };
+    if (!retry.current || JSON.stringify(retry.current.payload) !== JSON.stringify(payload)) {
+      retry.current = { payload, key: crypto.randomUUID() };
+    }
+    await sendBooking(retry.current.payload, retry.current.key);
+  }
 
-    if (sandbox) {
-      if (!response.ok || !result.reservationId) {
-        setError(result.error === "slot_unavailable" ? labels.conflict : paymentLabels.unavailable);
-        if (result.error === "slot_unavailable") reloadAvailability();
-        return;
-      }
-      if (result.url) {
-        const destination = new URL(result.url);
-        if (destination.protocol !== "https:" || destination.hostname !== "checkout.stripe.com") throw new Error("invalid_checkout_url");
-        window.location.assign(destination.href);
-      } else {
-        window.location.assign(`/${locale}/book/${salon.slug}?sandboxReservation=${encodeURIComponent(result.reservationId)}`);
-      }
-      return;
-    }
-
-    if (!response.ok || !result.confirmation) {
-      setError(result.error === "slot_unavailable" ? labels.conflict : labels.error);
-      if (result.error === "slot_unavailable") reloadAvailability();
-      setSlot(null);
-      return;
-    }
-    setConfirmation(result.confirmation);
-    retry.current = null;
-    } catch {
-      setError(sandbox ? paymentLabels.unavailable : labels.error);
-    } finally {
-      setSubmitting(false);
-    }
+  async function retryOriginalBooking() {
+    if (!uncertainPublicBooking || !retry.current || inFlight.current) return;
+    await sendBooking(retry.current.payload, retry.current.key);
   }
 
   const formatter = new Intl.DateTimeFormat(locale, {
@@ -369,8 +427,9 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
       <header className="flex items-center justify-between bg-slate-950 px-5 py-4 text-white sm:px-8">
-        <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</Link>
-        <LanguageSwitcher locale={locale} />
+        {uncertainPublicBooking ? <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</span>
+          : <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</Link>}
+        {uncertainPublicBooking ? <span className="text-sm font-semibold">{locale.toUpperCase()}</span> : <LanguageSwitcher locale={locale} />}
       </header>
       <div className="grid lg:grid-cols-[0.75fr_1.25fr]">
         <aside className="bg-[#eadbc9] p-6 dark:bg-white/5 sm:p-9">
@@ -387,6 +446,13 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </div>
         </aside>
         <form onSubmit={submit} aria-busy={submitting} className="space-y-7 p-6 sm:p-9">
+          {uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
+            <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{labels.uncertain}</h2>
+            <p className="mt-3 leading-7">{labels.uncertainHelp}</p>
+            <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
+              {submitting ? labels.saving : labels.checkOriginal}
+            </button>
+          </section> : <>
           <label className="block font-semibold">{labels.service}
             <select name="bookingService" disabled={!hydrated || submitting} value={serviceId} onChange={(event) => {
                 if (typeof window !== "undefined") {
@@ -444,6 +510,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           <button type="submit" disabled={!slot || loadingSlots || submitting} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-slate-950 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
             <Clock3 className="size-5" />{submitting ? labels.saving : sandbox ? paymentLabels.pay : labels.reserve}
           </button>
+          </>}
         </form>
       </div>
     </div>

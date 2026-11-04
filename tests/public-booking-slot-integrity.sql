@@ -42,6 +42,7 @@ declare
   valid_start timestamptz;
   created_id uuid;
   retry_id uuid;
+  retry_start timestamptz;
 begin
   valid_start := (test_date + time '10:00') at time zone 'America/New_York';
 
@@ -168,6 +169,29 @@ begin
     (select count(*) from public.appointments
       where public_booking_request_key = '70000000-0000-0000-0000-000000000010') = 1,
     'idempotent retry creates no duplicate appointment'
+  );
+
+  -- Model a committed booking whose response was lost. Even if a client
+  -- mistakenly changes the requested time, the original key must return the
+  -- first appointment, not create a second non-overlapping appointment.
+  select appointment_id, confirmed_start into retry_id, retry_start
+  from public.create_public_appointment(
+    'fixture-a',
+    '40000000-0000-0000-0000-000000000005',
+    '20000000-0000-0000-0000-000000000002',
+    valid_start + interval '2 hours',
+    'Valid Slot Fixture',
+    null,
+    'valid-slot@example.invalid',
+    'en',
+    '70000000-0000-0000-0000-000000000010'
+  );
+  perform public.test_assert(retry_id = created_id and retry_start = valid_start,
+    'lost-response reconciliation returns the original time and appointment');
+  perform public.test_assert(
+    (select count(*) from public.appointments
+      where public_booking_request_key = '70000000-0000-0000-0000-000000000010') = 1,
+    'a changed-time same-key retry cannot create a second appointment'
   );
 end $$;
 
