@@ -29,4 +29,5 @@ test("new invitation delivery code is not wired to an application route or enabl
   assert.ok(!app.includes("processNextStaffInvitationDelivery"));
   assert.ok(!app.includes("@/lib/staff-invitation-sender"));
   assert.ok(!app.includes("@/lib/staff-invitation-resend"));
+  assert.ok(!app.includes("@/lib/staff-invitation-runner"));
 });
