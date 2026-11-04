@@ -51,11 +51,25 @@ export function assertClientBoundaries(sources) {
     if (filename === 'lib/supabase/admin.ts' || /SUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)/.test(source)) {
       throw new Error(`Private Supabase credentials reachable from client: ${next.join(' -> ')}`);
     }
+    const literalCalls = [
+      ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g),
+      ...source.matchAll(/\b(?:import|require)\s*\(\s*`([^`]*)`\s*\)/g),
+    ];
+    for (const call of source.matchAll(/\b(?:import|require)\s*\(/g)) {
+      if (!literalCalls.some(literal => literal.index === call.index)) {
+        throw new Error(`Nonliteral client import requires security review: ${filename}`);
+      }
+    }
     const imports = [
       ...source.matchAll(/\b(?:import|export)\s+(?:[^;"']*?\s+from\s*)?["']([^"']+)["']/g),
-      ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g),
+      ...literalCalls,
     ];
     for (const match of imports) {
+      // An interpolated path cannot be resolved statically and could hide a
+      // privileged local module behind a client-side dynamic import.
+      if (match[1].includes('${')) {
+        throw new Error(`Dynamic template import requires security review: ${filename}`);
+      }
       const target = resolve(filename, match[1]);
       if (target) visit(target, next, seen);
     }
