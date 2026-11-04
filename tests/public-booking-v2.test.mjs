@@ -148,11 +148,18 @@ test("signed cookie proves issue time and host after database session purge", as
   process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
   const { POST, calls } = await harness();
   const now = Math.floor(Date.now() / 1000);
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const lastIndex = alphabet.indexOf(token.at(-1));
+  const noncanonicalTag = `${token.slice(0, -1)}${alphabet[(lastIndex & ~3) | ((lastIndex + 1) & 3)]}`;
+  assert.notEqual(noncanonicalTag, token);
+  assert.deepEqual(Buffer.from(noncanonicalTag.split(".").at(-1), "base64url"),
+    Buffer.from(token.split(".").at(-1), "base64url"));
   for (const stale of [
     signedToken({ issuedAt: now - 86401, expiresAt: now - 1 }),
     signedToken({ issuedAt: now + 60, expiresAt: now + 86460 }),
     signedToken({ issuedAt: now, expiresAt: now + 86401 }),
     `${token.slice(0, -1)}${token.endsWith("A") ? "B" : "A"}`,
+    noncanonicalTag,
     "A".repeat(43), // pre-signature draft format must not silently rebootstrap
   ]) {
     const bootstrap = await post(POST, { action: "bootstrap" }, { cookie: stale });

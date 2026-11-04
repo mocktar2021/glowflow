@@ -118,7 +118,11 @@ function browserToken(request: NextRequest): string | null {
   const payload = value.slice(0, value.lastIndexOf("."));
   const supplied = Buffer.from(parts[4], "base64url");
   const expected = cookieSignature(request, payload, key);
-  return supplied.length === expected.length && timingSafeEqual(supplied, expected) ? value : null;
+  // A noncanonical base64url tag can decode to the same HMAC while its raw
+  // cookie bytes hash to a different browser session in PostgreSQL.
+  return supplied.length === expected.length
+    && supplied.toString("base64url") === parts[4]
+    && timingSafeEqual(supplied, expected) ? value : null;
 }
 
 function localizedText(value: unknown): Record<string, string> {
