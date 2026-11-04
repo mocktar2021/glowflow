@@ -46,7 +46,10 @@ export function deriveNotificationStatus(input: NotificationStatusInput): Notifi
   if (attempt?.event_type === "failed") return "failed";
   if (attempt?.event_type === "canceled") return "canceled";
   if (input.appointmentStatus !== "confirmed") return "appointment_inactive";
-  if (input.scheduleGeneration !== input.currentScheduleGeneration) return "superseded";
+  const originalStart = time(input.appointmentStartTime);
+  const currentStart = time(input.currentAppointmentStartTime);
+  if (input.scheduleGeneration !== input.currentScheduleGeneration
+      || originalStart === null || currentStart === null || originalStart !== currentStart) return "superseded";
   if (input.consentStatus === "opted_out") return "opted_out";
   if (input.consentStatus !== "consented") return "awaiting_consent";
 
