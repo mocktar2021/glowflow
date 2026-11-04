@@ -19,7 +19,10 @@ appointment cannot prove that an original POST will not arrive and commit later.
 may commit once, or an atomic terminal transition makes every later commit of
 that intent impossible. A changed payload/new request key is permitted only
 after authoritative confirmation or a terminal noncommit transition. A timeout,
-missing cookie, failed lookup, or lost response is never a definitive failure.
+missing cookie for a known attempt, failed lookup, or lost response is never a
+definitive failure. A genuinely first-time browser with no known attempt may
+prepare one; cookie absence alone must not be presented as evidence that an
+earlier booking did not occur.
 
 This protects an honest visitor recovering one attempt in the same browser. It
 cannot identify two independent browsers, private profiles, cleared cookies, or
@@ -68,6 +71,12 @@ state, not an unclassified 500. A committed intent also blocks automatic
 preparation of a new intent until the browser explicitly acknowledges the
 confirmation or chooses “Book another appointment.” Server code must not let
 the browser edit the stored booking inputs, request key, or state directly.
+When prepare finds a prior `prepared` row past expiry, it must lock that same
+row, recheck wall time after waiting, mark it `expired`, and scrub contact data
+before inserting a new intent in the same transaction. Otherwise the partial
+unique index would block preparation indefinitely. If the original commit
+held the lock first, prepare instead observes `committed` and returns the
+stored confirmation. If expiry wins first, the old commit must reject.
 
 The duplicate contact copy exists only while `prepared`; scrub it when an
 intent becomes committed, canceled, or expired. Proposed policy for review:
@@ -124,9 +133,9 @@ separately. Direct Data API table reads and client-side RPC calls are forbidden.
 
 | Handler and internal operation | Request and response contract |
 | --- | --- |
-| `POST /api/public-booking/intent/prepare` | Accept the current booking fields except `requestKey`; validate and normalize them, resolve published tenant, then create or return the same prepared intent under the browser cookie. Return its non-secret `intentId`. A different unresolved payload returns a generic locked state, not a new key; an unacknowledged committed intent returns its existing confirmation. Durable intent creation must finish before the client may call commit. |
+| `POST /api/public-booking/intent/prepare` | Accept the current booking fields except `requestKey`; validate and normalize them, resolve published tenant, then create or return the same prepared intent under the browser cookie. Return its non-secret `intentId`. A different unexpired, unresolved payload returns a generic locked state, not a new key; an unacknowledged committed intent returns its existing confirmation. An expired prepared row is locked and marked terminal before a new one is inserted. Durable intent creation must finish before the client may call commit. |
 | `POST /api/public-booking/intent/commit` | Accept `salonSlug` and `intentId` only; load immutable payload by `(tenant_id, intent_id, token_hash)`, lock that row, and call the existing appointment creation logic with the stored key in the same transaction. Return the original confirmation on replay. No client-supplied contact/time/key is accepted here. |
-| `POST /api/public-booking/intent/reconcile` | With `intentId`, lock that exact row; without one after reload, select the sole unresolved/unacknowledged intent for the browser and tenant, or the most recent terminal one. Return `prepared`, `confirmed`, or `not_committed` only from authoritative state and include the non-secret `intentId` for an original retry. A `prepared` result allows retrying the original commit, not editing. A missing/invalid cookie, timeout, or database error is `unknown`; it must not unlock another booking. |
+| `POST /api/public-booking/intent/reconcile` | With `intentId`, lock that exact row; without one after reload, select the sole unresolved/unacknowledged intent for the browser and tenant, or the most recent terminal one. Return `prepared`, `confirmed`, or `not_committed` only from authoritative state and include the non-secret `intentId` for an original retry. A `prepared` result allows retrying the original commit, not editing. A missing/invalid cookie for a known attempt, timeout, or database error is `unknown`; it must not unlock another booking. |
 | `POST /api/public-booking/intent/cancel` | Require `intentId`; under the same row lock, change that exact `prepared` intent to `canceled` (or expired if past deadline), scrub contact fields, and return definitive `not_committed`; if already committed, return the stored confirmation instead. This operation never cancels an existing appointment or a newer intent. |
 | Explicit new-booking acknowledgement | Only after a displayed confirmation or terminal noncommit, record acknowledgement and permit preparation of a different payload. Never interpret a generic 400/409/500 from an old request as this acknowledgement. |
 
@@ -199,6 +208,11 @@ show its actual state or a support path, never an invented active confirmation.
 - Concurrent tabs under one browser cookie cannot prepare different unresolved
   intents for the same tenant. An explicit “Book another” after confirmation
   can prepare a new intent; background retry cannot.
+- Race prepare against expiry and an original commit. If expiry obtains the row
+  lock first, scrub/terminalize the old row before inserting a new intent and
+  prove the old POST cannot commit. If commit wins first, prepare must return
+  its confirmation rather than a new key. A fresh no-cookie browser may prepare
+  once, subject to the documented simultaneous-first-tab limitation.
 - Test anonymous/authenticated direct table and RPC denial, owner/staff and
   cross-tenant isolation, forged token/key, CSRF Origin/Fetch-Metadata checks,
   response no-store, fixed redacted logs, and absence of contact PII or bearer
