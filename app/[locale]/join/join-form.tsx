@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 
 import { buttonClass, inputClass } from "@/components/glowflow/auth-shell";
 import type { Locale } from "@/lib/i18n";
-import { validStaffInvitationToken } from "@/lib/staff-invitations";
+import { staffJoinLanguageHref, validStaffInvitationToken } from "@/lib/staff-invitations";
 
 import {
   acceptStaffInvitation,
@@ -77,10 +77,20 @@ export function JoinForm({ locale, signedIn, confirmed, initialName }: {
 
   if (token === null) return null;
   if (!token) return <p role="alert" className="text-sm leading-6">{labels.missing}</p>;
-  if (signedIn && !confirmed) return <p role="alert" className="text-sm leading-6">{labels.confirmed} {labels.verify}</p>;
+
+  const languages = (
+    <nav aria-label="Language / Langue / Idioma" className="flex gap-2 text-sm">
+      {(["fr", "en", "es"] as const).map(language => (
+        <a key={language} href={staffJoinLanguageHref(language, token)} aria-current={locale === language ? "page" : undefined} className="min-h-11 rounded-full border border-[#dfd2c1] px-4 py-3 font-medium hover:bg-[#f4ede3] dark:border-white/15 dark:hover:bg-white/10">{language.toUpperCase()}</a>
+      ))}
+    </nav>
+  );
+
+  if (signedIn && !confirmed) return <div className="space-y-4">{languages}<p role="alert" className="text-sm leading-6">{labels.confirmed} {labels.verify}</p></div>;
 
   if (signedIn) return (
     <form action={acceptAction} className="space-y-4">
+      {languages}
       <input type="hidden" name="token" value={token} />
       <ErrorNotice state={acceptState} label={labels.unavailable} />
       <NameField label={labels.name} initialName={initialName} />
@@ -90,6 +100,7 @@ export function JoinForm({ locale, signedIn, confirmed, initialName }: {
 
   return (
     <div className="space-y-5">
+      {languages}
       <div className="flex gap-3 text-sm">
         <button type="button" aria-pressed={mode === "signIn"} onClick={() => setMode("signIn")} className="min-h-11 rounded-full border border-[#dfd2c1] px-4 aria-pressed:bg-[#f4ede3] dark:border-white/15 dark:aria-pressed:bg-white/10">{labels.existing}</button>
         <button type="button" aria-pressed={mode === "signUp"} onClick={() => setMode("signUp")} className="min-h-11 rounded-full border border-[#dfd2c1] px-4 aria-pressed:bg-[#f4ede3] dark:border-white/15 dark:aria-pressed:bg-white/10">{labels.new}</button>

@@ -15,11 +15,13 @@ export function AuthShell({
   title,
   subtitle,
   children,
+  showLanguageSwitcher = true,
 }: {
   locale: Locale;
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  showLanguageSwitcher?: boolean;
 }) {
   return (
     <main className="grid min-h-screen place-items-center bg-[#f3ece2] p-4 dark:bg-[#101216]">
@@ -34,7 +36,7 @@ export function AuthShell({
               <span className="block text-xs text-slate-500 dark:text-stone-400">{copy[locale].secure}</span>
             </span>
           </Link>
-          <LanguageSwitcher locale={locale} />
+          {showLanguageSwitcher ? <LanguageSwitcher locale={locale} /> : null}
         </div>
         <h1 className="text-3xl font-semibold tracking-[-0.05em]">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-stone-400">{subtitle}</p>

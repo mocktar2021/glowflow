@@ -24,7 +24,7 @@ export default async function JoinPage({ params }: { params: Promise<{ locale: s
   const user = data.user;
   const initialName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
   return (
-    <AuthShell locale={locale} title={copy[locale].title} subtitle={copy[locale].subtitle}>
+    <AuthShell locale={locale} title={copy[locale].title} subtitle={copy[locale].subtitle} showLanguageSwitcher={false}>
       <JoinForm locale={locale} signedIn={Boolean(user)} confirmed={Boolean(user?.email_confirmed_at)} initialName={initialName} />
     </AuthShell>
   );
