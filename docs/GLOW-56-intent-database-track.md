@@ -35,6 +35,8 @@ rows per call, clears its freshness heartbeat before work, and refreshes it
 only when no due rows remain. An abandoned prepared intent expires at the
 earlier of its two-hour TTL and slot start; the sweep rotates its generation
 and clears name, phone, and email even when the policy singleton is absent.
+Separate index-backed passes scrub due prepared rows before purging retained
+terminal rows, so a large terminal backlog cannot delay contact-data cleanup.
 Terminal intents are retained for three days before deletion, and orphaned
 browser-session hashes are removed only after three days and cookie expiry.
 The database rejects a known session older than 24 hours. The API must also

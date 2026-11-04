@@ -219,16 +219,10 @@ begin
   for candidate in
     select row.id, row.tenant_id, row.browser_token_hash
     from private.public_booking_intents as row
-    where (row.state = 'prepared'
-      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp())
-      or (row.state <> 'prepared'
-        and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days')
-    -- Expired prepared contact PII takes priority over older tombstones, so
-    -- retention backlog cannot starve the privacy scrub under a small batch.
-    order by case when row.state = 'prepared' then 0 else 1 end,
-      case when row.state = 'prepared'
-        then least(row.expires_at, row.requested_start) else row.terminal_at end,
-      row.id
+    where row.state = 'prepared'
+      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp()
+    -- This index-backed pass always scrubs due PII before terminal backlog.
+    order by least(row.expires_at, row.requested_start), row.id
     limit batch_limit
   loop
     current_generation := private.lock_public_booking_browser_session(
@@ -254,13 +248,33 @@ begin
       where row.id = stored.id;
       scrubbed := scrubbed + 1;
       processed := processed + 1;
-    elsif stored.state <> 'prepared'
-       and stored.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days' then
-      delete from private.public_booking_intents as row where row.id = stored.id;
-      purged := purged + 1;
-      processed := processed + 1;
     end if;
   end loop;
+
+  if processed < batch_limit then
+    for candidate in
+      select row.id, row.tenant_id, row.browser_token_hash
+      from private.public_booking_intents as row
+      where row.state <> 'prepared'
+        and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days'
+      order by row.terminal_at, row.id
+      limit batch_limit - processed
+    loop
+      current_generation := private.lock_public_booking_browser_session(
+        candidate.tenant_id, candidate.browser_token_hash, false, true);
+      if current_generation is null then
+        raise exception using errcode = '55000', message = 'booking_intent_cleanup_session_missing';
+      end if;
+      select * into stored from private.public_booking_intents as row
+      where row.id = candidate.id for update;
+      if found and stored.state <> 'prepared'
+         and stored.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days' then
+        delete from private.public_booking_intents as row where row.id = stored.id;
+        purged := purged + 1;
+        processed := processed + 1;
+      end if;
+    end loop;
+  end if;
 
   -- Browser hashes outlive the 24-hour cookie but not the 3-day grace once
   -- every related intent tombstone has been purged. Recheck after the lock.
@@ -297,10 +311,12 @@ begin
 
   select exists (
     select 1 from private.public_booking_intents as row
-    where (row.state = 'prepared'
-      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp())
-      or (row.state <> 'prepared'
-        and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days')
+    where row.state = 'prepared'
+      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp()
+  ) or exists (
+    select 1 from private.public_booking_intents as row
+    where row.state <> 'prepared'
+      and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days'
   ) or exists (
     select 1 from private.public_booking_browser_sessions as session
     where session.updated_at <= pg_catalog.clock_timestamp() - interval '3 days'
