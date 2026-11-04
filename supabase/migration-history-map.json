@@ -282,6 +282,13 @@
       "sourceVersion": "20261103214314",
       "marker": false,
       "normalizedSha256": "b0b8a818a96c8813dbd599495e49d4d0265883159687b7a2417127a88a2a3051"
+    },
+    {
+      "version": "20261104004728",
+      "name": "queue_staff_invitation_delivery",
+      "sourceVersion": "20261104004728",
+      "marker": false,
+      "normalizedSha256": "75a3342728da6da276d6f1253e04e9933abb3f8f016c8dea6a7870b4f3b30ac6"
     }
   ]
 }

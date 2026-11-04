@@ -74,6 +74,7 @@ test('privileged Supabase client remains limited to reviewed server operations',
     'app/api/public-booking/route.ts',
     'app/api/stripe/webhook/route.ts',
     'lib/stripe-sandbox.ts',
+    'lib/staff-invitation-delivery.ts',
   ]);
   assertTrustedAdminClientUsage(sources, approved);
   for (const unreviewedSource of [
