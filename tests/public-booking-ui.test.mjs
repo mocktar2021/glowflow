@@ -78,11 +78,11 @@ test("aborted earlier availability cannot clear loading or replace newer slots",
   } finally { globalThis.fetch = originalFetch; }
 });
 test("availability error offers retry and stale selection is cleared when service changes", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: true });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 9: true });
   let tree = h.render();
   const retry = find(tree, (node) => node.type === "button" && node.props.children === "Réessayer");
   assert.ok(retry); retry.props.onClick();
-  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[8], false);
+  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[9], false);
   tree = h.render();
   assert.equal(find(tree, (node) => node.type === "button" && node.props.type === "submit").props.disabled, true);
   find(tree, (node) => node.type === "select").props.onChange({ target: { value: "other-service" } });
@@ -98,7 +98,7 @@ test("named staff choice filters slots without losing the no-preference option",
   assert.ok(staffSelect);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   staffSelect.props.onChange({ target: { value: "other-staff" } });
-  assert.equal(h.values[10], "other-staff");
+  assert.equal(h.values[11], "other-staff");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   assert.ok(renderToStaticMarkup(tree).includes("Ari"));
@@ -106,15 +106,15 @@ test("named staff choice filters slots without losing the no-preference option",
   tree = h.render(extra);
   assert.ok(renderToStaticMarkup(tree).includes("Aucun créneau pour ce professionnel"));
   find(tree, (node) => node.type === "button" && node.props.children === "Voir tous les professionnels").props.onClick();
-  assert.equal(h.values[10], "");
+  assert.equal(h.values[11], "");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 1);
 });
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
   const tree = h.render();
   find(tree, (node) => node.type === "button").props.onClick();
-  assert.equal(h.values[7], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
+  assert.equal(h.values[8], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
 });
 test("offline unknown salon slugs fail closed while explicit atelier demo remains", async () => {
   const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
