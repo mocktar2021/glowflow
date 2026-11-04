@@ -5,7 +5,7 @@ import type { StaffInvitationDeliveryStatus } from "@/lib/staff-invitation-sende
 
 export type StaffInvitationWorkerAlert = Readonly<{
   code: "delivery_failed" | "delivery_uncertain" | "delivery_unavailable";
-  action: "review_before_reissue" | "reconcile_provider" | "inspect_worker";
+  action: "review_before_reissue" | "reconcile_provider" | "inspect_and_reconcile_before_reissue";
 }>;
 
 type OperatorAlert = (alert: StaffInvitationWorkerAlert) => Promise<void>;
@@ -20,6 +20,11 @@ export async function runStaffInvitationWorkerOnce(
   alertOperator: OperatorAlert,
   runOnce: RunOnce = runNextStaffInvitationDelivery,
 ): Promise<StaffInvitationDeliveryStatus> {
+  if (typeof alertOperator !== "function") {
+    // A missing alert path must never be discovered after claiming/sending.
+    throw new Error("Staff invitation operator alert unavailable");
+  }
+
   let status: StaffInvitationDeliveryStatus;
   try {
     const result = await runOnce();
@@ -35,7 +40,9 @@ export async function runStaffInvitationWorkerOnce(
     : status === "uncertain"
       ? { code: "delivery_uncertain", action: "reconcile_provider" }
       : status === "unavailable"
-        ? { code: "delivery_unavailable", action: "inspect_worker" }
+        // Settlement may have failed after the provider accepted the email.
+        // Reconcile provider and database state before any new invitation.
+        ? { code: "delivery_unavailable", action: "inspect_and_reconcile_before_reissue" }
         : null;
 
   if (alert) {
