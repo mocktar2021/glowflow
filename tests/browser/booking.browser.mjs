@@ -903,6 +903,40 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   assert.deepEqual(externalRequests, []);
 });
 
+test("v2 rejected old-cookie bootstrap keeps a pending marker manual-only across reload", async t => {
+  // The route unit suite verifies that an expired or unsigned cookie returns
+  // 409 without a replacement. This fixture verifies the browser response.
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    writes.push(payload);
+    return route.fulfill({ status: 409, json: { state: "unknown" } });
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(origin);
+  await page.evaluate(intentId => {
+    localStorage.setItem(`glowflow.booking.pending.browser-fixture.${intentId}`, "1");
+  }, v2IntentId);
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  const manual = page.getByRole("alert").filter({ hasText: "booking session was lost" });
+  await manual.waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
+  await page.reload();
+  await manual.waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.locator("form").dispatchEvent("submit");
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "bootstrap"],
+    "the old-cookie rejection must never become a new prepare or commit");
+  assert.equal(await page.evaluate(intentId =>
+    localStorage.getItem(`glowflow.booking.pending.browser-fixture.${intentId}`), v2IntentId), "1");
+  assert.deepEqual(externalRequests, []);
+});
+
 for (const locale of ["fr", "en", "es"]) {
   test(`${locale} v2 canceled appointment warns about inactive status without claiming a lost browser session`, async t => {
     const server = v2Server(locale, { loseCommit: true, appointmentStatus: "canceled" });
