@@ -72,10 +72,13 @@ test('client guard follows static template imports and rejects interpolated path
   }
   assert.throws(() => assertClientBoundaries(new Map([
     ['app/panel.tsx', '"use client"; const suffix = "admin"; const secret = import(`@/lib/supabase/${suffix}`);'], admin,
-  ])), /Dynamic template import requires security review/);
+  ])), /Nonliteral client import requires security review/);
   for (const source of [
     '"use client"; const path = "@/lib/supabase/admin"; const secret = import(path);',
     '"use client"; const secret = import("@/lib/supabase/" + "admin");',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = require?.(path);',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = module["require"](path);',
+    '"use client"; const path = "@/lib/supabase/admin"; const secret = globalThis["require"](path);',
   ]) {
     assert.throws(() => assertClientBoundaries(new Map([
       ['app/panel.tsx', source], admin,
@@ -84,6 +87,9 @@ test('client guard follows static template imports and rejects interpolated path
   assertClientBoundaries(new Map([
     ['app/panel.tsx', '"use client"; const safe = import(`@/lib/safe`);'],
     ['lib/safe.ts', 'export const safe = true;'],
+  ]));
+  assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const help = "import(path) and require?.(path) are examples";'],
   ]));
 });
 
