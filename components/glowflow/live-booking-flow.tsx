@@ -435,6 +435,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       if (!currentSnapshot) { lockV2(); return; }
       if (!v2Generation.current) { lockV2(); return; }
       if (knownPending) { lockV2(true, labels.v2Manual); return; }
+      v2Attempted.current = false;
       uncertainRef.current = false;
       setUncertainPublicBooking(false);
       setV2Phase("ready");
@@ -614,9 +615,21 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     inFlight.current = true;
     setSubmitting(true);
     try {
+      if (!v2Intent.current) {
+        const markers = pendingIntentIds();
+        if (!markers || markers.length > 0) { lockV2(true, labels.v2Manual); return; }
+        // A failed bootstrap or terminal follow-up may leave no exact intent
+        // in this mounted page. Only a fresh current-session snapshot can
+        // authorize the form again; an exact old terminal generation cannot.
+        const boot = await postV2({ action: "bootstrap" });
+        if (boot.ready !== true) throw new Error("bootstrap_failed");
+        const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
+        applyV2Result(current, false, true);
+        return;
+      }
       const reconciled = await postV2({
         action: "reconcile", salonSlug: salon.slug,
-        ...(v2Intent.current ? { intentId: v2Intent.current } : {}),
+        intentId: v2Intent.current,
       });
       if (reconciled.state !== "prepared" || !reconciled.intent_id) {
         await handleV2Response(reconciled);
@@ -698,7 +711,9 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   if (confirmation) {
     const details = confirmation.details;
-    const title = details?.service_title;
+    // V1's top-level title may reflect a modified idempotent retry when
+    // enrichment fails; only v2 binds that title to the immutable intent.
+    const title = details?.service_title ?? (v2 ? confirmation.service_title : undefined);
     const policyLocale = ([locale, "fr", "en", "es"] as const).find((language) => typeof details?.policies?.[language] === "string" && details.policies[language].trim());
     const policy = policyLocale ? details?.policies?.[policyLocale] : null;
     const hasPrice = details?.catalog_price != null && Number.isSafeInteger(details.catalog_price) && details.catalog_price >= 0 && details.currency && ["EUR", "USD"].includes(details.currency);
@@ -720,7 +735,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </dl>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
-        {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700">{labels.v2AgainError}</p> : null}
+        {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700 dark:text-rose-300">{labels.v2AgainError}</p> : null}
         <button type="button" onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 dark:focus-visible:outline-white">{labels.another}</button>
       </section>
     </main>;

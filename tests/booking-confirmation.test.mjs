@@ -43,6 +43,7 @@ function database({ published = true, wrongTenant = false, fail = false, wrongKe
 }
 async function post(db) {
   const { POST } = await load("../app/api/public-booking/route.ts", {
+    "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => false },
     "@/lib/supabase/admin": { createAdminClient: () => db },
     "@/lib/application-diagnostics": { reportApplicationFailure: () => null },
   });

@@ -714,13 +714,21 @@ test(`a retry ${status} cannot unlock while the original request can still commi
 const v2IntentId = "77777777-7777-4777-8777-777777777777";
 const v2Generation = "88888888-8888-4888-8888-888888888888";
 const v2NextGeneration = "99999999-9999-4999-8999-999999999999";
+const v2MissingLabels = {
+  fr: { service: "Prestation réservée", address: "Adresse non publiée.", price: "Tarif indisponible.", policies: "Conditions d’annulation non publiées." },
+  en: { service: "Booked service", address: "Address not published.", price: "Price unavailable.", policies: "Cancellation policies are not published." },
+  es: { service: "Servicio reservado", address: "Dirección no publicada.", price: "Precio no disponible.", policies: "Las condiciones de cancelación no están publicadas." },
+};
+function v2Confirmation(locale) {
+  return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
+}
 function v2Server(locale, { loseCommit = false, commitBeforeLoss = true } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
-  const confirmation = { ...confirmedBooking(locale), appointment_status: "confirmed" };
+  const confirmation = v2Confirmation(locale);
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
     writes.push(payload);
@@ -791,6 +799,12 @@ for (const locale of ["fr", "en", "es"]) {
     assert.doesNotMatch(JSON.stringify(markers), /Fictional Browser Client|browser@example.invalid|2030-01-15T/);
     await page.reload();
     await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    await page.getByText(v2MissingLabels[locale].service, { exact: true }).waitFor();
+    await page.getByText(new RegExp(v2MissingLabels[locale].address)).waitFor();
+    await page.getByText(new RegExp(v2MissingLabels[locale].price)).waitFor();
+    await page.getByText(new RegExp(v2MissingLabels[locale].policies)).waitFor();
+    assert.equal(await page.getByText("123 Fictional Street, New York, US").count(), 0,
+      "v2 must not invent the v1 published-address enrichment");
     assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
     const nextTab = await context.newPage();
     await nextTab.goto(url);
@@ -930,8 +944,8 @@ test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker",
   let releaseOld, releaseSecond;
   const oldBarrier = new Promise(resolve => { releaseOld = resolve; });
   const secondBarrier = new Promise(resolve => { releaseSecond = resolve; });
-  const oldConfirmation = { ...confirmedBooking("en"), appointment_status: "confirmed" };
-  const secondConfirmation = { ...confirmedBooking("en"), appointment_id: secondId, appointment_status: "confirmed" };
+  const oldConfirmation = v2Confirmation("en");
+  const secondConfirmation = { ...v2Confirmation("en"), appointment_id: secondId };
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
     writes.push(payload);
@@ -998,4 +1012,86 @@ test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker",
     releaseOld();
     releaseSecond();
   }
+});
+
+test("v2 canceled intent can recover after a transient current-session reconcile failure", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  let canceled = false;
+  let failedFollowup = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "cancel") canceled = true;
+    if (canceled && !failedFollowup && payload.action === "reconcile" && !payload.intentId) {
+      failedFollowup = true;
+      writes.push(payload);
+      return route.abort("failed");
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
+  assert.equal(failedFollowup, true);
+  assert.equal(server.getState(), "not_committed");
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 failed acknowledgement keeps confirmation visible with readable dark-mode recovery error", async t => {
+  const server = v2Server("en");
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "acknowledge") {
+      writes.push(payload);
+      return route.fulfill({ status: 503, json: { state: "unknown" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  const again = page.getByRole("button", { name: "Book another appointment" });
+  await again.click();
+  const alert = page.getByRole("alert").filter({ hasText: "A new request could not be opened" });
+  await alert.waitFor();
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 1);
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  const contrast = await alert.evaluate(element => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    const luminance = color => {
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      const channels = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(value => {
+        const unit = value / 255;
+        return unit <= 0.04045 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4;
+      });
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    const foreground = luminance(getComputedStyle(element).color);
+    const background = luminance(getComputedStyle(element.closest("section")).backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  assert.ok(contrast >= 4.5, `dark-mode recovery text must reach 4.5:1 contrast, got ${contrast}`);
+  await again.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  assert.equal(await again.evaluate(element => document.activeElement === element), true);
+  assert.notEqual(await again.evaluate(element => getComputedStyle(element).outlineStyle), "none");
+  assert.deepEqual(externalRequests, []);
 });
