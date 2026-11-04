@@ -15,15 +15,24 @@ $$;
 
 create table private.public_booking_intent_policy (
   singleton boolean primary key default true check (singleton),
-  prepared_ttl interval not null check (prepared_ttl between interval '1 minute' and interval '7 days'),
-  retention_ttl interval not null check (retention_ttl between interval '1 day' and interval '30 days'),
+  prepared_ttl interval not null check (prepared_ttl = interval '2 hours'),
+  retention_ttl interval not null check (retention_ttl = interval '3 days'),
   configured_at timestamptz not null
 );
 alter table private.public_booking_intent_policy enable row level security;
 revoke all on table private.public_booking_intent_policy from public, anon, authenticated;
 grant select on table private.public_booking_intent_policy to service_role;
 comment on table private.public_booking_intent_policy is
-  'GLOW-56 dormant policy. No row is seeded; TTL/retention and hosted activation require separate approval.';
+  'GLOW-56 dormant policy. Owner chose 2-hour preparation and 3-day terminal retention; no row is seeded or hosted activation approved.';
+
+create table private.public_booking_intent_cleanup_state (
+  singleton boolean primary key default true check (singleton),
+  last_full_sweep_at timestamptz,
+  last_run_at timestamptz
+);
+alter table private.public_booking_intent_cleanup_state enable row level security;
+revoke all on table private.public_booking_intent_cleanup_state from public, anon, authenticated;
+grant select, insert, update on table private.public_booking_intent_cleanup_state to service_role;
 
 create table private.public_booking_browser_sessions (
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -31,12 +40,17 @@ create table private.public_booking_browser_sessions (
   generation uuid not null default pg_catalog.gen_random_uuid(),
   created_at timestamptz not null default pg_catalog.clock_timestamp(),
   updated_at timestamptz not null default pg_catalog.clock_timestamp(),
+  expires_at timestamptz not null default pg_catalog.clock_timestamp() + interval '24 hours',
+  check (expires_at > created_at),
   primary key (tenant_id, browser_token_hash)
 );
 alter table private.public_booking_browser_sessions enable row level security;
 revoke all on table private.public_booking_browser_sessions from public, anon, authenticated;
 grant usage on schema private to service_role;
 grant select, insert, update on table private.public_booking_browser_sessions to service_role;
+grant delete on table private.public_booking_browser_sessions to service_role;
+create index public_booking_browser_sessions_updated_idx
+  on private.public_booking_browser_sessions (updated_at);
 comment on table private.public_booking_browser_sessions is
   'GLOW-56 server-side generation fence for delayed stale-tab prepare requests; no contact data or raw cookie.';
 
@@ -86,10 +100,17 @@ create unique index public_booking_intents_active_browser_tenant_idx
   where state = 'prepared' or (state = 'committed' and acknowledged_at is null);
 create index public_booking_intents_browser_history_idx
   on private.public_booking_intents (browser_token_hash, tenant_id, created_at desc);
+create index public_booking_intents_prepared_expiry_idx
+  on private.public_booking_intents (least(expires_at, requested_start))
+  where state = 'prepared';
+create index public_booking_intents_terminal_retention_idx
+  on private.public_booking_intents (terminal_at)
+  where state <> 'prepared';
 alter table private.public_booking_intents enable row level security;
 revoke all on table private.public_booking_intents from public, anon, authenticated;
 grant usage on schema private to service_role;
 grant select, insert, update on table private.public_booking_intents to service_role;
+grant delete on table private.public_booking_intents to service_role;
 comment on table private.public_booking_intents is
   'GLOW-56 private immutable-payload intent. Contact fields exist only while prepared and are scrubbed on terminal transition.';
 
@@ -129,16 +150,19 @@ grant execute on function private.public_booking_intent_confirmation(uuid,uuid,u
 -- without racing prepare or cancellation. A new browser session is created
 -- only by a no-ID reconcile, never by a delayed prepare or commit.
 create function private.lock_public_booking_browser_session(
-  target_tenant_id uuid, target_browser_hash text, bootstrap boolean
+  target_tenant_id uuid, target_browser_hash text, bootstrap boolean,
+  allow_expired boolean default false
 ) returns uuid
 language plpgsql volatile security invoker set search_path = ''
 as $$
 declare
   current_generation uuid;
+  session_expires_at timestamptz;
 begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     target_tenant_id::text || ':booking-intent:' || target_browser_hash, 0));
-  select session.generation into current_generation
+  select session.generation, session.expires_at
+  into current_generation, session_expires_at
   from private.public_booking_browser_sessions as session
   where session.tenant_id = target_tenant_id
     and session.browser_token_hash = target_browser_hash
@@ -148,12 +172,156 @@ begin
     values (target_tenant_id, target_browser_hash)
     returning generation into current_generation;
   end if;
+  if not allow_expired and session_expires_at <= pg_catalog.clock_timestamp() then
+    return null;
+  end if;
   return current_generation;
 end;
 $$;
-revoke all on function private.lock_public_booking_browser_session(uuid,text,boolean)
+revoke all on function private.lock_public_booking_browser_session(uuid,text,boolean,boolean)
   from public, anon, authenticated;
-grant execute on function private.lock_public_booking_browser_session(uuid,text,boolean)
+grant execute on function private.lock_public_booking_browser_session(uuid,text,boolean,boolean)
+  to service_role;
+
+-- An external, separately approved scheduler may call this bounded RPC as
+-- service_role. The migration installs no cron job, route, policy row or worker.
+-- Candidate selection is deliberately unlocked; each candidate is rechecked
+-- after taking the shared advisory -> browser session -> intent lock order.
+create function public.sweep_public_booking_intents(batch_limit integer default 50)
+returns jsonb
+language plpgsql volatile security invoker set search_path = ''
+as $$
+declare
+  candidate record;
+  stored private.public_booking_intents%rowtype;
+  current_generation uuid;
+  processed integer := 0;
+  scrubbed integer := 0;
+  purged integer := 0;
+  sessions_purged integer := 0;
+  remaining boolean;
+begin
+  if batch_limit is null or batch_limit not between 1 and 100 then
+    raise exception using errcode = '22023', message = 'booking_intent_cleanup_invalid_limit';
+  end if;
+  if not pg_catalog.pg_try_advisory_xact_lock(
+    pg_catalog.hashtextextended('glowflow:public-booking-intent-cleanup', 0)) then
+    return pg_catalog.jsonb_build_object('complete', false, 'busy', true);
+  end if;
+
+  -- A partial or failed sweep never refreshes the gate for new preparations.
+  insert into private.public_booking_intent_cleanup_state
+    (singleton, last_full_sweep_at, last_run_at)
+  values (true, null, pg_catalog.clock_timestamp())
+  on conflict (singleton) do update
+    set last_full_sweep_at = null, last_run_at = excluded.last_run_at;
+
+  for candidate in
+    select row.id, row.tenant_id, row.browser_token_hash
+    from private.public_booking_intents as row
+    where (row.state = 'prepared'
+      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp())
+      or (row.state <> 'prepared'
+        and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days')
+    -- Expired prepared contact PII takes priority over older tombstones, so
+    -- retention backlog cannot starve the privacy scrub under a small batch.
+    order by case when row.state = 'prepared' then 0 else 1 end,
+      case when row.state = 'prepared'
+        then least(row.expires_at, row.requested_start) else row.terminal_at end,
+      row.id
+    limit batch_limit
+  loop
+    current_generation := private.lock_public_booking_browser_session(
+      candidate.tenant_id, candidate.browser_token_hash, false, true);
+    if current_generation is null then
+      raise exception using errcode = '55000', message = 'booking_intent_cleanup_session_missing';
+    end if;
+    select * into stored from private.public_booking_intents as row
+    where row.id = candidate.id for update;
+    if not found then continue; end if;
+
+    if stored.state = 'prepared'
+       and least(stored.expires_at, stored.requested_start) <= pg_catalog.clock_timestamp() then
+      update private.public_booking_browser_sessions as session
+      set generation = pg_catalog.gen_random_uuid(), updated_at = pg_catalog.clock_timestamp()
+      where session.tenant_id = stored.tenant_id
+        and session.browser_token_hash = stored.browser_token_hash
+      returning generation into current_generation;
+      update private.public_booking_intents as row
+      set state = 'expired', terminal_at = pg_catalog.clock_timestamp(),
+          released_generation = current_generation,
+          client_full_name = null, client_phone = null, client_email = null
+      where row.id = stored.id;
+      scrubbed := scrubbed + 1;
+      processed := processed + 1;
+    elsif stored.state <> 'prepared'
+       and stored.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days' then
+      delete from private.public_booking_intents as row where row.id = stored.id;
+      purged := purged + 1;
+      processed := processed + 1;
+    end if;
+  end loop;
+
+  -- Browser hashes outlive the 24-hour cookie but not the 3-day grace once
+  -- every related intent tombstone has been purged. Recheck after the lock.
+  if processed < batch_limit then
+    for candidate in
+      select session.tenant_id, session.browser_token_hash
+      from private.public_booking_browser_sessions as session
+      where session.updated_at <= pg_catalog.clock_timestamp() - interval '3 days'
+        and session.expires_at <= pg_catalog.clock_timestamp()
+        and not exists (select 1 from private.public_booking_intents as row
+          where row.tenant_id = session.tenant_id
+            and row.browser_token_hash = session.browser_token_hash)
+      order by session.updated_at, session.tenant_id, session.browser_token_hash
+      limit batch_limit - processed
+    loop
+      current_generation := private.lock_public_booking_browser_session(
+        candidate.tenant_id, candidate.browser_token_hash, false, true);
+      if current_generation is not null then
+        delete from private.public_booking_browser_sessions as session
+        where session.tenant_id = candidate.tenant_id
+          and session.browser_token_hash = candidate.browser_token_hash
+          and session.updated_at <= pg_catalog.clock_timestamp() - interval '3 days'
+          and session.expires_at <= pg_catalog.clock_timestamp()
+          and not exists (select 1 from private.public_booking_intents as row
+            where row.tenant_id = session.tenant_id
+              and row.browser_token_hash = session.browser_token_hash);
+        if found then
+          sessions_purged := sessions_purged + 1;
+          processed := processed + 1;
+        end if;
+      end if;
+    end loop;
+  end if;
+
+  select exists (
+    select 1 from private.public_booking_intents as row
+    where (row.state = 'prepared'
+      and least(row.expires_at, row.requested_start) <= pg_catalog.clock_timestamp())
+      or (row.state <> 'prepared'
+        and row.terminal_at <= pg_catalog.clock_timestamp() - interval '3 days')
+  ) or exists (
+    select 1 from private.public_booking_browser_sessions as session
+    where session.updated_at <= pg_catalog.clock_timestamp() - interval '3 days'
+      and session.expires_at <= pg_catalog.clock_timestamp()
+      and not exists (select 1 from private.public_booking_intents as row
+        where row.tenant_id = session.tenant_id
+          and row.browser_token_hash = session.browser_token_hash)
+  ) into remaining;
+  if not remaining then
+    update private.public_booking_intent_cleanup_state
+    set last_full_sweep_at = pg_catalog.clock_timestamp()
+    where singleton;
+  end if;
+  return pg_catalog.jsonb_build_object('complete', not remaining,
+    'busy', false, 'scrubbed', scrubbed, 'purged', purged,
+    'sessions_purged', sessions_purged);
+end;
+$$;
+revoke all on function public.sweep_public_booking_intents(integer)
+  from public, anon, authenticated;
+grant execute on function public.sweep_public_booking_intents(integer)
   to service_role;
 
 create function public.prepare_public_booking_intent(
@@ -211,7 +379,7 @@ begin
         'intent_id', existing.id, 'generation', current_generation,
         'confirmation', stored_confirmation);
     end if;
-    if pg_catalog.clock_timestamp() >= existing.expires_at then
+    if pg_catalog.clock_timestamp() >= least(existing.expires_at, existing.requested_start) then
       update private.public_booking_browser_sessions as session
       set generation = pg_catalog.gen_random_uuid(), updated_at = pg_catalog.clock_timestamp()
       where session.tenant_id = selected_tenant_id and session.browser_token_hash = input_hash
@@ -267,6 +435,13 @@ begin
   if ttl is null then
     raise exception using errcode = '55000', message = 'booking_intent_policy_unconfigured';
   end if;
+  if not exists (
+    select 1 from private.public_booking_intent_cleanup_state as cleanup
+    where cleanup.singleton
+      and cleanup.last_full_sweep_at >= pg_catalog.clock_timestamp() - interval '2 hours'
+  ) then
+    raise exception using errcode = '55000', message = 'booking_intent_cleanup_stale';
+  end if;
   issued_at := pg_catalog.clock_timestamp();
   insert into private.public_booking_intents (
     tenant_id, browser_token_hash, service_id, staff_id, requested_start,
@@ -274,7 +449,7 @@ begin
   ) values (
     selected_tenant_id, browser_token_hash, service_id, staff_id, requested_start,
     client_locale, normalized_name, normalized_phone, normalized_email,
-    issued_at, issued_at + ttl
+    issued_at, least(issued_at + ttl, requested_start)
   ) returning id into new_id;
   return pg_catalog.jsonb_build_object('state', 'prepared',
     'intent_id', new_id, 'generation', current_generation);
@@ -434,7 +609,7 @@ begin
         'generation', current_generation);
     end if;
   end if;
-  if intent.state = 'prepared' and pg_catalog.clock_timestamp() >= intent.expires_at then
+  if intent.state = 'prepared' and pg_catalog.clock_timestamp() >= least(intent.expires_at, intent.requested_start) then
     update private.public_booking_browser_sessions as session
     set generation = pg_catalog.gen_random_uuid(), updated_at = pg_catalog.clock_timestamp()
     where session.tenant_id = selected_tenant_id and session.browser_token_hash = input_hash
@@ -522,7 +697,7 @@ begin
     return pg_catalog.jsonb_build_object('state', 'not_committed',
       'intent_id', intent.id, 'generation', intent.released_generation, 'reason', intent.state);
   end if;
-  terminal_state := case when pg_catalog.clock_timestamp() >= intent.expires_at
+  terminal_state := case when pg_catalog.clock_timestamp() >= least(intent.expires_at, intent.requested_start)
     then 'expired' else 'canceled' end;
   update private.public_booking_browser_sessions as session
   set generation = pg_catalog.gen_random_uuid(), updated_at = pg_catalog.clock_timestamp()

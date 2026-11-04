@@ -106,7 +106,9 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
   sql(readFileSync(new URL("tests/schema-authorization.sql", root), "utf8"));
   assert.equal(sql("select relrowsecurity from pg_class where oid='private.public_booking_intents'::regclass"), "t");
   assert.equal(sql("select relrowsecurity from pg_class where oid='private.public_booking_intent_policy'::regclass"), "t");
+  assert.equal(sql("select relrowsecurity from pg_class where oid='private.public_booking_intent_cleanup_state'::regclass"), "t");
   assert.equal(sql("select count(*) from private.public_booking_intent_policy"), "0", "migration must not activate unapproved TTL policy");
+  assert.equal(sql("select count(*) from private.public_booking_intent_cleanup_state"), "0", "migration must not claim a cleanup run");
 
   const signatures = [
     ["prepare_public_booking_intent(text,text,uuid,uuid,timestamptz,text,text,text,text,uuid)",
@@ -115,6 +117,7 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     ["reconcile_public_booking_intent(text,text,uuid)", "null::text,null::text,null::uuid"],
     ["cancel_public_booking_intent(text,text,uuid)", "null::text,null::text,null::uuid"],
     ["acknowledge_public_booking_intent(text,text,uuid)", "null::text,null::text,null::uuid"],
+    ["sweep_public_booking_intents(integer)", "null::integer"],
   ];
   for (const [signature, deniedArgs] of signatures) {
     assert.equal(sql(`select has_function_privilege('service_role','public.${signature}','execute')`), "t");
@@ -125,7 +128,7 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     }
   }
   for (const role of ["anon", "authenticated"]) {
-    for (const table of ["public_booking_intents", "public_booking_intent_policy", "public_booking_browser_sessions"]) {
+    for (const table of ["public_booking_intents", "public_booking_intent_policy", "public_booking_browser_sessions", "public_booking_intent_cleanup_state"]) {
       assert.equal(sql(`select has_table_privilege('${role}','private.${table}','select')`), "f");
       assert.throws(() => sql(`set role ${role}; select count(*) from private.${table}`), /permission denied/);
     }
@@ -142,9 +145,17 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     "11111111-1111-4111-8111-111111111111")).state, "unknown",
   "prepare cannot mint an epoch for an unbootstrapped browser");
   assert.throws(() => state(prepare(token("a"), s0)), /booking_intent_policy_unconfigured/);
+  assert.throws(() => sql(`insert into private.public_booking_intent_policy
+    (prepared_ttl,retention_ttl,configured_at)
+    values (interval '24 hours', interval '7 days', clock_timestamp())`),
+  /violates check constraint/, "unapproved long retention must not be configured");
   sql(`insert into private.public_booking_intent_policy
     (prepared_ttl,retention_ttl,configured_at)
-    values (interval '24 hours', interval '7 days', clock_timestamp())`);
+    values (interval '2 hours', interval '3 days', clock_timestamp())`);
+  assert.throws(() => state(prepare(token("4"), s0)), /booking_intent_cleanup_stale/,
+    "new preparation must fail closed before the first full cleanup sweep");
+  assert.equal(state(rpc("sweep_public_booking_intents", "50")).complete, true,
+    "empty first sweep establishes the cleanup freshness gate");
   const tabGeneration = state(reconcile(token("5"))).generation;
   const tabPrepares = await Promise.all([
     asyncSql(prepare(token("5"), s0, "tab-one@example.invalid", tabGeneration)),
@@ -156,6 +167,9 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
   assert.equal(state(cancel(token("5"), tabIntent.intent_id)).state, "not_committed");
   const first = state(prepare(token("a"), s0));
   assert.equal(first.state, "prepared");
+  assert.equal(sql(`select (expires_at = least(created_at + interval '2 hours', requested_start))::text
+    from private.public_booking_intents where id='${first.intent_id}'`), "true",
+  "prepared expiry is the earlier of the owner-approved TTL and slot start");
   assert.match(first.generation, /^[0-9a-f-]{36}$/);
   assert.equal(state(prepare(token("a"), s0)).intent_id, first.intent_id);
   assert.equal(state(prepare(token("a"), s1)).state, "unknown", "changed payload cannot mint a new key");
@@ -328,7 +342,77 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
   assert.equal(state(commit(token("7"), old.intent_id)).state, "not_committed");
   assert.equal(sql(`select state from private.public_booking_intents where id='${old.intent_id}'`), "expired");
   assert.equal(state(cancel(token("7"), replacement.intent_id)).state, "not_committed");
-  assert.throws(() => sql(readFileSync(new URL(
-    "supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql", root), "utf8")),
+
+  // The service-role sweep expires abandoned prepared rows at the earlier of
+  // slot start and TTL, without relying on a visitor RPC or a policy row.
+  const abandoned = state(prepare(token("2"), s4, "abandoned@example.invalid"));
+  const secondAbandoned = state(prepare(token("3"), s4, "second-abandoned@example.invalid"));
+  sql(`update private.public_booking_intents
+    set requested_start=clock_timestamp()-interval '1 second'
+    where id in ('${abandoned.intent_id}','${secondAbandoned.intent_id}');
+    update private.public_booking_intents
+    set terminal_at=clock_timestamp()-interval '4 days'
+    where id in ('${canceled.intent_id}','${old.intent_id}');
+    delete from private.public_booking_intent_policy`);
+  const firstSweep = state(rpc("sweep_public_booking_intents", "1"));
+  assert.equal(firstSweep.complete, false, "bounded backlog must not refresh the preparation gate");
+  assert.equal(firstSweep.scrubbed, 1);
+  assert.equal(sql("select count(*) from private.public_booking_intent_cleanup_state where last_full_sweep_at is null"), "1");
+  const secondSweep = state(rpc("sweep_public_booking_intents", "1"));
+  assert.equal(secondSweep.complete, false);
+  assert.equal(secondSweep.scrubbed, 1);
+  assert.equal(state(rpc("sweep_public_booking_intents", "1")).purged, 1);
+  const backlogDrain = state(rpc("sweep_public_booking_intents", "1"));
+  assert.equal(backlogDrain.purged, 1);
+  assert.equal(backlogDrain.complete, true,
+    "terminal backlog drains after prepared PII is scrubbed first");
+  assert.equal(sql(`select count(*) from private.public_booking_intents
+    where id in ('${abandoned.intent_id}','${secondAbandoned.intent_id}')
+      and state='expired' and client_full_name is null and client_phone is null and client_email is null`), "2");
+  assert.notEqual(state(reconcile(token("2"), abandoned.intent_id)).generation,
+    abandoned.generation, "sweep must fence a stale browser generation");
+  assert.equal(state(prepare(token("2"), s4, "stale@example.invalid", abandoned.generation)).state,
+    "unknown", "sweep must reject a delayed old prepare");
+
+  // Terminal records and orphan browser hashes are pruned only after three
+  // days; the exact-ID recovery fence remains until that retention deadline.
+  sql(`update private.public_booking_intents
+    set terminal_at=clock_timestamp()-interval '4 days'
+    where id='${abandoned.intent_id}';
+    update private.public_booking_browser_sessions
+    set created_at=clock_timestamp()-interval '5 days',
+        updated_at=clock_timestamp()-interval '4 days',
+        expires_at=clock_timestamp()-interval '4 days'
+    where tenant_id='${tenant}' and browser_token_hash='${token("2")}'`);
+  assert.equal(state(rpc("sweep_public_booking_intents", "1")).complete, false);
+  assert.equal(sql(`select count(*) from private.public_booking_intents where id='${abandoned.intent_id}'`), "0");
+  const sessionSweep = state(rpc("sweep_public_booking_intents", "1"));
+  assert.equal(sessionSweep.complete, true);
+  assert.equal(sessionSweep.sessions_purged, 1);
+  assert.equal(sql(`select count(*) from private.public_booking_browser_sessions
+    where tenant_id='${tenant}' and browser_token_hash='${token("2")}'`), "0");
+  const agedSession = state(reconcile(token("1")));
+  assert.equal(agedSession.state, "none");
+  sql(`update private.public_booking_browser_sessions
+    set created_at=clock_timestamp()-interval '25 hours',
+        expires_at=clock_timestamp()-interval '1 second'
+    where tenant_id='${tenant}' and browser_token_hash='${token("1")}'`);
+  assert.equal(state(reconcile(token("1"))).state, "unknown",
+    "a replayed 24-hour-old browser cookie cannot use an existing session");
+  assert.equal(state(prepare(token("1"), s4, "replayed@example.invalid",
+    agedSession.generation)).state, "unknown",
+  "expired browser sessions cannot prepare even with the original generation");
+  const rollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql", root), "utf8");
+  assert.throws(() => sql(rollback),
   /booking_intent_rows_present_preserve_fence/, "rollback must preserve every existing fence");
+  sql("delete from private.public_booking_intents; delete from private.public_booking_browser_sessions");
+  sql(rollback);
+  for (const table of ["public_booking_intents", "public_booking_browser_sessions",
+    "public_booking_intent_policy", "public_booking_intent_cleanup_state"]) {
+    assert.equal(sql(`select to_regclass('private.${table}') is null`), "t",
+      `empty-state rollback must remove ${table}`);
+  }
+  assert.equal(sql("select to_regprocedure('public.sweep_public_booking_intents(integer)') is null"), "t");
+  assert.equal(sql("select to_regprocedure('private.lock_public_booking_browser_session(uuid,text,boolean,boolean)') is null"), "t");
 });
