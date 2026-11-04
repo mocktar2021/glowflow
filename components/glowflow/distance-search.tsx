@@ -141,6 +141,7 @@ export function DistanceSearch({ children, locale, labels, filters, pageSize, vi
             key={salon.slug}
             salon={salon}
             locale={locale}
+            countryDefaultLocale={countryDefaultLocales[salon.country_code] ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale}
             href={`/${salonProfileLocale(countryDefaultLocales[salon.country_code] ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
             cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
             timeZone={salonTimeZones[salon.slug]}

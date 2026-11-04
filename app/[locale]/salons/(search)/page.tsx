@@ -491,6 +491,7 @@ export default async function SalonSearchPage({
                 key={salon.slug}
                 salon={salon}
                 locale={locale}
+                countryDefaultLocale={countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale}
                 href={`/${salonProfileLocale(countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
                 timeZone={salonTimeZones[salon.slug]}

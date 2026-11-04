@@ -49,12 +49,19 @@ export function isSalonCategory(value: string): value is SalonCategory {
   return categoryValues.includes(value as SalonCategory);
 }
 
-export function localizedDescription(result: SalonSearchResult, locale: Locale) {
-  return result.description_json?.[locale]
-    ?? result.description_json?.fr
-    ?? result.description_json?.en
-    ?? result.description_json?.es
-    ?? "";
+export function localizedDescription(result: SalonSearchResult, locale: Locale, countryDefaultLocale?: string | null) {
+  const supportedLanguages: Locale[] = ["fr", "en", "es"];
+  const salonLanguage = supportedLanguages.find((language) => language === countryDefaultLocale);
+  const preferredLanguages = new Set<Locale>([
+    locale,
+    ...(salonLanguage ? [salonLanguage] : []),
+    ...supportedLanguages,
+  ]);
+  for (const language of preferredLanguages) {
+    const value = result.description_json?.[language];
+    if (typeof value === "string" && value.trim()) return { text: value.trim(), language };
+  }
+  return null;
 }
 
 export function salonInitials(name: string) {
