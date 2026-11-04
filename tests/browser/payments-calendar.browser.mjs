@@ -112,35 +112,47 @@ test("owner sees a localized over-balance error without a success signal", async
   assert.equal(await page.getByRole("status").filter({ hasText: "Payment recorded." }).count(), 0);
 });
 
-test("owner records synthetic cash and external card, then cancels without a Stripe request", async t => {
-  const page = await pageFor(t, "owner");
-  await page.goto(`${origin}/en/dashboard/payments`);
-  const appointment = page.locator("article").filter({ hasText: "Synthetic checkout" });
-  await appointment.getByRole("heading", { name: "Synthetic checkout" }).waitFor();
-  assert.match(await appointment.innerText(), /Outstanding:\s*\$40\.00/);
+const paymentJourney = {
+  fr: { identity: "owner-fr", service: "Paiement fictif", record: "Enregistrer", recorded: "Paiement enregistré.", outstanding: "Reste", calendar: "Calendrier", cancel: "Annuler", saved: "Modification enregistrée.", canceled: "Annulé" },
+  en: { identity: "owner", service: "Synthetic checkout", record: "Record", recorded: "Payment recorded.", outstanding: "Outstanding", calendar: "Calendar", cancel: "Cancel", saved: "Change saved.", canceled: "Canceled" },
+  es: { identity: "owner-es", service: "Cobro ficticio", record: "Registrar", recorded: "Pago registrado.", outstanding: "Pendiente", calendar: "Calendario", cancel: "Cancelar", saved: "Cambio guardado.", canceled: "Cancelada" },
+};
 
-  await appointment.locator('input[name="amount"]').fill("12.50");
-  await appointment.locator('select[name="payment_method"]').selectOption("cash");
-  await appointment.getByRole("button", { name: "Record", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "Payment recorded." }).waitFor();
-  await page.waitForFunction(() => [...document.querySelectorAll("article")]
-    .find(item => item.querySelector("h3")?.textContent === "Synthetic checkout")
-    ?.querySelector('input[name="amount"]')?.getAttribute("max") === "27.50");
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} owner records synthetic cash and external card, then cancels without a Stripe request`, async t => {
+    const labels = paymentJourney[locale];
+    const page = await pageFor(t, labels.identity);
+    await page.goto(`${origin}/${locale}/dashboard/payments`);
+    const appointment = page.locator("article").filter({ hasText: labels.service });
+    await appointment.getByRole("heading", { name: labels.service }).waitFor();
+    const initialBalance = new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(40);
+    assert.ok((await appointment.innerText()).includes(`${labels.outstanding}: ${initialBalance}`));
+    assert.equal(await appointment.locator('input[name="amount"]').getAttribute("max"), "40.00");
 
-  await appointment.locator('input[name="amount"]').fill("27.50");
-  await appointment.locator('select[name="payment_method"]').selectOption("external_card");
-  await appointment.getByRole("button", { name: "Record", exact: true }).click();
-  await appointment.locator("form").waitFor({ state: "detached" });
-  assert.match(await appointment.innerText(), /Outstanding:\s*\$0\.00/);
+    await appointment.locator('input[name="amount"]').fill("12.50");
+    await appointment.locator('select[name="payment_method"]').selectOption("cash");
+    await appointment.getByRole("button", { name: labels.record, exact: true }).click();
+    await page.getByRole("status").filter({ hasText: labels.recorded }).waitFor();
+    await page.waitForFunction(service => [...document.querySelectorAll("article")]
+      .find(item => item.querySelector("h3")?.textContent === service)
+      ?.querySelector('input[name="amount"]')?.getAttribute("max") === "27.50", labels.service);
 
-  await page.goto(`${origin}/en/dashboard/calendar?date=2030-06-15&view=day`);
-  await page.getByRole("heading", { name: "Calendar", exact: true }).waitFor();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "Change saved." }).waitFor();
-  await page.getByText("Canceled", { exact: true }).waitFor();
-  assert.equal(await page.getByRole("button", { name: "Cancel", exact: true }).count(), 0);
+    await appointment.locator('input[name="amount"]').fill("27.50");
+    await appointment.locator('select[name="payment_method"]').selectOption("external_card");
+    await appointment.getByRole("button", { name: labels.record, exact: true }).click();
+    await appointment.locator("form").waitFor({ state: "detached" });
+    const zeroBalance = new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(0);
+    assert.ok((await appointment.innerText()).includes(`${labels.outstanding}: ${zeroBalance}`));
 
-  await page.goto(`${origin}/en/dashboard/payments`);
-  assert.equal(await page.getByRole("heading", { name: "Synthetic checkout" }).count(), 0,
-    "canceled appointment is not offered for another payment");
-});
+    await page.goto(`${origin}/${locale}/dashboard/calendar?date=2030-06-15&view=day`);
+    await page.getByRole("heading", { name: labels.calendar, exact: true }).waitFor();
+    await page.getByRole("button", { name: labels.cancel, exact: true }).click();
+    await page.getByRole("status").filter({ hasText: labels.saved }).waitFor();
+    await page.getByText(labels.canceled, { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: labels.cancel, exact: true }).count(), 0);
+
+    await page.goto(`${origin}/${locale}/dashboard/payments`);
+    assert.equal(await page.getByRole("heading", { name: labels.service }).count(), 0,
+      "canceled appointment is not offered for another payment");
+  });
+}

@@ -4,8 +4,12 @@ import { cookies } from "next/headers";
 // Identities and history are fictitious; there is no Supabase connection.
 export async function createClient() {
   const identity = (await cookies()).get("fixture-identity")?.value;
-  const identities = { owner: "owner-a", staff: "staff-a", "staff-no-insert": "staff-a", "cross-tenant": "outsider", "query-error": "owner-a", "history-name-error": "owner-a", "payment-error": "owner-a" };
+  const identities = { owner: "owner-a", "owner-fr": "owner-a", "owner-es": "owner-a", staff: "staff-a", "staff-no-insert": "staff-a", "cross-tenant": "outsider", "query-error": "owner-a", "history-name-error": "owner-a", "payment-error": "owner-a" };
   const userId = identities[identity];
+  // Keep each locale's synthetic payment/cancellation journey independent.
+  const paymentScenario = identity === "owner-fr" || identity === "owner-es" ? identity : "owner";
+  const paymentsByScenario = globalThis.__glowflowFixturePaymentsByScenario ??= {};
+  const statusesByScenario = globalThis.__glowflowFixtureAppointmentStatusesByScenario ??= {};
   const members = [
     { id: "owner-a", tenant_id: "tenant-a", role: "owner", full_name: "Fixture Owner" },
     { id: "staff-a", tenant_id: "tenant-a", role: "staff", full_name: "Fixture Staff" },
@@ -24,7 +28,7 @@ export async function createClient() {
     ],
     appointments: [
       { id: "50000000-0000-0000-0000-000000000001", tenant_id: "tenant-a", client_id: "30000000-0000-0000-0000-000000000001", service_id: "40000000-0000-0000-0000-000000000001", staff_id: "staff-a", service_title_json: { fr: "Coupe fictive", en: "Synthetic haircut", es: "Corte ficticio" }, service_price: 5000, service_currency: "USD", start_time: "2030-06-14T12:00:00Z", end_time: "2030-06-14T13:00:00Z", status: "completed", deposit_paid: false, station_name: null },
-      { id: "50000000-0000-0000-0000-000000000002", tenant_id: "tenant-a", client_id: "30000000-0000-0000-0000-000000000001", service_id: "40000000-0000-0000-0000-000000000001", staff_id: "staff-a", service_title_json: { fr: "Paiement fictif", en: "Synthetic checkout", es: "Cobro ficticio" }, service_price: 4000, service_currency: "USD", start_time: "2030-06-15T12:00:00Z", end_time: "2030-06-15T13:00:00Z", status: globalThis.__glowflowFixtureAppointmentStatus ?? "confirmed", deposit_paid: false, station_name: null },
+      { id: "50000000-0000-0000-0000-000000000002", tenant_id: "tenant-a", client_id: "30000000-0000-0000-0000-000000000001", service_id: "40000000-0000-0000-0000-000000000001", staff_id: "staff-a", service_title_json: { fr: "Paiement fictif", en: "Synthetic checkout", es: "Cobro ficticio" }, service_price: 4000, service_currency: "USD", start_time: "2030-06-15T12:00:00Z", end_time: "2030-06-15T13:00:00Z", status: statusesByScenario[paymentScenario] ?? "confirmed", deposit_paid: false, station_name: null },
     ],
     services: [{ id: "40000000-0000-0000-0000-000000000001", tenant_id: "tenant-a", title_json: { fr: "Paiement fictif", en: "Synthetic checkout", es: "Cobro ficticio" }, price: 4000, deposit_amount: 0, currency: "USD", station_name: null, is_active: true, created_at: "2030-01-01T00:00:00Z" }],
     stripe_sandbox_connections: [],
@@ -83,7 +87,7 @@ export async function createClient() {
     async rpc(name, args = {}) {
       const { target_tenant_id: requestedTenant } = args;
       if (name === "get_appointment_payment_summaries") {
-        const payments = globalThis.__glowflowFixturePayments ?? [];
+        const payments = paymentsByScenario[paymentScenario] ?? [];
         const ids = args.target_appointment_ids ?? [];
         return { data: ids.map((id) => {
           const paid = payments.filter((entry) => entry.appointmentId === id).reduce((sum, entry) => sum + entry.amount, 0);
@@ -91,9 +95,9 @@ export async function createClient() {
         }), error: null };
       }
       if (name === "record_manual_appointment_payment") {
-        if (identity !== "owner" && identity !== "payment-error") return { data: null, error: { message: "Not authorized" } };
+        if (!["owner", "owner-fr", "owner-es", "payment-error"].includes(identity)) return { data: null, error: { message: "Not authorized" } };
         if (identity === "payment-error") return { data: null, error: { message: "payment_exceeds_outstanding_balance" } };
-        const payments = globalThis.__glowflowFixturePayments ??= [];
+        const payments = paymentsByScenario[paymentScenario] ??= [];
         const appointmentId = "50000000-0000-0000-0000-000000000002";
         if (args.target_appointment_id !== appointmentId || !["cash", "external_card"].includes(args.target_payment_method)
           || !Number.isInteger(args.target_amount) || args.target_amount <= 0) {
@@ -105,16 +109,16 @@ export async function createClient() {
           ? { data: null, error: null }
           : { data: null, error: { message: "payment_idempotency_key_reuse" } };
         const paid = payments.filter((entry) => entry.appointmentId === appointmentId).reduce((sum, entry) => sum + entry.amount, 0);
-        if (globalThis.__glowflowFixtureAppointmentStatus === "canceled") return { data: null, error: { message: "payment_appointment_not_found" } };
+        if (statusesByScenario[paymentScenario] === "canceled") return { data: null, error: { message: "payment_appointment_not_found" } };
         if (paid + args.target_amount > 4000) return { data: null, error: { message: "payment_exceeds_outstanding_balance" } };
         payments.push({ appointmentId, method: args.target_payment_method, amount: args.target_amount, key: args.request_key });
         return { data: null, error: null };
       }
       if (name === "cancel_calendar_appointment") {
-        if (!["owner", "staff"].includes(identity) || args.target_appointment_id !== "50000000-0000-0000-0000-000000000002") {
+        if (!["owner", "owner-fr", "owner-es", "staff"].includes(identity) || args.target_appointment_id !== "50000000-0000-0000-0000-000000000002") {
           return { data: null, error: { message: "Not authorized" } };
         }
-        globalThis.__glowflowFixtureAppointmentStatus = "canceled";
+        statusesByScenario[paymentScenario] = "canceled";
         return { data: null, error: null };
       }
       if (name !== "get_notification_status_rows" || requestedTenant !== tenantId) return { data: null, error: { message: "Not authorized" } };
