@@ -91,6 +91,12 @@ test('client guard follows static template imports and rejects interpolated path
   assertClientBoundaries(new Map([
     ['app/panel.tsx', '"use client"; const help = "import(path) and require?.(path) are examples";'],
   ]));
+  assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; // SUPABASE_SECRET_KEY is a documented server-only variable\nconst safe = true; // SUPABASE_SERVICE_ROLE_KEY stays private'],
+  ]));
+  assert.throws(() => assertClientBoundaries(new Map([
+    ['app/panel.tsx', '"use client"; const unsafe = process.env.SUPABASE_SECRET_KEY;'],
+  ])), /Private Supabase credentials reachable from client/);
 });
 
 test('privileged Supabase client remains limited to reviewed server operations', () => {

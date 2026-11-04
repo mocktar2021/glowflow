@@ -7,6 +7,17 @@ const directive = (source, name) => {
   return first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression)
     && first.expression.text === `use ${name}`;
 };
+const privateCredentialMarker = /\bSUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)\b/;
+
+function referencesPrivateCredential(source) {
+  // The scanner skips both line and block comments while preserving the old
+  // conservative check for credential names in executable tokens and strings.
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, source);
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (privateCredentialMarker.test(scanner.getTokenText())) return true;
+  }
+  return false;
+}
 
 export function assertRlsDeclarations(sources) {
   const states = new Map();
@@ -66,7 +77,7 @@ export function assertClientBoundaries(sources) {
     const source = parse(filename);
     if (directive(source, 'server')) return; // Next.js serializes calls to explicit server actions.
     const next = [...chain, filename];
-    if (filename === 'lib/supabase/admin.ts' || /SUPABASE_(?:SECRET_KEY|SERVICE_ROLE_KEY)/.test(raw)) {
+    if (filename === 'lib/supabase/admin.ts' || referencesPrivateCredential(raw)) {
       throw new Error(`Private Supabase credentials reachable from client: ${next.join(' -> ')}`);
     }
     function follow(specifier) {
