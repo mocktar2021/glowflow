@@ -3,11 +3,15 @@
 The current code-only safeguard applies to the mounted public booking page. If a
 POST has no authoritative result, the page hides the editable form and keeps the
 original payload and request key in memory. The only in-page action retries that
-exact pair. A confirmed response shows the stored appointment. A definite
-`slot_unavailable` or `invalid_request` response releases the form for a new
-request. Network errors, server failures, and missing confirmations remain
-uncertain. The warning and recovery action are available in French, English,
-and Spanish. No client contact data is written to browser storage.
+exact pair. A valid confirmation for the originally requested instant shows the
+stored appointment. A definite `slot_unavailable` or `invalid_request` on the
+first attempt releases the form for a new request. Once an attempt is uncertain,
+even a later 400/409 cannot prove the original request will not arrive and
+commit after the retry. In that state only a valid same-key confirmation
+unlocks the page. Network errors, server failures, and malformed or wrong-time
+confirmations also remain uncertain. The warning and recovery action are
+available in French, English, and Spanish. No client contact data is written to
+browser storage.
 
 This is not a cross-session guarantee. Refreshing, opening another tab or
 device, clearing browser state, or leaving the page loses the in-memory pending
@@ -32,7 +36,8 @@ rate-limit lookups, avoid logging handles or contact data, and return only the
 minimum confirmation fields needed by the visitor. Review RLS/grants, privacy,
 rollback, and migration behavior before adding this API or applying SQL.
 
-The disposable browser fixture models a server commit followed by a lost
-response and proves the active page sends no changed-key request. The local
+The disposable browser fixtures model a server commit followed by a lost
+response, and an original request that commits after an early retry 409. Both
+prove the active page sends no changed-key request. The local
 PostgreSQL test checks that a same-key, changed-time replay returns the first
 appointment rather than creating another. Neither test is a live booking.

@@ -43,14 +43,15 @@ type BookingPayload = {
   fullName: string; phone: string; email: string; locale: Locale;
 };
 
-function validConfirmation(value: unknown): value is Confirmation {
+function validConfirmation(value: unknown, requestedStart: string): value is Confirmation {
   if (!value || typeof value !== "object") return false;
   const confirmation = value as Partial<Confirmation>;
   const start = typeof confirmation.confirmed_start === "string" ? Date.parse(confirmation.confirmed_start) : NaN;
   const end = typeof confirmation.confirmed_end === "string" ? Date.parse(confirmation.confirmed_end) : NaN;
   return typeof confirmation.appointment_id === "string"
     && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(confirmation.appointment_id)
-    && Number.isFinite(start) && Number.isFinite(end) && end > start;
+    && Number.isFinite(start) && start === Date.parse(requestedStart)
+    && Number.isFinite(end) && end > start;
 }
 
 type Props = {
@@ -297,6 +298,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   async function sendBooking(payload: BookingPayload, requestKey: string) {
     if (inFlight.current) return;
+    const wasUncertain = uncertainRef.current;
     inFlight.current = true;
     setSubmitting(true);
     setError("");
@@ -324,10 +326,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         return;
       }
 
-      if (!response.ok || !validConfirmation(result.confirmation)) {
+      if (!response.ok || !validConfirmation(result.confirmation, payload.startTime)) {
         const conflict = response.status === 409 && result.error === "slot_unavailable";
         const invalid = response.status === 400 && result.error === "invalid_request";
-        if (conflict || invalid) {
+        if ((conflict || invalid) && !wasUncertain) {
           retry.current = null;
           uncertainRef.current = false;
           setUncertainPublicBooking(false);
@@ -335,8 +337,9 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           if (conflict) reloadAvailability();
           setSlot(null);
         } else {
-          // A timeout, 5xx, or malformed acknowledgement may follow a commit.
-          // Keep the exact original payload and key until the server resolves it.
+          // Once uncertain, even a later 400/409 cannot prove the original
+          // request will not arrive and commit after this retry.
+          // Keep the exact original payload and key until a valid confirmation.
           uncertainRef.current = true;
           setUncertainPublicBooking(true);
           setError(labels.uncertain);
@@ -446,7 +449,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           {uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
             <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{labels.uncertain}</h2>
             <p className="mt-3 leading-7">{labels.uncertainHelp}</p>
-            <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950">
+            <button type="button" disabled={submitting} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
               {submitting ? labels.saving : labels.checkOriginal}
             </button>
           </section> : <>
