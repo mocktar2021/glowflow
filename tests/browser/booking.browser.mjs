@@ -448,6 +448,11 @@ const uncertainLabels = {
   en: { warning: "Your booking may have succeeded", check: "Check original request", retry: "Retry original request" },
   es: { warning: "Es posible que tu reserva se haya registrado", check: "Comprobar la solicitud original", retry: "Reintentar la solicitud original" },
 };
+const legacyCutoverLabels = {
+  fr: { warning: "Cette page de réservation ne peut plus envoyer de demandes", help: "Contactez le salon pour vérifier cette demande" },
+  en: { warning: "This booking page can no longer submit requests", help: "Contact the salon to verify this request" },
+  es: { warning: "Esta página de reservas ya no puede enviar solicitudes", help: "Contacta con el salón para comprobar esta solicitud" },
+};
 function confirmedBooking(locale, start = slot.slot_start) {
   return {
     appointment_id: "55555555-5555-4555-8555-555555555555",
@@ -614,6 +619,70 @@ for (const locale of ["fr", "en", "es"]) {
     assert.deepEqual(externalRequests, []);
   });
 }
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} legacy 410 directly locks the original request for manual salon verification`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, { publicBooking: async (route, requests) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+      requests.push(route.request().postDataJSON());
+      return route.fulfill({ status: 410, json: { error: "booking_contract_changed" } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    const warning = page.getByRole("alert").filter({ hasText: legacyCutoverLabels[locale].warning });
+    await warning.waitFor();
+    await page.waitForFunction(() => document.activeElement?.tagName === "H2");
+    assert.match(await warning.innerText(), new RegExp(legacyCutoverLabels[locale].help));
+    assert.equal(await page.getByRole("button", { name: uncertainLabels[locale].retry }).count(), 0);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).count(), 0);
+    assert.equal(writes.length, 1);
+    assert.match(writes[0].requestKey, /^[0-9a-f-]{36}$/);
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.length, 1, "the locked old page cannot create a second request key");
+    assert.deepEqual(externalRequests, []);
+  });
+
+  test(`${locale} legacy 410 after a lost response preserves the original key but stops retries`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, { publicBooking: async (route, requests) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+      requests.push(route.request().postDataJSON());
+      if (requests.length === 1) return route.abort("failed");
+      return route.fulfill({ status: 410, json: { error: "booking_contract_changed" } });
+    } });
+    await page.goto(`${origin}/${locale}/book/browser-fixture`);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
+    await page.getByRole("button", { name: uncertainLabels[locale].retry }).click();
+    const warning = page.getByRole("alert").filter({ hasText: legacyCutoverLabels[locale].warning });
+    await warning.waitFor();
+    await page.waitForFunction(expected => document.activeElement?.tagName === "H2"
+      && document.activeElement.textContent?.includes(expected), legacyCutoverLabels[locale].warning);
+    assert.match(await warning.innerText(), new RegExp(legacyCutoverLabels[locale].help));
+    assert.deepEqual(writes[1], writes[0], "the handoff response followed an unchanged original key and payload");
+    assert.equal(await page.getByRole("button", { name: uncertainLabels[locale].retry }).count(), 0);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).count(), 0,
+      "a 410 cannot prove whether the earlier request committed");
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.length, 2, "manual handoff cannot send a third POST or changed request key");
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+test("only the exact legacy booking-contract 410 enters manual-only cutover recovery", async t => {
+  const { page, writes } = await pageFor(t, "en", { publicBooking: async (route, requests) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { slots: [slot] } });
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ status: 410, json: { error: "other_contract" } });
+  } });
+  await page.goto(`${origin}/en/book/browser-fixture`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(await page.getByText(legacyCutoverLabels.en.warning).count(), 0);
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.retry }).count(), 1);
+  assert.equal(writes.length, 1);
+});
 
 test("a malformed acknowledgement after a committed lost response keeps the original key locked", async t => {
   const appointments = new Map();
