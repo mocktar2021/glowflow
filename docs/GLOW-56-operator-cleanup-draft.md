@@ -16,6 +16,8 @@ counts only. It never prints the credential, customer contact, browser token,
 IP address, intent ID, raw RPC error or response body. HTTP redirects are
 rejected before credentials can be forwarded, and RPC response bodies are
 limited to 4,096 bytes.
+An overall failure is not a rollback: an earlier sweep RPC may already have
+committed. Investigate the reported stage before retrying.
 
 A complete result transactionally stamps each sweep's freshness heartbeat.
 The private heartbeat tables are not exposed through the Data API, so this
