@@ -28,10 +28,10 @@ for (const [suite, databasePrefix, databaseUrlEnv, raceOrder] of [
   ['public-booking-quota-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-cleanup-cadence.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-v2-postgis.test.mjs', 'glowflow_route_postgis_test_', 'GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL'],
-  // Disposable-only NON-MIGRATION gate prototype. These do not apply the SQL
-  // to migration history or make the proposed recovery gate activation-ready.
-  ['public-booking-gate-prototype.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'prepare_first'],
-  ['public-booking-gate-prototype.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'transition_first'],
+  // Versioned gate migration, exercised in isolated disposable databases.
+  ['public-booking-gate-migration.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'prepare_first'],
+  ['public-booking-gate-migration.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'transition_first'],
+  ['public-booking-gate-rollback.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['reminder-scheduling-database.test.mjs', 'glowflow_reminder_test_', 'GLOWFLOW_REMINDER_SCHEDULING_TEST_DATABASE_URL'],

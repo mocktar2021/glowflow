@@ -99,7 +99,12 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
 
   sql(readFileSync(new URL("tests/supabase-platform-fixture.sql", root), "utf8"));
   sql(readFileSync(new URL("supabase/schema.sql", root), "utf8"));
-  for (const migration of readdirSync(new URL("supabase/migrations/", root)).filter(name => name.endsWith(".sql")).sort()) {
+  // This suite exercises the predecessor intent contract and its guarded
+  // rollback, so stop before the later contract-gate migration. The gate has
+  // separate fresh-database transition and rollback suites below.
+  for (const migration of readdirSync(new URL("supabase/migrations/", root))
+    .filter(name => name.endsWith(".sql")
+      && name !== "20261105124804_glow56_public_booking_contract_gate.sql").sort()) {
     try { sql(readFileSync(new URL(`supabase/migrations/${migration}`, root), "utf8")); }
     catch (error) { throw new Error(`Migration ${migration} failed: ${error.message}`); }
   }
