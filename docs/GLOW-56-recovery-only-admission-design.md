@@ -89,7 +89,8 @@ lock and must block old deployments and direct legacy RPC calls, not merely
 new HTTP admission. V2 commit needs a private appointment executor so the
 legacy wrapper can be fenced without breaking intent-bound commit. The
 private intent/session grants and lock order must be reviewed before claiming
-that every insertion path is covered. In particular, the current draft grants
+that the public booking RPC paths are covered. In particular, the current
+draft grants
 `service_role` direct `INSERT` on both
 `private.public_booking_browser_sessions` and `private.public_booking_intents`,
 and `EXECUTE` on the session-bootstrap helper. The versioned database gate
@@ -99,6 +100,16 @@ Simple grant revocation would also break today's security-invoker RPCs, so
 the privilege and function design must preserve permitted exact-intent
 recovery. A failed freeze leaves v2 off and must not be described as a
 completed drain.
+
+This is a fence for public booking routes, their RPCs, and old deployments
+calling those RPCs, not a blanket block on privileged service-role writes to
+the rest of the database. The disposable platform fixture grants
+`service_role` broad direct DML on public tables, including appointments and
+clients. Other trusted staff workflows also need appointment writes. Do not
+claim that arbitrary use or compromise of the service-role credential is
+blocked by this gate. Inventory the actual hosted ACLs and every appointment
+creation path in the fresh preflight, then either review a broader privilege
+design or explicitly accept the narrower RPC threat model before activation.
 
 Once v2 accepts an intent, rollback is `v2 -> v2_no_prepares`, never back to
 `legacy` or a legacy-only deployment. Keep valid signed cookies and existing
@@ -118,7 +129,8 @@ bootstrap-helper call cannot bypass recovery-only mode. Race
 `v2 -> v2_no_prepares` against an
 in-flight prepare in two database sessions and prove that the transition
 waits for or rejects the prepare without admitting a new post-transition
-intent. Exercise an old-page 410, older deployment/direct RPC, lock timeout,
+intent. Check public appointment/client table privileges and exercise an
+old-page 410, older deployment/direct RPC, lock timeout,
 and rollback with v2 recovery still present. Then require a fresh
 GlowFlow-only identity, migration-ledger, schema, privilege, and fingerprint
 preflight, separate approval for the exact SQL, and isolated end-to-end QA.
