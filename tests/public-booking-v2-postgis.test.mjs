@@ -47,6 +47,51 @@ function sql(input, step) {
   return result.stdout.trim().split("\n").at(-1);
 }
 
+function assertFreshApplicationCatalog() {
+  // pg_tables alone misses pre-existing views, functions, sequences and types.
+  // A PostGIS image can preinstall extension-owned objects in public/topology;
+  // allow only those objects and their internally dependent companions.
+  const unexpected = sql(`with recursive allowed(classid, objid, objsubid) as (
+    select dependency.classid, dependency.objid, dependency.objsubid
+    from pg_depend as dependency
+    join pg_extension as extension on extension.oid = dependency.refobjid
+    where dependency.refclassid = 'pg_extension'::regclass
+      and dependency.deptype = 'e'
+      and extension.extname in ('postgis', 'postgis_raster', 'postgis_topology', 'postgis_tiger_geocoder')
+    union
+    select dependency.classid, dependency.objid, dependency.objsubid
+    from pg_depend as dependency
+    join allowed on allowed.classid = dependency.refclassid
+      and allowed.objid = dependency.refobjid
+      and allowed.objsubid = dependency.refobjsubid
+    where dependency.deptype in ('i', 'a')
+  ), candidates(classid, objid, objsubid) as (
+    select 'pg_namespace'::regclass::oid, namespace.oid, 0
+    from pg_namespace as namespace
+    where namespace.nspname not in ('public', 'information_schema')
+      and namespace.nspname !~ '^pg_'
+    union all
+    select 'pg_class'::regclass::oid, relation.oid, 0
+    from pg_class as relation
+    join pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname <> 'information_schema' and namespace.nspname !~ '^pg_'
+    union all
+    select 'pg_proc'::regclass::oid, procedure.oid, 0
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname <> 'information_schema' and namespace.nspname !~ '^pg_'
+    union all
+    select 'pg_type'::regclass::oid, type.oid, 0
+    from pg_type as type
+    join pg_namespace as namespace on namespace.oid = type.typnamespace
+    where namespace.nspname <> 'information_schema' and namespace.nspname !~ '^pg_'
+  )
+  select count(*) from candidates as object
+  where not exists (select 1 from allowed where allowed.classid = object.classid
+    and allowed.objid = object.objid and allowed.objsubid = object.objsubid)`, "fresh application catalog");
+  assert.equal(unexpected, "0", "The disposable database must contain no pre-existing application objects.");
+}
+
 function load(file, dependencies = {}) {
   const source = readFileSync(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: {
@@ -142,9 +187,7 @@ test("production v2 route reaches real disposable PostGIS quota and intent RPCs"
   skip: !connection, timeout: 180_000,
 }, async () => {
   localConnection(); // Validate before the first database command.
-  assert.equal(sql("select count(*) from pg_namespace where nspname not in ('public','information_schema') and nspname !~ '^pg_'", "empty user schemas"), "0");
-  // PostGIS images may include the extension-owned spatial_ref_sys table.
-  assert.equal(sql("select count(*) from pg_tables where schemaname='public' and tablename <> 'spatial_ref_sys'", "empty application schema"), "0");
+  assertFreshApplicationCatalog(); // Read-only catalog check before any fixture write.
   sql(readFileSync(new URL("tests/supabase-platform-fixture.sql", root), "utf8"), "platform fixture");
   sql(readFileSync(new URL("supabase/schema.sql", root), "utf8"), "baseline schema");
   for (const migration of readdirSync(new URL("supabase/migrations/", root)).filter(name => name.endsWith(".sql")).sort()) {

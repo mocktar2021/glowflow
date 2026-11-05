@@ -27,7 +27,8 @@ remain separate activation gates. Keep v2 disabled.
 The integration test is opt-in outside security CI. It requires
 `GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL` to name a fresh loopback database
 matching `glowflow_route_postgis_test_*`; it refuses any other URL and checks
-for pre-existing non-system schemas and public application tables before
-loading migrations. The platform fixture may create cluster-wide test roles,
+for pre-existing non-system application schemas, tables, views, functions,
+sequences, and types before loading migrations. Only PostGIS extension-owned
+objects are allowed. The platform fixture may create cluster-wide test roles,
 so run this only on a **disposable local PostgreSQL instance**, never a shared
 local cluster, hosted service, or existing application database.
