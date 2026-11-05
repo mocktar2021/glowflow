@@ -43,12 +43,14 @@ async function harness(enabled = true, rpcResult = { data: { state: "prepared", 
   quotaResult = { data: { allowed: true, retry_after: 0 }, error: null }, quotaKeys = { ipDigest: "a".repeat(64), browserDigest: "b".repeat(64) }) {
   const calls = [];
   const quotaCalls = [];
+  const rpcOrder = [];
   const deps = {
     "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => enabled },
     "@/lib/public-booking-quota-keys": { publicBookingQuotaKeys: (_request, browserToken) => quotaKeys && {
       ...quotaKeys, browserDigest: browserToken === null ? null : quotaKeys.browserDigest,
     } },
     "@/lib/supabase/admin": { createAdminClient: () => ({ ...(readModel ? { from: readModel.from } : {}), rpc: async (name, args) => {
+      rpcOrder.push(name);
       if (name === "consume_public_booking_quota") {
         quotaCalls.push({ name, args });
         return typeof quotaResult === "function" ? quotaResult(name, args) : quotaResult;
@@ -58,7 +60,7 @@ async function harness(enabled = true, rpcResult = { data: { state: "prepared", 
     } }) },
   };
   const { POST } = await load("../app/api/public-booking/v2/route.ts", deps);
-  return { calls, quotaCalls, POST, deps };
+  return { calls, quotaCalls, rpcOrder, POST, deps };
 }
 
 function publishedReadModel(overrides = {}) {
@@ -160,6 +162,62 @@ test("quota rejects prepare and reconcile before intent RPC without leaking cont
     assert.deepEqual(args, { quota_action: args.quota_action, ip_digest: "a".repeat(64),
       browser_digest: "b".repeat(64), salon_slug: "browser-fixture" });
     assert.doesNotMatch(JSON.stringify(args), /signed-browser-cookie|Fictional Client|fixture@example\.invalid|v1\./);
+  }
+});
+
+test("invalid recovery cookies stop before quota or intent RPC", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const now = Math.floor(Date.now() / 1000);
+  const invalidCookies = [
+    { cookie: null },
+    { cookie: "tampered" },
+    { cookie: signedToken({ issuedAt: now - 86401, expiresAt: now - 1 }) },
+    { headers: { cookie: `${cookieName}=${token}; ${cookieName}=${token}` } },
+  ];
+  for (const body of [prepare, { action: "reconcile", salonSlug: "browser-fixture", intentId }]) {
+    for (const options of invalidCookies) {
+      const { POST, calls, quotaCalls } = await harness();
+      const { response } = await post(POST, body, options);
+      assert.equal(response.status, 409);
+      assert.deepEqual(quotaCalls, []);
+      assert.deepEqual(calls, []);
+    }
+  }
+});
+
+test("invalid existing bootstrap cookie cannot burn quota or mint a new capability", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const now = Math.floor(Date.now() / 1000);
+  for (const options of [
+    { cookie: "tampered" },
+    { cookie: signedToken({ issuedAt: now - 86401, expiresAt: now - 1 }) },
+    { headers: { cookie: `${cookieName}=${token}; ${cookieName}=${token}` } },
+  ]) {
+    const { POST, calls, quotaCalls } = await harness();
+    const { response } = await post(POST, { action: "bootstrap" }, options);
+    assert.equal(response.status, 409);
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.deepEqual(quotaCalls, []);
+    assert.deepEqual(calls, []);
+  }
+});
+
+test("allowed quota precedes prepare and reconcile with digest-only arguments", async () => {
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+  const { POST, rpcOrder, quotaCalls } = await harness();
+  for (const body of [prepare, { action: "reconcile", salonSlug: "browser-fixture", intentId }]) {
+    const { response } = await post(POST, body, { headers: { "x-forwarded-for": "203.0.113.42" } });
+    assert.equal(response.status, 200);
+  }
+  assert.deepEqual(rpcOrder, [
+    "consume_public_booking_quota", "prepare_public_booking_intent",
+    "consume_public_booking_quota", "reconcile_public_booking_intent",
+  ]);
+  assert.equal(quotaCalls.length, 2);
+  for (const { args } of quotaCalls) {
+    assert.deepEqual(args, { quota_action: args.quota_action, ip_digest: "a".repeat(64),
+      browser_digest: "b".repeat(64), salon_slug: "browser-fixture" });
+    assert.doesNotMatch(JSON.stringify(args), /203\.0\.113\.42|v1\.|Fictional Client|fixture@example\.invalid/);
   }
 });
 
