@@ -1,5 +1,5 @@
-// GLOW-56 disposable-only prototype test; run in both race orders by rls-run/CI.
-// The SQL under docs/prototypes is NOT a deployable migration.
+// GLOW-56 versioned gate migration test; run in both race orders by rls-run/CI.
+// It uses only a generated disposable local PostgreSQL database.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
@@ -114,7 +114,7 @@ function prepare(browser, start, generation, email) {
     'Gate Fixture',null,'${email}','en','${generation}'::uuid);`);
 }
 
-test("GLOW-56 NON-MIGRATION prototype contract gate and service-role bypass fence", {
+test("GLOW-56 versioned contract gate and service-role bypass fence", {
   skip: !connection, timeout: 180_000,
 }, async () => {
   const url = new URL(connection);
@@ -132,8 +132,6 @@ test("GLOW-56 NON-MIGRATION prototype contract gate and service-role bypass fenc
     sql(readFileSync(new URL(`supabase/migrations/${name}`, root), "utf8"));
   }
   sql(readFileSync(new URL("tests/schema-authorization.sql", root), "utf8"));
-  sql(readFileSync(new URL("docs/prototypes/GLOW-56-booking-contract-gate.sql", root), "utf8"));
-
   assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
   assert.equal(sql("select relrowsecurity from pg_class where oid='private.public_booking_contract_gate'::regclass"), "t");
   for (const role of ["anon", "authenticated", "service_role"]) {
@@ -260,4 +258,9 @@ test("GLOW-56 NON-MIGRATION prototype contract gate and service-role bypass fenc
   assert.throws(() => sql("select private.transition_public_booking_mode('v2_no_prepares','legacy')"),
     /booking_contract_invalid_transition/);
   assert.equal(sql("select ever_v2 from private.public_booking_contract_gate"), "t");
+  const rollback = readFileSync(new URL(
+    "supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql", root), "utf8");
+  assert.throws(() => sql(rollback), /booking_contract_rollback_requires_never_opened_legacy/,
+    "rollback must never reopen legacy after v2 has existed");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "v2_no_prepares");
 });

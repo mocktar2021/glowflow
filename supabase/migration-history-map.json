@@ -303,6 +303,13 @@
       "sourceVersion": "20261104234445",
       "marker": false,
       "normalizedSha256": "0941c81a76ae4b2ad4cb7b48f04121fef13fe2e5873861ddd68f66b1bd893518"
+    },
+    {
+      "version": "20261105124804",
+      "name": "glow56_public_booking_contract_gate",
+      "sourceVersion": "20261105124804",
+      "marker": false,
+      "normalizedSha256": "3f887246674530f4c12edafd4b714d662cc00a89463266da630b24c72b197fa4"
     }
   ]
 }
