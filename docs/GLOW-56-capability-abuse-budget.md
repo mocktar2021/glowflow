@@ -57,8 +57,10 @@ rollback cover these counters without a separate migration.
   `Retry-After` within the approved window. Do not call the action RPC. Do not
   infer whether an appointment was committed from a quota denial.
 - `commit` denial keeps the exact pending marker and immutable payload. The
-  visitor may reconcile the same intent, then retry that intent after the
-  delay. Do not allow a changed booking attempt.
+  visitor must reconcile the same intent first. If it already committed,
+  return the original confirmation without another `commit` call. Otherwise
+  retry that exact intent only after the delay. Do not allow a changed booking
+  attempt.
 - `cancel` denial keeps the pending intent locked. Reconciliation remains
   available; a new attempt is allowed only after authoritative cancellation
   or definitive non-commit.
@@ -89,7 +91,8 @@ Required deterministic tests, with no live bookings or payments:
 - Concurrent calls at a ceiling serialize and never exceed either bucket;
   denial in one bucket does not increment the other.
 - Exhausting `commit` does not starve `cancel`, `acknowledge`, or `reconcile`.
-  Retrying the original committed request still returns one appointment.
+  An immediate committed replay may be denied by the quota; reconciliation
+  must still recover its original confirmation and one appointment.
 - A denied `commit` can reconcile a committed result; denied `cancel` and
   `acknowledge` leave intent state and generation unchanged.
 - Missing policy/key, stale cleanup, malformed IDs, wrong tenant, and
