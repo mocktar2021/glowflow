@@ -70,6 +70,7 @@ declare
   zero_tenant_id constant uuid := '00000000-0000-0000-0000-000000000000'::uuid;
   issued_at timestamptz := pg_catalog.statement_timestamp();
   starts_at timestamptz;
+  window_epoch bigint;
   ends_at timestamptz;
   retry_after integer;
   ip_hits integer;
@@ -101,22 +102,27 @@ begin
   if quota_action in ('bootstrap', 'prepare') and not exists (
     select 1 from private.public_booking_quota_cleanup_state as state
     where state.singleton and state.last_full_sweep_at > issued_at - interval '2 hours'
+      and state.last_full_sweep_at <= pg_catalog.clock_timestamp()
   ) then
     raise exception using errcode = '55000', message = 'booking_quota_cleanup_stale';
   end if;
 
   starts_at := pg_catalog.to_timestamp(pg_catalog.floor(
     extract(epoch from issued_at) / policy.window_seconds) * policy.window_seconds);
+  -- timestamptz::text varies with session TimeZone and DateStyle. A different
+  -- lock key for the same primary-key window would let concurrent calls exceed
+  -- the configured cap before ON CONFLICT increments either counter.
+  window_epoch := extract(epoch from starts_at)::bigint;
   ends_at := starts_at + pg_catalog.make_interval(secs => policy.window_seconds);
   retry_after := greatest(1, pg_catalog.ceil(
     extract(epoch from ends_at - issued_at))::integer);
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-    'glowflow:booking-quota:' || quota_action || ':ip:' || ip_digest || ':' || starts_at::text, 0));
+    'glowflow:booking-quota:' || quota_action || ':ip:' || ip_digest || ':' || window_epoch::text, 0));
   if quota_action <> 'bootstrap' then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
       'glowflow:booking-quota:' || quota_action || ':browser:' || target_tenant_id::text
-      || ':' || browser_digest || ':' || starts_at::text, 0));
+      || ':' || browser_digest || ':' || window_epoch::text, 0));
   end if;
 
   select counter.hits into ip_hits from private.public_booking_quota_counters as counter

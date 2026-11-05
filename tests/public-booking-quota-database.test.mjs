@@ -97,6 +97,10 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
       ('reconcile',600,5,2,clock_timestamp())`);
   assert.throws(() => state(consume("bootstrap", "a")), /booking_quota_cleanup_stale/);
   assert.equal(state("set role service_role; select public.sweep_public_booking_quota_counters(100)").complete, true);
+  sql("update private.public_booking_quota_cleanup_state set last_full_sweep_at=clock_timestamp()+interval '1 hour'");
+  assert.throws(() => state(consume("bootstrap", "0")), /booking_quota_cleanup_stale/,
+    "a future cleanup timestamp must not keep admission open indefinitely");
+  assert.equal(state("set role service_role; select public.sweep_public_booking_quota_counters(100)").complete, true);
 
   assert.equal(state(consume("bootstrap", "a")).allowed, true);
   assert.equal(state(consume("bootstrap", "a")).allowed, true);
@@ -136,6 +140,30 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.equal(sql(`select hits from private.public_booking_quota_counters
     where action_bucket='bootstrap' and key_digest='${digest("5")}'`), "2",
   "concurrent calls must not exceed the cap");
+
+  sql("update private.public_booking_quota_policy set ip_limit=1 where action_bucket='bootstrap'");
+  const held = asyncSql(`begin; set role service_role; set time zone 'Pacific/Honolulu';
+    set application_name = 'glow56_quota_cross_zone_hold';
+    select public.consume_public_booking_quota('bootstrap','${digest("9")}',null,null);
+    select pg_sleep(3); commit;`);
+  const waitForHeldCall = async () => {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (sql(`select count(*) from pg_stat_activity where datname=current_database()
+        and application_name='glow56_quota_cross_zone_hold'
+        and state='active' and query like '%pg_sleep(3)%'`) === "1") return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error("first quota transaction did not reach its held state");
+  };
+  await Promise.race([waitForHeldCall(), held.then(() => { throw new Error("first quota call ended before held state"); })]);
+  const crossZone = JSON.parse(await asyncSql(`set role service_role; set time zone 'Asia/Tokyo';
+    select public.consume_public_booking_quota('bootstrap','${digest("9")}',null,null);`));
+  assert.equal(crossZone.allowed, false,
+    "different session TimeZones must share the same advisory lock and quota window");
+  await held;
+  assert.equal(sql(`select hits from private.public_booking_quota_counters
+    where action_bucket='bootstrap' and key_digest='${digest("9")}'`), "1");
+  sql("update private.public_booking_quota_policy set ip_limit=2 where action_bucket='bootstrap'");
 
   sql(`insert into private.public_booking_quota_counters
     (action_bucket,scope,tenant_id,key_digest,window_start,hits,expires_at)
