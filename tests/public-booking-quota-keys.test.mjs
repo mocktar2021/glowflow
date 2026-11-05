@@ -10,7 +10,7 @@ const js = ts.transpileModule(source, { compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true,
 } }).outputText;
 const loaded = { exports: {} };
-new Function("require", "exports", js)(require, loaded.exports);
+new Function("require", "exports", js)((name) => name === "server-only" ? {} : require(name), loaded.exports);
 const { publicBookingQuotaKeys } = loaded.exports;
 const encodedKey = Buffer.alloc(32, 29).toString("base64url");
 const env = { VERCEL_ENV: "preview", GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: encodedKey };
