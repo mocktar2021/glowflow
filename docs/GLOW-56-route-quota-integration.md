@@ -22,10 +22,20 @@ to the legacy create endpoint or clears a pending browser intent marker.
 and before their intent RPC. The server passes domain-separated HMAC digests
 for the browser and exact browser+intent pair, without requiring an IP header
 for recovery. Action quota denial never invokes an action RPC. Per-action
-cooldowns do not suppress immediate reconciliation. A cancel-requested intent marker
-persists the visitor's cancel choice across reloads and tabs, so a still-prepared
-intent is not auto-committed during recovery. A successful acknowledgement
-followed by failed reconciliation retries only reconciliation.
+cooldowns do not suppress immediate reconciliation. A separate per-intent
+cancel-requested marker cannot be overwritten by a pending-marker write.
+Recovery never auto-commits a prepared intent, including when browser storage
+rejects the cancel marker; only the original Confirm path sends its first
+commit. A prepared result stays locked for cancellation or manual resolution.
+A successful acknowledgement followed by failed reconciliation retries only
+reconciliation.
+
+Remaining activation blocker: a recovered prepared attempt no longer has an
+automatic unchanged commit retry. Cross-tab click-time ordering between an
+in-flight Confirm and Cancel cannot be guaranteed by browser storage; the
+server serializes the requests it receives, and the UI must show the
+authoritative result without claiming cancellation early. Review a safe
+explicit completion path before enabling v2.
 
 Approved policy ceilings, cleanup cadence and alert, real Vercel-header QA,
 recovery UX checks, and the full v1-to-v2 cutover gate remain required before

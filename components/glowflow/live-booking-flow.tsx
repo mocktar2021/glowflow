@@ -130,6 +130,7 @@ const copy = {
     v2Cancel: "Annuler cette demande si elle n’a pas été enregistrée",
     v2CancelHelp: "Si la réservation a déjà été enregistrée, sa confirmation s’affichera à la place.",
     v2CancelPending: "L’annulation n’est pas confirmée. Réessayez l’annulation de cette demande avant de réserver à nouveau.",
+    v2PreparedPending: "La demande est encore en attente. Vérifiez-la ou annulez-la; elle ne sera pas réservée automatiquement.",
     v2AgainError: "Impossible d’ouvrir une nouvelle demande. Réessayez ou contactez le salon.",
     v2AgainRateLimited: "Trop de demandes. Attendez avant d’ouvrir une nouvelle réservation.",
     v2RateLimited: "Trop de demandes de réservation. Attendez avant de réessayer la même demande.",
@@ -187,6 +188,7 @@ const copy = {
     v2Cancel: "Cancel this request if it was not booked",
     v2CancelHelp: "If the booking was already saved, its confirmation will appear instead.",
     v2CancelPending: "Cancellation is not confirmed. Retry canceling this request before booking again.",
+    v2PreparedPending: "This request is still pending. Check or cancel it; it will not be booked automatically.",
     v2AgainError: "A new request could not be opened. Try again or contact the salon.",
     v2AgainRateLimited: "Too many requests. Wait before opening another booking.",
     v2RateLimited: "Too many booking requests. Wait before checking the same request again.",
@@ -244,6 +246,7 @@ const copy = {
     v2Cancel: "Cancelar esta solicitud si no se reservó",
     v2CancelHelp: "Si la reserva ya se guardó, se mostrará su confirmación.",
     v2CancelPending: "La cancelación no está confirmada. Vuelve a cancelar esta solicitud antes de reservar otra cita.",
+    v2PreparedPending: "Esta solicitud sigue pendiente. Compruébala o cancélala; no se reservará automáticamente.",
     v2AgainError: "No se pudo abrir una nueva solicitud. Reinténtalo o contacta con el salón.",
     v2AgainRateLimited: "Demasiadas solicitudes. Espera antes de abrir otra reserva.",
     v2RateLimited: "Hay demasiadas solicitudes de reserva. Espera antes de comprobar la misma solicitud.",
@@ -346,6 +349,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   // HttpOnly cookie. Per-intent keys prevent a delayed old-tab response from
   // erasing a newer tab's pending marker.
   const markerPrefix = `glowflow.booking.pending.${salon.slug}.`;
+  // Separate key: writing a pending marker can never overwrite a cancel choice.
+  const cancelMarkerPrefix = `glowflow.booking.cancel.${salon.slug}.`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -412,9 +417,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         const key = window.localStorage.key(index);
         if (!key?.startsWith(markerPrefix)) continue;
         const id = key.slice(markerPrefix.length);
-        const marker = window.localStorage.getItem(key);
         if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)
-          || (marker !== "1" && marker !== "cancel")) return null;
+          || window.localStorage.getItem(key) !== "1") return null;
         ids.push(id);
       }
       return ids;
@@ -423,27 +427,29 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   function markPending(intentId: string): boolean {
     if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intentId)) return false;
-    try {
-      const key = `${markerPrefix}${intentId}`;
-      if (window.localStorage.getItem(key) !== "cancel") window.localStorage.setItem(key, "1");
-      return true;
-    }
+    try { window.localStorage.setItem(`${markerPrefix}${intentId}`, "1"); return true; }
     catch { return false; }
   }
 
   function markCancelRequested(intentId: string): boolean {
     if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intentId)) return false;
-    try { window.localStorage.setItem(`${markerPrefix}${intentId}`, "cancel"); return true; }
+    try { window.localStorage.setItem(`${cancelMarkerPrefix}${intentId}`, "1"); return true; }
     catch { return false; }
   }
 
   function cancelRequested(intentId: string): boolean | null {
-    try { return window.localStorage.getItem(`${markerPrefix}${intentId}`) === "cancel"; }
+    try {
+      const value = window.localStorage.getItem(`${cancelMarkerPrefix}${intentId}`);
+      return value === null ? false : value === "1" ? true : null;
+    }
     catch { return null; }
   }
 
   function removeMarker(intentId: string): boolean {
-    try { window.localStorage.removeItem(`${markerPrefix}${intentId}`); }
+    try {
+      window.localStorage.removeItem(`${markerPrefix}${intentId}`);
+      window.localStorage.removeItem(`${cancelMarkerPrefix}${intentId}`);
+    }
     catch { return false; }
     return true;
   }
@@ -537,7 +543,12 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       setV2Phase("ready");
       return;
     }
-    if (result.state === "prepared" && v2Intent.current) { lockV2(); return; }
+    if (result.state === "prepared" && v2Intent.current) {
+      const wantsCancel = cancelRequested(v2Intent.current);
+      if (wantsCancel === null) lockV2(true, labels.v2Manual);
+      else lockV2(false, wantsCancel ? labels.v2CancelPending : labels.v2PreparedPending);
+      return;
+    }
     lockV2();
   }
 
@@ -742,7 +753,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     if (v2ManualOnly || inFlight.current) return;
     inFlight.current = true;
     setSubmitting(true);
-    let stage: "bootstrap" | "reconcile" | "commit" = "reconcile";
+    let stage: "bootstrap" | "reconcile" = "reconcile";
     try {
       let intentId = v2Intent.current;
       if (!intentId) {
@@ -780,22 +791,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       v2Intent.current = reconciled.intent_id;
       const wantsCancel = cancelRequested(reconciled.intent_id);
       if (wantsCancel === null) { lockV2(true, labels.v2Manual); return; }
-      if (wantsCancel) { lockV2(false, labels.v2CancelPending); return; }
-      // A cookie-only prepared attempt must restore its independent marker
-      // before a recovered original-commit retry can create an appointment.
-      if (!markPending(reconciled.intent_id)) { lockV2(true, labels.v2Manual); return; }
-      if (actionCoolingDown("commit")) {
-        lockV2(false, labels.v2RateLimited);
-        return;
-      }
-      const stillWantsCancel = cancelRequested(reconciled.intent_id);
-      if (stillWantsCancel !== false) {
-        lockV2(stillWantsCancel === null, stillWantsCancel === null ? labels.v2Manual : labels.v2CancelPending);
-        return;
-      }
-      stage = "commit";
-      const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: reconciled.intent_id });
-      await handleV2Response(committed);
+      // A recovered prepared intent is ambiguous across tabs and reloads.
+      // Only the original Confirm path may send its first commit; recovery
+      // never turns an earlier cancel choice or storage failure into a booking.
+      lockV2(false, wantsCancel ? labels.v2CancelPending : labels.v2PreparedPending);
     } catch (reason) { lockV2ForRequestFailure(reason, stage); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
