@@ -22,12 +22,16 @@ function command(query) {
     throw new Error('Local PostgreSQL setup or cleanup failed; check the local server and client configuration.');
   }
 }
-for (const [suite, databasePrefix, databaseUrlEnv] of [
+for (const [suite, databasePrefix, databaseUrlEnv, raceOrder] of [
   ['schema-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-intent-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-quota-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-cleanup-cadence.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-v2-postgis.test.mjs', 'glowflow_route_postgis_test_', 'GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL'],
+  // Disposable-only NON-MIGRATION gate prototype. These do not apply the SQL
+  // to migration history or make the proposed recovery gate activation-ready.
+  ['public-booking-gate-prototype.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'prepare_first'],
+  ['public-booking-gate-prototype.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'transition_first'],
   ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['reminder-scheduling-database.test.mjs', 'glowflow_reminder_test_', 'GLOWFLOW_REMINDER_SCHEDULING_TEST_DATABASE_URL'],
@@ -42,7 +46,8 @@ for (const [suite, databasePrefix, databaseUrlEnv] of [
     created = true;
     const result = spawnSync(process.execPath, ['--test', `tests/${suite}`], {
       cwd: new URL('../', import.meta.url),
-      env: { ...process.env, [databaseUrlEnv]: testUrl.href },
+      env: { ...process.env, [databaseUrlEnv]: testUrl.href,
+        ...(raceOrder ? { GLOWFLOW_GATE_RACE_ORDER: raceOrder } : {}) },
       stdio: 'inherit', timeout: 240_000,
     });
     if (result.error) throw result.error;
