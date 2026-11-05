@@ -53,6 +53,16 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
   const rollback = readFileSync(new URL(
     "supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql", root), "utf8");
   assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  const quotaRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104234445_drop_public_booking_quota.sql", root), "utf8");
+  const intentRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql", root), "utf8");
+  assert.throws(() => sql(quotaRollback), /booking_quota_rollback_requires_gate_removed/,
+    "quota rollback must preserve an installed legacy-mode contract gate");
+  assert.throws(() => sql(intentRollback), /booking_intent_rollback_requires_dependents_removed/,
+    "intent rollback must preserve the dependent quota and contract gate");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy",
+    "failed out-of-order rollbacks must leave the gate unchanged");
 
   sql(`insert into private.public_booking_intent_policy
     (prepared_ttl,retention_ttl,configured_at)
