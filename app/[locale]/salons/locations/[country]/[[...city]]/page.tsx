@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
 import { isLocale, salonProfileLocale, type Locale } from "@/lib/i18n";
 import { marketplaceLocation, marketplaceLocationHref } from "@/lib/marketplace-locations";
+import { publicSiteUrl } from "@/lib/public-site-origin";
 import { publicSalonTimeZones } from "@/lib/salon-time-zones";
 import { marketName } from "@/lib/markets";
 import type { SalonSearchResult } from "@/lib/salon-search";
@@ -59,7 +60,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
       title,
       description: copy[locale].intro,
       type: "website",
-      url: `https://glowflow.mocktar.com${pathname}${pageSuffix}`,
+      url: publicSiteUrl(`${pathname}${pageSuffix}`),
       images: [{ url: "/og-glowflow.png", width: 1200, height: 630, alt: "GlowFlow" }],
     },
   };
@@ -118,9 +119,9 @@ export default async function LocationPage({ params, searchParams }: { params: P
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: title,
-    url: `https://glowflow.mocktar.com${pathname}${page > 1 ? `?page=${page}` : ""}`,
+    url: publicSiteUrl(`${pathname}${page > 1 ? `?page=${page}` : ""}`),
     about: { "@type": "Place", name: location.city ?? countryName, address: { "@type": "PostalAddress", ...(location.city ? { addressLocality: location.city } : {}), addressCountry: country } },
-    mainEntity: { "@type": "ItemList", itemListElement: results.map((salon, index) => ({ "@type": "ListItem", position: (page - 1) * pageSize + index + 1, name: salon.business_name, url: `https://glowflow.mocktar.com/${locale}/salons/${salon.slug}` })) },
+    mainEntity: { "@type": "ItemList", itemListElement: results.map((salon, index) => ({ "@type": "ListItem", position: (page - 1) * pageSize + index + 1, name: salon.business_name, url: publicSiteUrl(`/${locale}/salons/${salon.slug}`) })) },
   }).replace(/</g, "\\u003c") : null;
 
   return (

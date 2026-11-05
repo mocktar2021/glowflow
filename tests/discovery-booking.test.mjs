@@ -7,12 +7,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { localizedProductText, productDefaultLocale } from "../lib/product-localization.ts";
 import { selectPublishedPolicy } from "../lib/published-policy.ts";
+import { publicSiteUrl } from "../lib/public-site-origin.ts";
 const require = createRequire(import.meta.url);
 async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", js)((name) => dependencies[name] ?? require(name), loaded.exports);
+  new Function("require", "exports", js)((name) => dependencies[name]
+    ?? (name === "@/lib/public-site-origin" ? { publicSiteUrl } : require(name)), loaded.exports);
   return loaded.exports;
 }
 const marketConfig = await load("../lib/markets.ts");
@@ -85,6 +87,22 @@ test("localized profile service links carry only active services for this salon"
     assert.ok(nodes(tree).some(node => node.type === "strong" && node.props.children === markets.formatMinorMoneyWithCurrencyPrecision(4200, "EUR", locale)));
     assert.ok(nodes(tree).some(node => node.type === "span" && Array.isArray(node.props.children) && node.props.children.includes(markets.formatMinorMoneyWithCurrencyPrecision(500, "EUR", locale))));
   }
+}));
+test("published salon structured data follows the configured beauty origin", async () => withConfiguration(async () => {
+  const db = database();
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+    "@/lib/public-site-origin": { publicSiteUrl: path => publicSiteUrl(path, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" }) },
+  });
+  const tree = await Page({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
+  const script = nodes(tree).find(node => node.type === "script" && node.props?.type === "application/ld+json");
+  assert.equal(JSON.parse(script.props.dangerouslySetInnerHTML.__html).url, "https://glowflow.beauty/en/salons/salon-a");
 }));
 test("published product text follows selection and falls back to the salon country language", async () => withConfiguration(async () => {
   const db = database({ products: [{ id: "product-1", tenant_id: tenant.id, is_published: true, category: "hair", name_json: { fr: "", en: "English product", es: "Producto español" }, description_json: { fr: "", en: "", es: "Descripción española" }, image_alt_json: { fr: "", en: "", es: "Imagen española" }, image_url: "https://example.invalid/product.jpg", price: 1500, currency: "EUR", stock_visibility: "not_shown" }] });

@@ -4,16 +4,11 @@ import { notFound } from "next/navigation";
 import { GlowFlowIntlProvider } from "@/components/glowflow/i18n-provider";
 import { LegalFooter } from "@/components/glowflow/legal-footer";
 import { isLocale, messages } from "@/lib/i18n";
+import { publicSiteOrigin } from "@/lib/public-site-origin";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.VERCEL_ENV === "production"
-      ? "https://glowflow.mocktar.com"
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000",
-  ),
+  metadataBase: new URL(publicSiteOrigin()),
   title: {
     default: "GlowFlow",
     template: "%s · GlowFlow",

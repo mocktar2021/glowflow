@@ -9,6 +9,7 @@ import { isLocale, type Locale } from "@/lib/i18n";
 import { formatLocalDateTime, formatMinorMoneyWithCurrencyPrecision } from "@/lib/markets";
 import { localizedProductText, productDefaultLocale } from "@/lib/product-localization";
 import { selectPublishedPolicy } from "@/lib/published-policy";
+import { publicSiteUrl } from "@/lib/public-site-origin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -102,7 +103,7 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
   const address = [profile.address_line1, profile.city, profile.administrative_area, profile.postal_code, profile.country_code].filter(Boolean).join(", ");
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   const photos = [profile.image_url, ...(profile.gallery_urls ?? [])].filter((url): url is string => Boolean(url)).slice(0, 5);
-  const jsonLd = JSON.stringify({ "@context": "https://schema.org", "@type": "BeautySalon", name: profile.business_name, description: localized(profile.description_json, locale), image: photos, telephone: profile.public_phone, address: { "@type": "PostalAddress", streetAddress: profile.address_line1, addressLocality: profile.city, addressRegion: profile.administrative_area, postalCode: profile.postal_code, addressCountry: profile.country_code }, url: `https://glowflow.mocktar.com/${locale}/salons/${profile.slug}` }).replace(/</g, "\\u003c");
+  const jsonLd = JSON.stringify({ "@context": "https://schema.org", "@type": "BeautySalon", name: profile.business_name, description: localized(profile.description_json, locale), image: photos, telephone: profile.public_phone, address: { "@type": "PostalAddress", streetAddress: profile.address_line1, addressLocality: profile.city, addressRegion: profile.administrative_area, postalCode: profile.postal_code, addressCountry: profile.country_code }, url: publicSiteUrl(`/${locale}/salons/${profile.slug}`) }).replace(/</g, "\\u003c");
 
   return (
     <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#101216] dark:text-stone-100">

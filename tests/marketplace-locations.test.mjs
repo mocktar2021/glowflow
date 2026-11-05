@@ -9,12 +9,14 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 const markets = await import("../lib/markets.ts");
 const search = await import("../lib/salon-search.ts");
+const { publicSiteUrl } = await import("../lib/public-site-origin.ts");
 
 async function load(relativePath, dependencies = {}, env = process.env) {
   const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", "process", js)(name => dependencies[name] ?? require(name), loaded.exports, { env });
+  new Function("require", "exports", "process", js)(name => dependencies[name]
+    ?? (name === "@/lib/public-site-origin" ? { publicSiteUrl: path => publicSiteUrl(path, env) } : require(name)), loaded.exports, { env });
   return loaded.exports;
 }
 
@@ -43,7 +45,7 @@ test("location metadata has localized headings, canonical URLs, and language alt
     "@/lib/markets": markets,
     "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => null },
-  });
+  }, { VERCEL_ENV: "production" });
   for (const locale of ["fr", "en", "es"]) {
     for (const city of [undefined, ["Greensboro"]]) {
       const metadata = await generateMetadata({ params: Promise.resolve({ locale, country: "US", city }), searchParams: Promise.resolve({}) });
@@ -60,6 +62,27 @@ test("location metadata has localized headings, canonical URLs, and language alt
   assert.equal(secondPage.openGraph.url, "https://glowflow.mocktar.com/en/salons/locations/FR?page=2");
   assert.equal(secondPage.openGraph.images[0].url, "/og-glowflow.png");
   assert.deepEqual(await generateMetadata({ params: Promise.resolve({ locale: "en", country: "ZZ" }), searchParams: Promise.resolve({}) }), { robots: { index: false, follow: false } });
+});
+
+test("beauty cutover changes location Open Graph and structured-data URLs together", async () => {
+  const origin = "https://glowflow.beauty";
+  const { generateMetadata, default: Page } = await load(locationPagePath, {
+    "next/link": "a",
+    "next/headers": { cookies: async () => ({ get: () => undefined }) },
+    "next/navigation": { notFound() { throw new Error("not-found"); } },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: () => null },
+    "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value) },
+    "@/lib/marketplace-locations": locations,
+    "@/lib/markets": markets,
+    "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
+    "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => ({ data: [], error: null }) }) },
+  }, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
+  const metadata = await generateMetadata({ params: Promise.resolve({ locale: "fr", country: "US" }), searchParams: Promise.resolve({}) });
+  assert.equal(metadata.openGraph.url, `${origin}/fr/salons/locations/US`);
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "fr", country: "US" }), searchParams: Promise.resolve({}) }));
+  const jsonLd = JSON.parse(html.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)?.[1]);
+  assert.equal(jsonLd.url, `${origin}/fr/salons/locations/US`);
 });
 
 test("location page uses the public search boundary and links to a salon without changing visitor preference", async () => {
