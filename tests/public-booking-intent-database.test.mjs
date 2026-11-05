@@ -156,6 +156,12 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     "new preparation must fail closed before the first full cleanup sweep");
   assert.equal(state(rpc("sweep_public_booking_intents", "50")).complete, true,
     "empty first sweep establishes the cleanup freshness gate");
+  sql("update private.public_booking_intent_cleanup_state set last_full_sweep_at=clock_timestamp()+interval '1 hour'");
+  assert.throws(() => state(prepare(token("4"), s0)), /booking_intent_cleanup_stale/,
+    "a future-dated cleanup heartbeat must not keep preparation open indefinitely");
+  assert.equal(sql("select count(*) from private.public_booking_intents"), "0");
+  assert.equal(state(rpc("sweep_public_booking_intents", "50")).complete, true,
+    "a complete sweep restores a current cleanup heartbeat");
   const tabGeneration = state(reconcile(token("5"))).generation;
   const tabPrepares = await Promise.all([
     asyncSql(prepare(token("5"), s0, "tab-one@example.invalid", tabGeneration)),
