@@ -539,6 +539,19 @@ test("exact origin, fetch metadata, JSON, cookie and strict action schemas rejec
   assert.deepEqual(calls, []);
 });
 
+test("actual oversized JSON body fails closed when Content-Length understates it", async () => {
+  const oversized = { ...prepare, fullName: "A".repeat(5000) };
+  assert.ok(Buffer.byteLength(JSON.stringify(oversized)) > 4096);
+  const { POST, calls, quotaCalls } = await harness();
+  const { response, value } = await post(POST, oversized, { headers: { "content-length": "1" } });
+  assert.equal(response.status, 400);
+  assert.deepEqual(value, { error: "invalid_request" });
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.deepEqual(quotaCalls, []);
+  assert.deepEqual(calls, []);
+});
+
 test("prepare passes only normalized inputs and hashed cookie to its exact service-role RPC", async () => {
   process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
   const { POST, calls } = await harness();
