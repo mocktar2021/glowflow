@@ -2,6 +2,10 @@
 -- Do not apply to Supabase: this has no CLI-generated migration version,
 -- migration-history entry, rollback, schema fingerprint, or hosted approval.
 -- Apply after the current draft intent migration in an isolated empty fixture.
+-- Scope: named public-booking RPCs and service_role direct DML to private
+-- intent/session tables. This does not constrain arbitrary privileged direct
+-- service_role writes to public.clients or public.appointments; that role and
+-- its server-side credential remain trusted outside this booking contract.
 
 begin;
 
