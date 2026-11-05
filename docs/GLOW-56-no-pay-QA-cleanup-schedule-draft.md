@@ -47,11 +47,11 @@ run by itself cannot detect that it never started. The database must continue
 to fail closed if both full-sweep heartbeats become stale.
 
 The owner identified monitored `glowflow@mocktar.com` as the primary alert
-inbox. A **distinct, monitored backup person and inbox are not yet confirmed**.
-Do not activate with only the primary or with the same shared inbox entered
-twice. Both responders must receive a real missed-ping test alert, acknowledge
-it, and agree on who investigates and who escalates before the two-hour
-deadline. Use a separate credential owner and backup for the GitHub
+inbox and monitored `mocktartechnologies.africa@gmail.com` as the distinct
+backup inbox. The human primary and backup responders still need to be named
+for those inboxes. Both responders must receive a real missed-ping test alert,
+acknowledge it, and agree on who investigates and who escalates before the
+two-hour deadline. Use a separate credential owner and backup for the GitHub
 Environment and Healthchecks account. Keep Healthchecks UUID URLs private:
 they are bearer credentials that can falsely mark a check healthy if leaked.
 
