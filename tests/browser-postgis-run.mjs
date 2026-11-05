@@ -13,6 +13,10 @@ if (!["postgres:", "postgresql:"].includes(admin.protocol)
   throw new Error("Only a disposable loopback PostgreSQL admin URL ending in /postgres is allowed.");
 }
 const psql = process.env.PSQL_BIN || "psql";
+const scenario = process.env.GLOWFLOW_BROWSER_POSTGIS_SCENARIO ?? "current_v2";
+if (!["current_v2", "recovery_only"].includes(scenario)) {
+  throw new Error("Unsupported disposable browser-PostGIS scenario.");
+}
 const database = `glowflow_route_postgis_test_${Date.now()}_${randomInt(1_000_000)}`;
 const testUrl = new URL(admin);
 testUrl.pathname = `/${database}`;
@@ -72,6 +76,7 @@ try {
     GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL: testUrl.href,
     GLOWFLOW_BROWSER_POSTGIS_SLOT: JSON.stringify(parsedSlot),
     GLOWFLOW_BROWSER_POSTGIS_RUNNER_NONCE: runnerNonce,
+    GLOWFLOW_BROWSER_POSTGIS_SCENARIO: scenario,
     GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY: randomBytes(32).toString("base64url"),
     GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: randomBytes(32).toString("base64url"),
   };

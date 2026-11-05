@@ -48,7 +48,7 @@ export default function Fixture() {
     help="Salon card times use each salon's own time zone."
   /></form>;
   if (search.get("templates") === "1") return <NotificationTemplatePreview locale={locale} />;
-  if (search.get("realV2") === "1") return <LiveBookingFlow locale={locale} v2
+  if (search.get("realV2") === "1") return <LiveBookingFlow locale={locale} v2 recoveryOnly={search.get("recoveryOnly") === "1"}
     salon={{ name: "Route Fixture Salon", slug: "route-fixture", city: "New York", countryCode: "US", currency: "USD", timeZone: "America/New_York", defaultLocale: "en" }}
     bookingStaffByService={{ "40000000-0000-0000-0000-000000000001": [{ id: "20000000-0000-0000-0000-000000000002", name: "Fixture Staff" }] }}
     services={[{ id: "40000000-0000-0000-0000-000000000001", title_json: { fr: "Service fictif", en: "Fictional service", es: "Servicio ficticio" }, duration_minutes: 30, price: 5000, deposit_amount: 0, currency: "USD" }]} />;

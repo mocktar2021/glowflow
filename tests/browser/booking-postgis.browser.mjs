@@ -11,6 +11,7 @@ import { chromium } from "playwright";
 const database = process.env.GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL;
 const slotInput = process.env.GLOWFLOW_BROWSER_POSTGIS_SLOT;
 const runnerNonce = process.env.GLOWFLOW_BROWSER_POSTGIS_RUNNER_NONCE;
+const recoveryOnly = process.env.GLOWFLOW_BROWSER_POSTGIS_SCENARIO === "recovery_only";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const fixture = resolve(root, "tests/browser/fixture");
 
@@ -32,7 +33,9 @@ function scalar(query) {
   return result.stdout.trim().split("\n").at(-1);
 }
 
-test("browser recovers one real local v2 booking after its committed response is lost", {
+test(recoveryOnly
+  ? "browser recovers a lost real booking after v2 closes to recovery-only"
+  : "browser recovers one real local v2 booking after its committed response is lost", {
   skip: !database && !slotInput && !runnerNonce, timeout: 300_000,
 }, async () => {
   if (!database || !slotInput || !runnerNonce) throw new Error("Use the disposable browser-PostGIS runner; direct invocation is unsupported.");
@@ -63,19 +66,21 @@ test("browser recovers one real local v2 booking after its committed response is
     GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL: database,
     PSQL_BIN: process.env.PSQL_BIN,
   };
-  const server = spawn(process.execPath, [resolve(root, "node_modules/next/dist/bin/next"),
-    "dev", "--webpack", "--hostname", "localhost", "--port", String(port)],
-  { cwd: fixture, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)),
-    stdio: ["ignore", "pipe", "pipe"] });
-  const serverClosed = new Promise(resolve => server.once("close", resolve));
-  let browser;
   let serverOutput = "";
-  server.stdout.on("data", value => { serverOutput = (serverOutput + value).slice(-4096); });
-  server.stderr.on("data", value => { serverOutput = (serverOutput + value).slice(-4096); });
-  try {
+  function startServer(recoveryMode) {
+    const server = spawn(process.execPath, [resolve(root, "node_modules/next/dist/bin/next"),
+      "dev", "--webpack", "--hostname", "localhost", "--port", String(port)],
+    { cwd: fixture, env: Object.fromEntries(Object.entries({ ...env,
+      ...(recoveryMode ? { GLOWFLOW_PUBLIC_BOOKING_V2_RECOVERY_ONLY: "true" } : {}),
+    }).filter(([, value]) => value !== undefined)), stdio: ["ignore", "pipe", "pipe"] });
+    server.stdout.on("data", value => { serverOutput = (serverOutput + value).slice(-4096); });
+    server.stderr.on("data", value => { serverOutput = (serverOutput + value).slice(-4096); });
+    return { server, closed: new Promise(resolve => server.once("close", resolve)) };
+  }
+  async function waitForServer(active) {
     const deadline = Date.now() + 120_000;
     while (true) {
-      if (server.exitCode !== null) throw new Error("Local Next fixture exited before readiness.");
+      if (active.server.exitCode !== null) throw new Error("Local Next fixture exited before readiness.");
       try {
         const response = await fetch(origin, { signal: AbortSignal.timeout(10_000) });
         if (response.ok) break;
@@ -83,14 +88,25 @@ test("browser recovers one real local v2 booking after its committed response is
       if (Date.now() > deadline) throw new Error("Local Next fixture did not become ready.");
       await new Promise(resolve => setTimeout(resolve, 300));
     }
+  }
+  async function stopServer(active) {
+    if (active.server.exitCode === null) active.server.kill("SIGTERM");
+    const killTimer = setTimeout(() => active.server.kill("SIGKILL"), 5_000);
+    try { await active.closed; } finally { clearTimeout(killTimer); }
+  }
+  let active = startServer(false);
+  let browser;
+  try {
+    await waitForServer(active);
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 },
       extraHTTPHeaders: { "x-forwarded-for": "192.0.2.10" } });
-    const page = await context.newPage();
+    let page = await context.newPage();
     page.setDefaultTimeout(45_000);
     const actions = [];
     const exactReconciles = [];
     const errors = [];
+    let legacyPosts = 0;
     let lostCommit = false;
     let committedId = null;
     let resolveCommitHandled;
@@ -106,6 +122,10 @@ test("browser recovers one real local v2 booking after its committed response is
         return route.fulfill({ json: { slots: match ? [slot.start, slot.alternateStart].map(start => ({
           slot_start: start, staff_id: "20000000-0000-0000-0000-000000000002",
         })) : [] } });
+      }
+      if (url.pathname === "/api/public-booking" && route.request().method() === "POST") {
+        legacyPosts += 1;
+        return route.abort(); // Never allow an unexpected legacy write, even on disposable PostGIS.
       }
       if (url.pathname === "/api/public-booking/v2") {
         const payload = route.request().postDataJSON();
@@ -163,14 +183,43 @@ test("browser recovers one real local v2 booking after its committed response is
     await page.locator("form").evaluate(form => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     assert.equal(actions.length, beforeForcedSubmit, "A forced submit cannot prepare or commit another booking.");
     assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "1");
-    await page.getByRole("button", { name: "Check original request" }).click();
+    const savedIntentId = scalar("select id from private.public_booking_intents where tenant_id='10000000-0000-0000-0000-000000000001'");
+    if (recoveryOnly) {
+      const browserCookie = cookies.find(cookie => cookie.name === "__Host-glowflow_booking_session").value;
+      assert.deepEqual(await page.evaluate(() => Object.entries(localStorage)
+        .filter(([key]) => key.startsWith("glowflow.booking.pending.route-fixture."))),
+      [[`glowflow.booking.pending.route-fixture.${savedIntentId}`, "1"]],
+      "The uncertain booking must retain only its exact local intent marker.");
+      const beforeCutover = actions.length;
+      assert.equal(scalar("select private.transition_public_booking_mode('v2','v2_no_prepares')"), "v2_no_prepares");
+      await page.close(); // Avoid a Next dev Fast Refresh race while retaining browser-context storage.
+      await stopServer(active);
+      active = startServer(true);
+      await waitForServer(active);
+      page = await context.newPage();
+      page.setDefaultTimeout(45_000);
+      page.on("pageerror", () => errors.push("browser runtime error"));
+      await page.goto(`${origin}/en/book/route-fixture?realV2=1&recoveryOnly=1`);
+      await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
+      assert.deepEqual(actions.slice(beforeCutover), ["bootstrap", "reconcile"],
+        "Recovery-only reload must check the exact intent without a new session, prepare, or commit.");
+      assert.equal((await context.cookies(origin)).find(cookie => cookie.name === "__Host-glowflow_booking_session")?.value,
+        browserCookie, "Recovery-only reload must preserve the original host-bound cookie.");
+      assert.equal(scalar("select count(*) from private.public_booking_browser_sessions"), "1");
+      assert.equal(scalar("select count(*) from private.public_booking_intents"), "1");
+      assert.equal(await page.getByRole("button", { name: "Book another appointment" }).count(), 0);
+      assert.equal(await page.locator('[name="bookingTime"]').count(), 0,
+        "Recovery-only mode must not reveal the alternate slot.");
+    } else {
+      await page.getByRole("button", { name: "Check original request" }).click();
+    }
     await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
     assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "1");
     assert.equal(scalar("select id from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), committedId);
-    const savedIntentId = scalar("select id from private.public_booking_intents where tenant_id='10000000-0000-0000-0000-000000000001'");
     assert.deepEqual(exactReconciles, [savedIntentId], "Check must reconcile only the exact original intent.");
     assert.equal(actions.filter(action => action === "prepare").length, 1);
     assert.equal(actions.filter(action => action === "commit").length, 1);
+    assert.equal(legacyPosts, 0, "Neither the v2 booking nor recovery-only reload may post to the legacy route.");
     assert.ok(actions.filter(action => action === "reconcile").length >= 2);
     assert.equal(scalar("select count(distinct action_bucket) from private.public_booking_quota_counters where action_bucket in ('bootstrap','prepare','reconcile','commit')"), "4",
       "The real route must consume bootstrap, prepare, reconcile and commit quota RPCs.");
@@ -180,9 +229,7 @@ test("browser recovers one real local v2 booking after its committed response is
     try {
       await browser?.close();
     } finally {
-      if (server.exitCode === null) server.kill("SIGTERM");
-      const killTimer = setTimeout(() => server.kill("SIGKILL"), 5_000);
-      try { await serverClosed; } finally { clearTimeout(killTimer); }
+      await stopServer(active);
       // Deliberately do not print server output; it could contain diagnostic data.
       void serverOutput;
     }
