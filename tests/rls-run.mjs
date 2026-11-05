@@ -24,6 +24,8 @@ function command(query) {
 }
 for (const [suite, databasePrefix, databaseUrlEnv] of [
   ['schema-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-intent-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-quota-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['reminder-scheduling-database.test.mjs', 'glowflow_reminder_test_', 'GLOWFLOW_REMINDER_SCHEDULING_TEST_DATABASE_URL'],
