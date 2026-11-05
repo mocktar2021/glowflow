@@ -14,7 +14,11 @@ preflight.
 ## Immutable source and ledger gate
 
 The recorded source baseline is reviewed master commit
-[`d27c72c4e0e695caed4dfe80792f518a93871a19`](https://github.com/mocktar2021/glowflow/commit/d27c72c4e0e695caed4dfe80792f518a93871a19).
+[`d27c72c4e0e695caed4dfe80792f518a93871a19`](https://github.com/mocktar2021/glowflow/commit/d27c72c4e0e695caed4dfe80792f518a93871a19)
+plus the still-unmerged hardened migration in draft
+[#221](https://github.com/mocktar2021/glowflow/pull/221) at
+`ba902571cfb99790c0aa8020ecdd4bcc4ef67214`. This documentation draft
+is stacked on that exact code; it does not assert the hardening is on master.
 Use an immutable reviewed GlowFlow commit, not a moving branch, as the source.
 Before doing anything hosted, verify the local migration map identifies the
 same organization and project and contains exactly 44 entries. Its last three
@@ -25,7 +29,7 @@ digests (also recorded as `normalizedSha256` in the current map):
 | --- | --- | --- |
 | `20261104184112` | [private booking intents](../supabase/migrations/20261104184112_glow56_private_public_booking_intents.sql) | `fee46be8b4677f4bccc7ce74a762a7fbcd341e333be77666d4f8f19534050c03` |
 | `20261104234445` | [booking quota](../supabase/migrations/20261104234445_glow56_public_booking_quota.sql) | `0941c81a76ae4b2ad4cb7b48f04121fef13fe2e5873861ddd68f66b1bd893518` |
-| `20261105124804` | [booking contract gate](../supabase/migrations/20261105124804_glow56_public_booking_contract_gate.sql) | `a9f9f5238b54fa2e85da97decc0d80c201e71137bae525ee576be3190bd16c3c` |
+| `20261105124804` | [booking contract gate](../supabase/migrations/20261105124804_glow56_public_booking_contract_gate.sql) | `dd3ae969ddb7fe39931aa53813045c95fd85650ab1b0764899913b8967aa3a73` |
 
 Check the connected Supabase project metadata first. Expected: project ID/ref
 `rfwhqutkiztxkagbhevp`, organization ID `goutxcrujaxjjssbjfsn`, name
@@ -191,24 +195,48 @@ not repair history or infer permission to apply SQL from a green code merge.
 If a later owner approval names the exact SQL and matching history operation,
 the only candidate order is intent `20261104184112`, quota `20261104234445`,
 then contract gate `20261105124804`. Check each predecessor before advancing.
-The final gate migration itself rejects existing intent, browser-session,
-intent-policy, quota-policy, or quota-counter state. Installation leaves the
+The hardened final gate migration itself rejects existing intent,
+browser-session, intent-cleanup, intent-policy, quota-policy, quota-counter,
+or quota-cleanup state. Installation leaves the
 gate in `legacy` mode and seeds no booking policy. A future v2 transition,
 Vercel setting, cookie/signing key, cleanup schedule, or live QA needs its own
 review and authorization.
 
+The forward gate now guards both cleanup heartbeat tables created by the
+first two migrations. Independently, after both predecessors and immediately
+before any separately approved gate application, use a fresh read-only
+aggregate check, with no customer rows or heartbeat contents returned:
+
+```sql
+select
+  (select count(*) from private.public_booking_intent_cleanup_state)
+    as intent_cleanup_rows,
+  (select count(*) from private.public_booking_quota_cleanup_state)
+    as quota_cleanup_rows;
+```
+
+Both counts must be zero. Stop on a missing table, a nonzero count, a changed
+ledger, or any other preflight drift. This query is a proposed future operator
+check, not permission to run migrations or to seed cleanup state now.
+
 Rollback is not a routine reverse deployment. The
 [gate rollback](../supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql)
 is guarded
-for `legacy` with `ever_v2 = false` and empty intent/session/policy/counter
+for `legacy` with `ever_v2 = false` and empty intent/session/cleanup/policy/counter
 state. If v2 has ever opened, never restore legacy or drop its recovery fence;
 use a separately reviewed recovery-only transition. Even before v2, inspect
 the [quota rollback](../supabase/rollbacks/20261104234445_drop_public_booking_quota.sql)
 and [intent rollback](../supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql)
-conditions independently. Require separately approved aggregate evidence that
+conditions independently. The only candidate reverse order is gate
+`20261105124804` → quota `20261104234445` → intent `20261104184112`,
+with each file's exact current guards reviewed before its stage. Require
+separately approved aggregate evidence that
 all intent, browser-session, intent-cleanup, intent-policy, quota-policy,
 quota-counter, and quota-cleanup tables are empty before considering reverse
-order gate, quota, intent. This independent operator stop condition applies
+order. This independent operator stop condition applies
 even if a rollback file contains its own guards; do not treat a file guard as
-complete authorization. This document provides no rollback approval or
-executable rollback command.
+complete authorization. Draft [#221](https://github.com/mocktar2021/glowflow/pull/221)
+proposes stronger cleanup-heartbeat guards and is included in this stacked
+draft, but it is not yet merged to master. Recheck the exact rollback files
+after any subsequent source change. This document provides no rollback
+approval or executable rollback command.
