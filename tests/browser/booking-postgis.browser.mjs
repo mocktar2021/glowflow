@@ -42,6 +42,8 @@ test("browser recovers one real local v2 booking after its committed response is
     "The browser test must be issued by this disposable database runner.");
   const slot = JSON.parse(slotInput);
   assert.match(slot.start, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(slot.alternateStart, /^\d{4}-\d{2}-\d{2}T/);
+  assert.notEqual(slot.start, slot.alternateStart);
   assert.match(slot.localDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "0");
 
@@ -101,8 +103,9 @@ test("browser recovers one real local v2 booking after its committed response is
         const match = url.searchParams.get("salonSlug") === "route-fixture"
           && url.searchParams.get("serviceId") === "40000000-0000-0000-0000-000000000001"
           && url.searchParams.get("date") === slot.localDate;
-        return route.fulfill({ json: { slots: match ? [{ slot_start: slot.start,
-          staff_id: "20000000-0000-0000-0000-000000000002" }] : [] } });
+        return route.fulfill({ json: { slots: match ? [slot.start, slot.alternateStart].map(start => ({
+          slot_start: start, staff_id: "20000000-0000-0000-0000-000000000002",
+        })) : [] } });
       }
       if (url.pathname === "/api/public-booking/v2") {
         const payload = route.request().postDataJSON();
@@ -138,6 +141,8 @@ test("browser recovers one real local v2 booking after its committed response is
     await page.locator('input[type="date"]').fill(slot.localDate);
     const radio = page.locator(`[name="bookingTime"][value="${slot.start}"]`);
     await radio.waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 2,
+      "The fixture must offer an alternate real slot before booking.");
     await radio.locator("..").click();
     await page.locator('[name="fullName"]').fill("Fictional Browser Client");
     await page.locator('[name="email"]').fill("browser-postgis@example.invalid");
@@ -151,6 +156,12 @@ test("browser recovers one real local v2 booking after its committed response is
     await page.getByRole("button", { name: "Check original request" }).waitFor();
     assert.equal(lostCommit, true);
     assert.match(committedId, /^[0-9a-f-]{36}$/);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0,
+      "A lost response must hide the alternate time choice.");
+    assert.equal(await page.getByRole("button", { name: "Confirm appointment", exact: true }).count(), 0);
+    const beforeForcedSubmit = actions.length;
+    await page.locator("form").evaluate(form => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    assert.equal(actions.length, beforeForcedSubmit, "A forced submit cannot prepare or commit another booking.");
     assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "1");
     await page.getByRole("button", { name: "Check original request" }).click();
     await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();

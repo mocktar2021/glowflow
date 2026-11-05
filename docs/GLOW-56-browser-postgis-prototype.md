@@ -11,10 +11,12 @@ passes the matching nonce to the browser process.
 The browser uses the real `LiveBookingFlow` and sends POSTs to a local Next.js
 route that re-exports the unchanged production v2 handler. Only in the browser
 fixture, the admin client is aliased to a test-only `psql` service-role RPC
-adapter. The availability GET returns a slot queried from the same disposable
-database. The test lets the first commit finish in PostgreSQL, drops only its
-browser response, then checks that the visitor's explicit Check reconciles the
-exact original intent and that exactly one appointment exists.
+adapter. The availability GET returns two slots queried from the same disposable
+database. The test offers both fixture slots, lets the first commit finish
+in PostgreSQL, then drops only its browser response. It checks that the
+alternate choice is locked, a forced second submit does nothing, the visitor's
+explicit Check reconciles the exact original intent, and exactly one
+appointment exists.
 
 The `__Host` Secure HttpOnly cookie must actually persist in Chromium; a
 localhost cookie failure fails this test rather than substituting a fake

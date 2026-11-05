@@ -40,16 +40,18 @@ try {
   }
   sql(readFileSync("tests/public-booking-v2-postgis-fixture.sql", "utf8"), "fictional booking fixture");
   const slot = sql(`set role service_role;
-    select jsonb_build_object('start', slot_start,
-      'localDate', to_char(slot_start at time zone 'America/New_York', 'YYYY-MM-DD'))
-    from public.get_public_booking_slots('route-fixture',
+    select jsonb_build_object('start', min(slot_start), 'alternateStart', max(slot_start),
+      'localDate', to_char(min(slot_start) at time zone 'America/New_York', 'YYYY-MM-DD'))
+    from (select slot_start from public.get_public_booking_slots('route-fixture',
       '40000000-0000-0000-0000-000000000001',
       current_date + (8 - extract(dow from current_date)::integer))
     where staff_id = '20000000-0000-0000-0000-000000000002'
-    order by slot_start limit 1`, "future fictional slot");
+    order by slot_start limit 2) as choices`, "future fictional slots");
   const parsedSlot = JSON.parse(slot);
-  if (!parsedSlot?.start || !/^\d{4}-\d{2}-\d{2}$/.test(parsedSlot.localDate)) {
-    throw new Error("Fictional fixture did not expose a future slot.");
+  if (!parsedSlot?.start || !parsedSlot.alternateStart
+    || parsedSlot.start === parsedSlot.alternateStart
+    || !/^\d{4}-\d{2}-\d{2}$/.test(parsedSlot.localDate)) {
+    throw new Error("Fictional fixture did not expose two future slots.");
   }
   const runnerNonce = randomBytes(32).toString("hex");
   sql(`create table private.glowflow_browser_postgis_runner_marker (
