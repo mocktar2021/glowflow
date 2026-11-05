@@ -1636,9 +1636,10 @@ test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker",
   let oldCommitted = false;
   let oldAcknowledged = false;
   let secondPrepared = false;
-  let releaseOld, releaseSecond;
+  let releaseOld, releaseSecond, markOldCommitArrived;
   const oldBarrier = new Promise(resolve => { releaseOld = resolve; });
   const secondBarrier = new Promise(resolve => { releaseSecond = resolve; });
+  const oldCommitArrived = new Promise(resolve => { markOldCommitArrived = resolve; });
   const oldConfirmation = v2Confirmation("en");
   const secondConfirmation = { ...v2Confirmation("en"), appointment_id: secondId };
   const handler = async (route, writes) => {
@@ -1663,6 +1664,7 @@ test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker",
     }
     if (payload.action === "commit" && payload.intentId === v2IntentId) {
       oldCommitted = true;
+      markOldCommitArrived();
       await oldBarrier;
       return route.fulfill({ json: { state: "confirmed", generation: v2Generation,
         intent_id: v2IntentId, confirmation: oldConfirmation } });
@@ -1687,6 +1689,13 @@ test("v2 delayed old confirmation cannot erase a newer tab's per-intent marker",
     await oldTab.goto(url);
     await fillBooking(oldTab, "en");
     await oldTab.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "true");
+    let arrivalTimeout;
+    try {
+      await Promise.race([
+        oldCommitArrived,
+        new Promise((_, reject) => { arrivalTimeout = setTimeout(() => reject(new Error("first fixture commit did not arrive")), 30000); }),
+      ]);
+    } finally { clearTimeout(arrivalTimeout); }
     assert.equal(oldCommitted, true, "the first server commit happened before its response was delayed");
     const newerTab = await context.newPage();
     await newerTab.goto(url);
