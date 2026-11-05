@@ -49,7 +49,7 @@ async function booking(db, { sandbox = false, owner = true } = {}) {
   return (await load("../app/[locale]/book/[slug]/page.tsx", {
     "next/navigation": { notFound() { throw new Error("not-found"); } },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
-    "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => false },
+    "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => "off" },
     "@/lib/public-booking-staff": bookingStaff,
     "@/components/glowflow/booking-flow": { BookingFlow: "demo" },
     "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },

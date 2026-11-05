@@ -46,7 +46,7 @@ async function harness(enabled = true, rpcResult = { data: { state: "prepared", 
   const quotaCalls = [];
   const rpcOrder = [];
   const deps = {
-    "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => enabled },
+    "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => enabled === "recovery_only" ? "recovery_only" : enabled ? "full" : "off" },
     "@/lib/public-booking-quota-keys": {
       publicBookingQuotaKeys: quotaKeyAdapter ?? ((_request, browserToken) => quotaKeys && {
         ...quotaKeys, browserDigest: browserToken === null ? null : quotaKeys.browserDigest,
@@ -108,6 +108,65 @@ async function post(POST, body, { cookie = token, headers = {}, url = endpoint }
   const response = await POST(request);
   return { response, value: await response.json() };
 }
+
+test("tri-state admission defaults off and never interprets malformed flags as full creation", async () => {
+  const { publicBookingV2Mode, publicBookingV2Enabled } = await load("../lib/public-booking-v2-config.ts", {});
+  for (const [env, mode] of [
+    [{}, "off"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_ENABLED: "false" }, "off"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_ENABLED: "true" }, "full"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_ENABLED: "true", GLOWFLOW_PUBLIC_BOOKING_V2_RECOVERY_ONLY: "true" }, "recovery_only"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_ENABLED: "false", GLOWFLOW_PUBLIC_BOOKING_V2_RECOVERY_ONLY: "true" }, "recovery_only"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_ENABLED: "unexpected" }, "recovery_only"],
+    [{ GLOWFLOW_PUBLIC_BOOKING_V2_RECOVERY_ONLY: "unexpected" }, "recovery_only"],
+  ]) {
+    assert.equal(publicBookingV2Mode(env), mode);
+    assert.equal(publicBookingV2Enabled(env), mode !== "off");
+  }
+});
+
+test("recovery-only blocks capability issuance and new intents but allows exact signed-cookie recovery", async () => {
+  const replies = {
+    reconcile_public_booking_intent: { state: "prepared", generation, intent_id: intentId },
+    commit_public_booking_intent: { state: "not_committed", generation, intent_id: intentId },
+    cancel_public_booking_intent: { state: "not_committed", generation, intent_id: intentId },
+    acknowledge_public_booking_intent: { state: "none", generation },
+  };
+  const { POST, calls, quotaCalls } = await harness("recovery_only", name => ({ data: replies[name], error: null }));
+  const fresh = await post(POST, { action: "bootstrap" }, { cookie: null });
+  assert.equal(fresh.response.status, 409);
+  assert.equal(fresh.response.headers.get("set-cookie"), null);
+  const existing = await post(POST, { action: "bootstrap" });
+  assert.equal(existing.response.status, 200);
+  assert.deepEqual(existing.value, { ready: true, new_session: false, admission: "recovery_only" });
+  assert.equal(existing.response.headers.get("set-cookie"), null);
+  for (const body of [prepare, { action: "reconcile", salonSlug: "browser-fixture" }]) {
+    const blocked = await post(POST, body);
+    assert.equal(blocked.response.status, 503);
+    assert.deepEqual(blocked.value, { state: "unknown", error: "booking_paused" });
+    assert.equal(blocked.response.headers.get("set-cookie"), null);
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(quotaCalls, []);
+  for (const action of ["reconcile", "commit", "cancel", "acknowledge"]) {
+    const recovered = await post(POST, { action, salonSlug: "browser-fixture", intentId });
+    assert.equal(recovered.response.status, 200, `${action} keeps the original capability available`);
+  }
+  assert.deepEqual(calls.map(({ name }) => name), [
+    "reconcile_public_booking_intent", "commit_public_booking_intent",
+    "cancel_public_booking_intent", "acknowledge_public_booking_intent",
+  ]);
+  assert.deepEqual(quotaCalls.map(({ args }) => args.quota_action), ["reconcile", "commit", "cancel", "acknowledge"]);
+
+  const config = await load("../lib/public-booking-v2-config.ts", {});
+  const legacy = await load("../app/api/public-booking/route.ts", {
+    "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => config.publicBookingV2Enabled({ GLOWFLOW_PUBLIC_BOOKING_V2_RECOVERY_ONLY: "true" }) },
+    "@/lib/supabase/admin": { createAdminClient: () => { throw Error("legacy database access"); } },
+    "@/lib/application-diagnostics": { reportApplicationFailure: () => null },
+  });
+  const oldResponse = await legacy.POST(new Request(`${origin}/api/public-booking`, { method: "POST", body: "not json" }));
+  assert.equal(oldResponse.status, 410, "recovery-only must not reopen the legacy write route");
+});
 
 test("v2 gate OFF returns disabled before cookie or database access, while legacy POST is unchanged", async () => {
   const { POST, calls } = await harness(false);

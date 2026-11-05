@@ -53,6 +53,7 @@ type V2OriginalPrepared = {
 type V2Response = {
   ready?: boolean;
   new_session?: boolean;
+  admission?: "full" | "recovery_only";
   state?: "prepared" | "confirmed" | "not_committed" | "unknown" | "none";
   generation?: string;
   intent_id?: string;
@@ -60,7 +61,8 @@ type V2Response = {
 };
 
 class V2RequestError extends Error {
-  constructor(readonly status: number, readonly retryAfterSeconds = 0, readonly action?: string) {
+  constructor(readonly status: number, readonly retryAfterSeconds = 0, readonly action?: string,
+    readonly code?: "booking_paused") {
     super("v2_request_failed");
   }
 }
@@ -72,10 +74,13 @@ async function postV2(body: Record<string, unknown>): Promise<V2Response> {
     body: JSON.stringify(body), cache: "no-store",
   });
   if (!response.ok) {
+    const errorBody: unknown = response.status === 503 ? await response.json().catch(() => null) : null;
+    const paused = errorBody !== null && typeof errorBody === "object" && !Array.isArray(errorBody)
+      && (errorBody as Record<string, unknown>).error === "booking_paused";
     const rawRetry = response.headers.get("retry-after");
     const retryAfter = rawRetry && /^[1-9][0-9]{0,3}$/.test(rawRetry) ? Number(rawRetry) : 30;
     throw new V2RequestError(response.status, response.status === 429 ? Math.min(retryAfter, 3600) : 0,
-      typeof body.action === "string" ? body.action : undefined);
+      typeof body.action === "string" ? body.action : undefined, paused ? "booking_paused" : undefined);
   }
   return response.json() as Promise<V2Response>;
 }
@@ -99,6 +104,7 @@ type Props = {
   initialServiceId?: string;
   sandbox?: boolean;
   v2?: boolean;
+  recoveryOnly?: boolean;
 };
 
 const copy = {
@@ -137,6 +143,7 @@ const copy = {
     v2DisplayedPrice: "Tarif affiché au début de cette demande",
     v2DisplayedPriceNote: "Ce tarif n’est pas garanti. Confirmez le montant final avec le salon.",
     v2PreparedNoSummary: "Les détails initiaux ne sont plus disponibles dans cet onglet. Vérifiez ou annulez la demande, ou contactez le salon. Aucun rendez-vous ne sera créé automatiquement.",
+    v2RecoveryOnly: "Les nouvelles réservations sont suspendues sur cette page. Si une demande précédente reste incertaine, contactez le salon avant de réserver à nouveau.",
     v2Loading: "Vérification des réservations de ce navigateur…",
     v2Manual: "La session de réservation de ce navigateur a été perdue. Contactez le salon avant de réserver à nouveau.",
     v2Inactive: "Ce rendez-vous n’est plus actif. Contactez le salon avant de réserver à nouveau.",
@@ -203,6 +210,7 @@ const copy = {
     v2DisplayedPrice: "Price shown when this request began",
     v2DisplayedPriceNote: "This is not a guaranteed quote. Confirm the final amount with the salon.",
     v2PreparedNoSummary: "The original details are no longer available in this tab. Check or cancel the request, or contact the salon. No appointment will be created automatically.",
+    v2RecoveryOnly: "New bookings are paused on this page. If an earlier request is unresolved, contact the salon before booking again.",
     v2Loading: "Checking this browser’s booking attempts…",
     v2Manual: "This browser’s booking session was lost. Contact the salon before booking again.",
     v2Inactive: "This appointment is no longer active. Contact the salon before booking again.",
@@ -269,6 +277,7 @@ const copy = {
     v2DisplayedPrice: "Precio mostrado al iniciar esta solicitud",
     v2DisplayedPriceNote: "Este precio no está garantizado. Confirma el importe final con el salón.",
     v2PreparedNoSummary: "Los detalles originales ya no están disponibles en esta pestaña. Comprueba o cancela la solicitud, o contacta con el salón. No se creará una cita automáticamente.",
+    v2RecoveryOnly: "Las nuevas reservas están suspendidas en esta página. Si una solicitud anterior sigue sin resolverse, contacta con el salón antes de volver a reservar.",
     v2Loading: "Comprobando las reservas de este navegador…",
     v2Manual: "Se perdió la sesión de reserva de este navegador. Contacta con el salón antes de reservar de nuevo.",
     v2Inactive: "Esta cita ya no está activa. Contacta con el salón antes de reservar de nuevo.",
@@ -329,7 +338,7 @@ function availableTimes(slots: Slot[], preferredStaffId: string) {
   return [...unique.values()];
 }
 
-export function LiveBookingFlow({ locale, salon, services, bookingStaffByService = {}, initialServiceId, sandbox = false, v2 = false }: Props) {
+export function LiveBookingFlow({ locale, salon, services, bookingStaffByService = {}, initialServiceId, sandbox = false, v2 = false, recoveryOnly = false }: Props) {
   if (!services.length || (initialServiceId !== undefined && !services.some((service) => service.id === initialServiceId))) {
     throw new Error("Booking requires a service from this salon's catalog.");
   }
@@ -375,6 +384,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [v2Warning, setV2Warning] = useState("");
   const [v2PreparedOffer, setV2PreparedOffer] = useState<V2OriginalPrepared | null>(null);
   const [v2AgainError, setV2AgainError] = useState(false);
+  const [v2DetectedRecoveryOnly, setV2DetectedRecoveryOnly] = useState(false);
+  const v2RecoveryOnly = recoveryOnly || v2DetectedRecoveryOnly;
   const service = services.find((item) => item.id === serviceId) ?? services[0];
   const staffChoices = bookingStaffByService[serviceId] ?? [];
   const visibleSlots = availableTimes(slots, preferredStaffId);
@@ -578,6 +589,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         lockV2(true, labels.v2Manual);
         return;
       }
+      if (v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return; }
       if (!currentSnapshot) { lockV2(); return; }
       v2Intent.current = null;
       v2Attempted.current = false;
@@ -590,6 +602,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       return;
     }
     if (result.state === "none") {
+      if (v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return; }
       if (!currentSnapshot) { lockV2(); return; }
       if (!v2Generation.current) { lockV2(); return; }
       if (knownPending) { lockV2(true, labels.v2Manual); return; }
@@ -607,6 +620,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   }
 
   async function reconcileCurrentV2() {
+    if (v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return { state: "unknown" } as V2Response; }
     const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
     const outstanding = pendingIntentIds();
     if (!outstanding) { lockV2(true, labels.v2Manual); return current; }
@@ -619,6 +633,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     if (!result.intent_id || (v2Intent.current && result.intent_id !== v2Intent.current)
       || !removeMarker(result.intent_id)) { lockV2(true, labels.v2Manual); return; }
     v2Intent.current = null;
+    if (v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return; }
     const current = await reconcileCurrentV2();
     if (current.state === "none" && !uncertainRef.current) {
       v2Attempted.current = false;
@@ -635,11 +650,14 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     const markers = pendingIntentIds();
     if (!markers) { if (active) lockV2(true, labels.v2Manual); return; }
     const hadMarker = markers.length > 0;
+    if (recoveryOnly && !hadMarker) { lockV2(true, labels.v2RecoveryOnly); return; }
       if (!v2Bootstrap.current) v2Bootstrap.current = postV2({ action: "bootstrap" });
       try {
         const boot = await v2Bootstrap.current;
         if (!active) return;
         if (boot?.ready !== true) throw new Error("bootstrap_failed");
+        const recoveryAdmission = recoveryOnly || boot.admission === "recovery_only";
+        if (recoveryAdmission) setV2DetectedRecoveryOnly(true);
         if (hadMarker && boot.new_session) { lockV2(true, labels.v2Manual); return; }
         stage = "reconcile";
         const confirmed: V2Response[] = [];
@@ -668,6 +686,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           applyV2Result(prepared[0], true);
           return;
         }
+        if (recoveryAdmission) { lockV2(true, labels.v2RecoveryOnly); return; }
         const result = await postV2({ action: "reconcile", salonSlug: salon.slug });
         if (active) applyV2Result(result, (pendingIntentIds()?.length ?? 1) > 0, true);
       } catch (reason) {
@@ -684,7 +703,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     return () => { active = false; };
     // Bootstrap is intentionally once per mounted booking page, including Strict Mode replays.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v2, sandbox, salon.slug, v2RetryNonce]);
+  }, [v2, sandbox, salon.slug, v2RetryNonce, recoveryOnly]);
 
   function retryV2Startup() {
     if (!v2StartupError || v2RetrySeconds > 0 || inFlight.current) return;
@@ -808,7 +827,15 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       stage = "commit";
       const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: prepared.intent_id });
       await handleV2Response(committed);
-    } catch (reason) { lockV2ForRequestFailure(reason, stage); }
+    } catch (reason) {
+      if (stage === "prepare" && reason instanceof V2RequestError
+        && reason.status === 503 && reason.code === "booking_paused") {
+        // This exact response is issued before the server calls prepare or
+        // creates a session. Other 503s remain ambiguous and keep Check open.
+        setV2DetectedRecoveryOnly(true);
+        lockV2(true, labels.v2RecoveryOnly);
+      } else lockV2ForRequestFailure(reason, stage);
+    }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
@@ -827,12 +854,18 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           // the exact marker and retry only that intent, never a new prepare.
           intentId = markers[0];
         } else {
+          if (v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return; }
           // A failed bootstrap or terminal follow-up may leave no exact intent
           // in this mounted page. Only a fresh current-session snapshot can
           // authorize the form again; an exact old terminal generation cannot.
           stage = "bootstrap";
           const boot = await postV2({ action: "bootstrap" });
           if (boot.ready !== true) throw new Error("bootstrap_failed");
+          if (boot.admission === "recovery_only") {
+            setV2DetectedRecoveryOnly(true);
+            lockV2(true, labels.v2RecoveryOnly);
+            return;
+          }
           stage = "reconcile";
           const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
           applyV2Result(current, false, true);
@@ -916,6 +949,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   async function anotherBooking() {
     if (!v2) { setConfirmation(null); reloadAvailability(); return; }
+    if (v2RecoveryOnly) return;
     if (!v2Intent.current || actionCoolingDown("acknowledge") || v2RetrySeconds > 0 || inFlight.current) return;
     inFlight.current = true;
     setV2AgainError(false);
@@ -937,6 +971,13 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       setConfirmation(null);
       reloadAvailability();
     } catch (reason) {
+      if (reason instanceof V2RequestError && reason.status === 503 && reason.code === "booking_paused") {
+        // The exact acknowledgement may have succeeded, but no-ID reconcile
+        // is closed in drain mode. Preserve confirmation and hide another.
+        setV2DetectedRecoveryOnly(true);
+        setV2AgainError(false);
+        return;
+      }
       if (reason instanceof V2RequestError && reason.status === 429) {
         if (reason.action === "acknowledge") recordActionRetry("acknowledge", reason.retryAfterSeconds);
         else setV2RetrySeconds(reason.retryAfterSeconds);
@@ -948,6 +989,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (v2 && v2RecoveryOnly) { lockV2(true, labels.v2RecoveryOnly); return; }
     if (uncertainRef.current || (v2 && (v2Phase !== "ready" || v2StartupError)) || !slot || loadingSlots || inFlight.current) return;
     const form = new FormData(event.currentTarget);
     const fullName = String(form.get("fullName") ?? "").trim();
@@ -1004,7 +1046,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
         {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700 dark:text-rose-300">{v2ActionCooldown.acknowledge || v2RetrySeconds > 0 ? labels.v2AgainRateLimited : labels.v2AgainError}</p> : null}
-        <button type="button" disabled={Boolean(v2ActionCooldown.acknowledge) || v2RetrySeconds > 0} onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.another}</button>
+        {v2 && v2RecoveryOnly ? <p role="status" className="mt-4 text-sm font-semibold text-amber-800 dark:text-amber-200">{labels.v2RecoveryOnly}</p> : null}
+        {!v2RecoveryOnly ? <button type="button" disabled={Boolean(v2ActionCooldown.acknowledge) || v2RetrySeconds > 0} onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.another}</button> : null}
       </section>
     </main>;
   }
