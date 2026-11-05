@@ -3,7 +3,9 @@
 This is an evidence checklist, not authority to apply SQL. Its only target is
 Supabase organization `goutxcrujaxjjssbjfsn`, project
 `rfwhqutkiztxkagbhevp` (`glowflow`). It does not target MowFlow or the future
-`glowflow.beauty` production environment. The three GLOW-56 migrations are
+`glowflow.beauty` production environment. This project backs the live
+`glowflow.mocktar.com` site; it is not an isolated QA database. The three
+GLOW-56 migrations are
 committed as dormant code on GlowFlow `master`; this repository's CI/build
 path does not apply them. Do not run `db push`, a migration runner, the
 rollback files, a policy seed, or a mode transition based on this document.
@@ -44,8 +46,11 @@ approved application and again afterward.
 ## Read-only catalog checks
 
 Run only the following `SELECT` statements against the verified project.
-They read PostgreSQL metadata, not customer rows. Compare every value to the
-recorded 2026-11-05 baseline below; stop on any difference, including an
+The current-baseline queries read PostgreSQL catalog metadata. A separate
+post-predecessor query below reads only aggregate counts from private cleanup
+heartbeat tables, never customer rows or heartbeat contents. Compare the
+current-baseline results to the recorded 2026-11-05 values below; stop on any
+difference, including an
 unexpected object already installed outside migration history.
 
 ```sql
