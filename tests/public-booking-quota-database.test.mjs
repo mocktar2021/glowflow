@@ -141,6 +141,14 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
     where action_bucket='bootstrap' and key_digest='${digest("5")}'`), "2",
   "concurrent calls must not exceed the cap");
 
+  const secondsToWindowEnd = Number(sql(`select 600 -
+    (floor(extract(epoch from clock_timestamp()))::bigint % 600)`));
+  if (secondsToWindowEnd <= 20) {
+    await new Promise(resolve => setTimeout(resolve, (secondsToWindowEnd + 1) * 1000));
+  }
+  assert.ok(Number(sql(`select 600 -
+    (floor(extract(epoch from clock_timestamp()))::bigint % 600)`)) > 20,
+  "cross-zone test needs a stable quota window longer than its held transaction");
   sql("update private.public_booking_quota_policy set ip_limit=1 where action_bucket='bootstrap'");
   const held = asyncSql(`begin; set role service_role; set time zone 'Pacific/Honolulu';
     set application_name = 'glow56_quota_cross_zone_hold';
