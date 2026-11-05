@@ -72,6 +72,19 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
     "failed rollback must leave the gate intact");
   sql("delete from private.public_booking_intent_policy");
 
+  sql("insert into private.public_booking_intent_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(rollback), /booking_contract_rollback_rows_present/,
+    "rollback must preserve an intent cleanup heartbeat");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  sql("delete from private.public_booking_intent_cleanup_state");
+  sql("insert into private.public_booking_quota_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(rollback), /booking_contract_rollback_rows_present/,
+    "rollback must preserve a quota cleanup heartbeat");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  sql("delete from private.public_booking_quota_cleanup_state");
+
   sql(rollback);
   assert.equal(sql("select to_regclass('private.public_booking_contract_gate') is null"), "t");
   for (const signature of [
