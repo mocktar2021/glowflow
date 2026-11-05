@@ -229,6 +229,22 @@ test("production v2 route reaches real disposable PostGIS quota and intent RPCs"
     assert.equal(current.data.state, "none");
     assert.match(current.data.generation, uuidPattern);
 
+    // Keep the first prepare and later denial inside one real quota window.
+    // This is disposable policy only; the 180-second test cannot outlive a
+    // selected window with at least 300 seconds left.
+    const prepareWindow = JSON.parse(sql(`with observed as (
+      select pg_catalog.floor(extract(epoch from pg_catalog.statement_timestamp()))::bigint as seconds
+    ), choices as (
+      select candidate.seconds, candidate.seconds - (observed.seconds % candidate.seconds) as remaining
+      from pg_catalog.generate_series(600, 3600) as candidate(seconds) cross join observed
+      order by remaining desc, candidate.seconds desc limit 1
+    ) select pg_catalog.jsonb_build_object('seconds', seconds, 'remaining', remaining) from choices`,
+    "safe disposable prepare window"));
+    assert.ok(Number.isInteger(prepareWindow.seconds) && prepareWindow.seconds <= 3600
+      && prepareWindow.remaining >= 300, "Prepare quota window must outlast this test.");
+    sql("update private.public_booking_quota_policy set window_seconds=" + prepareWindow.seconds
+      + " where action_bucket='prepare'", "set disposable prepare window");
+
     const prepared = await post(POST, {
       action: "prepare", salonSlug, serviceId, staffId, startTime: slots[0].start,
       fullName: "Fictional Route Client", phone: "", email: "route-client@example.invalid",
@@ -237,6 +253,7 @@ test("production v2 route reaches real disposable PostGIS quota and intent RPCs"
     assert.equal(prepared.response.status, 200, JSON.stringify(rpcFailures));
     assert.equal(prepared.data.state, "prepared");
     assert.match(prepared.data.intent_id, uuidPattern);
+    const firstPrepareWindow = sql("select extract(epoch from window_start)::bigint from private.public_booking_quota_counters where action_bucket='prepare' and scope='ip' order by window_start desc limit 1", "first prepare quota window");
     assert.equal(sql("select count(*) from private.public_booking_intents where browser_token_hash='"
       + browserHash + "'", "browser-bound intent"), "1");
 
@@ -278,6 +295,7 @@ test("production v2 route reaches real disposable PostGIS quota and intent RPCs"
     assert.equal(afterAck.data.generation, acknowledged.data.generation);
 
     sql("update private.public_booking_quota_policy set ip_limit=1 where action_bucket='prepare'", "temporary quota limit");
+    assert.equal(sql("select (floor(extract(epoch from statement_timestamp()) / window_seconds)::bigint * window_seconds)::text from private.public_booking_quota_policy where action_bucket='prepare'", "denial prepare quota window"), firstPrepareWindow);
     const quotaHitsBefore = sql("select coalesce(sum(hits),0) from private.public_booking_quota_counters where action_bucket='prepare'", "quota counter before denial");
     const denied = await post(POST, {
       action: "prepare", salonSlug, serviceId, staffId, startTime: slots[4].start,
