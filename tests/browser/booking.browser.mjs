@@ -751,6 +751,11 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
+  let resolveCommitHandled;
+  // The uncertainty alert is rendered when submission begins, before prepare
+  // or commit. Tests that reload after a lost response must wait for the
+  // simulated server commit, not merely for that already-visible alert.
+  const commitHandled = new Promise(resolve => { resolveCommitHandled = resolve; });
   const confirmation = { ...(published ? v2PublishedConfirmation(locale) : v2Confirmation(locale)), appointment_status: appointmentStatus };
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
@@ -770,7 +775,9 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
       return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
     }
     if (payload.action === "prepare") {
-      if (payload.expectedGeneration !== generation) return route.fulfill({ status: 409, json: { state: "unknown" } });
+      // The private prepare RPC returns unknown for a stale generation, not
+      // an HTTP 409 (which means the signed browser cookie was rejected).
+      if (payload.expectedGeneration !== generation) return route.fulfill({ json: { state: "unknown" } });
       if (state === "none") { state = "prepared"; originalPayload = payload; }
       if (state === "prepared") return route.fulfill({ json: { state, generation, intent_id: v2IntentId } });
       return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
@@ -782,16 +789,19 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
           lostOnce = true;
           state = "confirmed";
           appointments.set(v2IntentId, confirmation);
+          resolveCommitHandled();
           return route.fulfill({ status: 429, headers: { "retry-after": "1" }, json: { state: "unknown" } });
         }
         if (loseCommit && !lostOnce) {
           lostOnce = true;
           if (commitBeforeLoss) { state = "confirmed"; appointments.set(v2IntentId, confirmation); }
+          resolveCommitHandled();
           return route.abort("failed");
         }
         state = "confirmed";
         appointments.set(v2IntentId, confirmation);
       }
+      resolveCommitHandled();
       return route.fulfill({ json: { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
     }
     if (payload.action === "cancel") {
@@ -807,7 +817,19 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
     }
     throw Error(`unexpected fixture action ${payload.action}`);
   };
-  return { handler, appointments, getOriginalPayload: () => originalPayload, getState: () => state };
+  return { handler, appointments, waitForCommitHandled: () => commitHandled,
+    getOriginalPayload: () => originalPayload, getState: () => state };
+}
+
+async function waitForLostCommitToSettle(page, server) {
+  let timeout;
+  try {
+    await Promise.race([
+      server.waitForCommitHandled(),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("fixture commit did not complete")), 30000); }),
+    ]);
+  } finally { clearTimeout(timeout); }
+  await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
 }
 
 for (const locale of ["fr", "en", "es"]) {
@@ -819,6 +841,7 @@ for (const locale of ["fr", "en", "es"]) {
     const url = `${origin}/${locale}/book/browser-fixture?v2=1`;
     await page.goto(url);
     await fillBooking(page, locale);
+    await waitForLostCommitToSettle(page, server);
     await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
     await page.waitForFunction(() => document.activeElement?.tagName === "H2");
     assert.equal(server.appointments.size, 1);
@@ -880,6 +903,7 @@ test("v2 prepared response loss stays locked after reload until same-intent retr
   });
   await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
   await fillBooking(page, "en");
+  await waitForLostCommitToSettle(page, server);
   await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
   assert.equal(server.getState(), "prepared");
   await page.reload();
@@ -901,6 +925,7 @@ test("v2 marker-only reload after cookie loss shows manual recovery and no chang
   });
   await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
   await fillBooking(page, "en");
+  await waitForLostCommitToSettle(page, server);
   await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
   await context.clearCookies();
   await page.reload();
@@ -1016,6 +1041,7 @@ test(`v2 ${deniedStatus} during marker reconciliation retains the marker and ret
   });
   await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
   await fillBooking(page, "en");
+  await waitForLostCommitToSettle(page, server);
   await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
   assert.equal(server.appointments.size, 1, "the first commit happened before its response was lost");
   denyMarkerReconcile = true;
@@ -1139,6 +1165,7 @@ for (const locale of ["fr", "en", "es"]) {
     const url = `${origin}/${locale}/book/browser-fixture?v2=1`;
     await page.goto(url);
     await fillBooking(page, locale);
+    await waitForLostCommitToSettle(page, server);
     await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
     await page.reload();
     await page.getByRole("alert").filter({ hasText: v2InactiveLabels[locale] }).waitFor();
@@ -1221,7 +1248,13 @@ test("v2 stale tab cannot prepare with the generation rotated by another tab ack
   await bookingTab.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
   await bookingTab.getByRole("button", { name: "Book another appointment" }).click();
   await bookingTab.locator('[name="bookingTime"]').waitFor();
+  const stalePrepareResponse = oldTab.waitForResponse(response => response.url().endsWith("/api/public-booking/v2")
+    && response.request().postDataJSON()?.action === "prepare");
   await fillBooking(oldTab, "en");
+  const staleResponse = await stalePrepareResponse;
+  assert.equal(staleResponse.status(), 200, "stale generation is an unknown RPC result, not a rejected cookie");
+  assert.deepEqual(await staleResponse.json(), { state: "unknown" });
+  await oldTab.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
   await oldTab.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
   assert.equal(writes.filter(value => value.action === "prepare").length, 2, "stale prepare is rejected by the server epoch");
   assert.equal(writes.filter(value => value.action === "commit").length, 1, "no second appointment-creating commit");
@@ -1328,6 +1361,7 @@ test("v2 canceled intent can recover after a transient current-session reconcile
   });
   await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
   await fillBooking(page, "en");
+  await waitForLostCommitToSettle(page, server);
   await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
   await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
   await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
