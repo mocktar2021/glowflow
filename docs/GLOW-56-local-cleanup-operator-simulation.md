@@ -15,14 +15,17 @@ The existing Database security CI service is `postgis/postgis:16-3.4`.
 
 The test seeds fictional quota and intent policies only inside that disposable
 database. Its clock simulation ages the two `last_full_sweep_at` markers by
-30, 90, and 121 minutes. It verifies that new bootstrap and preparation stay
-open at 90 minutes, enter an operator warning window with under 30 minutes of
-margin, then fail closed after two hours. It also verifies that a rolled-back
-run does not refresh a marker, that one-row partial sweeps clear the marker,
-and that bounded repeats restore it only after the backlog is fully drained.
+30, 90, and 121 minutes. It verifies that the bootstrap quota gate and new
+preparation stay open at 90 minutes, enter an operator warning window with
+under 30 minutes of margin, then fail closed after two hours. It also verifies
+that a rolled-back run does not refresh a marker, that one-row partial sweeps
+clear the marker, and that bounded repeats restore it only after the backlog
+is fully drained.
 Expired prepared contact data must be scrubbed before preparation resumes.
 These are database-contract checks; they do not prove hosted cron timing,
-notification delivery, or Preview isolation.
+notification delivery, or Preview isolation. In particular, they do not prove
+that no-ID reconciliation cannot create a browser session during a pause;
+that separate recovery-only gate is specified in draft #210.
 
 Candidate eventual operations review, **not implemented here**:
 
