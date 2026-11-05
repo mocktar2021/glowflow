@@ -24,7 +24,10 @@ begin
     raise exception using errcode = '55000', message = 'booking_contract_gate_already_exists';
   end if;
   if exists (select 1 from private.public_booking_intents)
-     or exists (select 1 from private.public_booking_intent_policy) then
+     or exists (select 1 from private.public_booking_browser_sessions)
+     or exists (select 1 from private.public_booking_intent_policy)
+     or exists (select 1 from private.public_booking_quota_policy)
+     or exists (select 1 from private.public_booking_quota_counters) then
     raise exception using errcode = '55000', message = 'booking_contract_requires_empty_dormant_intents';
   end if;
 end;
