@@ -1,11 +1,11 @@
-# GLOW-56 capability action abuse budget (design only)
+# GLOW-56 capability action abuse budget
 
-Status: unapproved design for the dormant same-browser v2 booking contract. This
-document changes no route, SQL, policy, schedule, environment variable, or
-hosted state. PR #197 currently budgets only `bootstrap`, `prepare`, and
-`reconcile`; `commit`, `cancel`, and `acknowledge` must not be activated without
-a separately reviewed bound. A signed cookie and exact intent UUID authorize
-an operation, but do not limit how many times it can be attempted.
+Status: dormant draft implementation and activation design for same-browser v2
+booking. PR #197 now includes unseeded SQL buckets for `commit`, `cancel`, and
+`acknowledge`; the route must consume them before any action RPC. No policy,
+schedule, environment variable, or hosted state is activated. Action limits
+still need owner approval. A signed cookie and exact intent UUID authorize an
+operation, but do not limit how many times it can be attempted.
 
 ## Threat and safety boundary
 
@@ -18,7 +18,7 @@ changing the UUID. Shared-IP quotas alone could block unrelated visitors on a
 salon or carrier network. The action budget must be independent of the
 `reconcile` recovery budget.
 
-## Proposed contract
+## Draft contract
 
 Before each action RPC, consume two separate, durable buckets atomically:
 
@@ -45,9 +45,8 @@ the complete order is IP, browser, intent. Check both capacities before
 incrementing either; a denied intent bucket must not burn browser capacity.
 Return only `allowed` and bounded `retry_after`, without counter values or
 whether the intent exists. No in-process counter is durable across Vercel
-instances. Prefer extending PR #197 while it is still draft, so the same
-bounded sweep and rollback cover these counters; a separate migration would
-add cleanup and rollout burden.
+instances. The draft extends PR #197, so the same bounded sweep and guarded
+rollback cover these counters without a separate migration.
 
 ## HTTP and browser behavior
 

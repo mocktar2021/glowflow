@@ -12,6 +12,7 @@ end;
 $$;
 
 drop function public.sweep_public_booking_quota_counters(integer);
+drop function public.consume_public_booking_capability_quota(text,text,text,text);
 drop function public.consume_public_booking_quota(text,text,text,text);
 drop table private.public_booking_quota_counters;
 drop table private.public_booking_quota_cleanup_state;

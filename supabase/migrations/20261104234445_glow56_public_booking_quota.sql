@@ -11,13 +11,19 @@ end;
 $$;
 
 create table private.public_booking_quota_policy (
-  action_bucket text primary key check (action_bucket in ('bootstrap', 'prepare', 'reconcile')),
+  action_bucket text primary key check (action_bucket in
+    ('bootstrap', 'prepare', 'reconcile', 'commit', 'cancel', 'acknowledge')),
   window_seconds integer not null check (window_seconds between 30 and 3600),
-  ip_limit integer not null check (ip_limit between 1 and 1000),
+  ip_limit integer check (ip_limit between 1 and 1000),
   browser_tenant_limit integer check (browser_tenant_limit between 1 and 1000),
+  intent_limit integer check (intent_limit between 1 and 1000),
   configured_at timestamptz not null,
-  check ((action_bucket = 'bootstrap' and browser_tenant_limit is null)
-    or (action_bucket <> 'bootstrap' and browser_tenant_limit is not null))
+  check ((action_bucket = 'bootstrap' and ip_limit is not null
+      and browser_tenant_limit is null and intent_limit is null)
+    or (action_bucket in ('prepare', 'reconcile') and ip_limit is not null
+      and browser_tenant_limit is not null and intent_limit is null)
+    or (action_bucket in ('commit', 'cancel', 'acknowledge') and ip_limit is null
+      and browser_tenant_limit is not null and intent_limit is not null))
 );
 alter table private.public_booking_quota_policy enable row level security;
 revoke all on table private.public_booking_quota_policy from public, anon, authenticated;
@@ -35,16 +41,21 @@ revoke all on table private.public_booking_quota_cleanup_state from public, anon
 grant select, insert, update on table private.public_booking_quota_cleanup_state to service_role;
 
 create table private.public_booking_quota_counters (
-  action_bucket text not null check (action_bucket in ('bootstrap', 'prepare', 'reconcile')),
-  scope text not null check (scope in ('ip', 'browser_tenant')),
+  action_bucket text not null check (action_bucket in
+    ('bootstrap', 'prepare', 'reconcile', 'commit', 'cancel', 'acknowledge')),
+  scope text not null check (scope in ('ip', 'browser_tenant', 'intent_capability')),
   tenant_id uuid not null,
   key_digest text not null check (key_digest ~ '^[0-9a-f]{64}$'),
   window_start timestamptz not null,
   hits integer not null check (hits between 1 and 1000000),
   expires_at timestamptz not null,
   primary key (action_bucket, scope, tenant_id, key_digest, window_start),
-  check ((scope = 'ip' and tenant_id = '00000000-0000-0000-0000-000000000000'::uuid)
-    or (scope = 'browser_tenant' and tenant_id <> '00000000-0000-0000-0000-000000000000'::uuid)),
+  check ((scope = 'ip' and action_bucket in ('bootstrap', 'prepare', 'reconcile')
+      and tenant_id = '00000000-0000-0000-0000-000000000000'::uuid)
+    or (scope = 'browser_tenant' and action_bucket <> 'bootstrap'
+      and tenant_id <> '00000000-0000-0000-0000-000000000000'::uuid)
+    or (scope = 'intent_capability' and action_bucket in ('commit', 'cancel', 'acknowledge')
+      and tenant_id <> '00000000-0000-0000-0000-000000000000'::uuid)),
   check (expires_at > window_start and expires_at <= window_start + interval '24 hours')
 );
 alter table private.public_booking_quota_counters enable row level security;
@@ -164,6 +175,95 @@ $$;
 revoke all on function public.consume_public_booking_quota(text,text,text,text)
   from public, anon, authenticated, service_role;
 grant execute on function public.consume_public_booking_quota(text,text,text,text) to service_role;
+
+-- Existing signed-browser capability actions remain usable when the cleanup
+-- signal is stale, but still require their own configured limits. The server
+-- sends domain-separated HMACs: one for the browser and one for browser+intent.
+-- Both buckets are checked before either is incremented. Browser then intent
+-- is the fixed advisory-lock order for every capability action.
+create function public.consume_public_booking_capability_quota(
+  quota_action text, browser_digest text, intent_digest text, salon_slug text
+) returns jsonb
+language plpgsql volatile security invoker set search_path = ''
+as $$
+declare
+  policy private.public_booking_quota_policy%rowtype;
+  target_tenant_id uuid;
+  issued_at timestamptz := pg_catalog.statement_timestamp();
+  starts_at timestamptz;
+  window_epoch bigint;
+  ends_at timestamptz;
+  retry_after integer;
+  browser_hits integer;
+  intent_hits integer;
+begin
+  if quota_action is null or quota_action not in ('commit', 'cancel', 'acknowledge')
+     or browser_digest is null or browser_digest !~ '^[0-9a-f]{64}$'
+     or intent_digest is null or intent_digest !~ '^[0-9a-f]{64}$'
+     or salon_slug is null or pg_catalog.length(pg_catalog.btrim(salon_slug)) not between 2 and 80 then
+    raise exception using errcode = '22023', message = 'booking_capability_quota_invalid_request';
+  end if;
+
+  select * into policy from private.public_booking_quota_policy as configured
+  where configured.action_bucket = quota_action;
+  if not found then
+    raise exception using errcode = '55000', message = 'booking_capability_quota_policy_unconfigured';
+  end if;
+
+  select tenant.id into target_tenant_id from public.tenants as tenant
+  where tenant.slug = pg_catalog.btrim(salon_slug);
+  if target_tenant_id is null then
+    raise exception using errcode = '22023', message = 'booking_capability_quota_invalid_request';
+  end if;
+
+  starts_at := pg_catalog.to_timestamp(pg_catalog.floor(
+    extract(epoch from issued_at) / policy.window_seconds) * policy.window_seconds);
+  -- The epoch is independent of session TimeZone and DateStyle.
+  window_epoch := extract(epoch from starts_at)::bigint;
+  ends_at := starts_at + pg_catalog.make_interval(secs => policy.window_seconds);
+  retry_after := greatest(1, pg_catalog.ceil(
+    extract(epoch from ends_at - issued_at))::integer);
+
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'glowflow:booking-quota:' || quota_action || ':browser:' || target_tenant_id::text
+    || ':' || browser_digest || ':' || window_epoch::text, 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'glowflow:booking-quota:' || quota_action || ':intent:' || target_tenant_id::text
+    || ':' || intent_digest || ':' || window_epoch::text, 0));
+
+  select counter.hits into browser_hits from private.public_booking_quota_counters as counter
+  where counter.action_bucket = quota_action and counter.scope = 'browser_tenant'
+    and counter.tenant_id = target_tenant_id and counter.key_digest = browser_digest
+    and counter.window_start = starts_at;
+  select counter.hits into intent_hits from private.public_booking_quota_counters as counter
+  where counter.action_bucket = quota_action and counter.scope = 'intent_capability'
+    and counter.tenant_id = target_tenant_id and counter.key_digest = intent_digest
+    and counter.window_start = starts_at;
+  if coalesce(browser_hits, 0) >= policy.browser_tenant_limit
+     or coalesce(intent_hits, 0) >= policy.intent_limit then
+    return pg_catalog.jsonb_build_object('allowed', false, 'retry_after', retry_after);
+  end if;
+
+  insert into private.public_booking_quota_counters as counter
+    (action_bucket, scope, tenant_id, key_digest, window_start, hits, expires_at)
+  values (quota_action, 'browser_tenant', target_tenant_id, browser_digest,
+    starts_at, 1, starts_at + interval '24 hours')
+  on conflict (action_bucket, scope, tenant_id, key_digest, window_start)
+  do update set hits = counter.hits + 1;
+
+  insert into private.public_booking_quota_counters as counter
+    (action_bucket, scope, tenant_id, key_digest, window_start, hits, expires_at)
+  values (quota_action, 'intent_capability', target_tenant_id, intent_digest,
+    starts_at, 1, starts_at + interval '24 hours')
+  on conflict (action_bucket, scope, tenant_id, key_digest, window_start)
+  do update set hits = counter.hits + 1;
+
+  return pg_catalog.jsonb_build_object('allowed', true, 'retry_after', 0);
+end;
+$$;
+revoke all on function public.consume_public_booking_capability_quota(text,text,text,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.consume_public_booking_capability_quota(text,text,text,text) to service_role;
 
 -- No cron job is installed. A separately reviewed, bounded operator job must
 -- keep this full-sweep signal fresh before new cookies or preparations work.

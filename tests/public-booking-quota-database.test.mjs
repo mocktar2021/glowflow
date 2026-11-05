@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
@@ -7,6 +8,10 @@ const connection = process.env.GLOWFLOW_SANDBOX_TEST_DATABASE_URL;
 const psql = process.env.PSQL_BIN || "psql";
 const root = new URL("../", import.meta.url);
 const digest = letter => letter.repeat(64);
+const capabilityDigest = label => createHmac("sha256", "local-test-only-capability-key")
+  .update(label).digest("hex");
+const browserCapabilityDigest = browser => capabilityDigest(`browser:${browser}`);
+const intentCapabilityDigest = (browser, intent) => capabilityDigest(`intent:${browser}:${intent}`);
 
 function safeError(message) {
   let text = String(message || "Local PostgreSQL command failed.");
@@ -45,7 +50,19 @@ const consume = (action, ip, browser = null, slug = null) =>
   `set role service_role; select public.consume_public_booking_quota('${action}',
     '${digest(ip)}', ${browser ? `'${digest(browser)}'` : "null"},
     ${slug ? `'${slug}'` : "null"});`;
+const consumeCapability = (action, browser, intent, slug = "fixture-a") =>
+  `set role service_role; select public.consume_public_booking_capability_quota('${action}',
+    '${browserCapabilityDigest(browser)}', '${intentCapabilityDigest(browser, intent)}', '${slug}');`;
 const state = input => JSON.parse(sql(input));
+
+test("capability quota fixtures are valid, domain-separated HMACs", () => {
+  const browser = browserCapabilityDigest("g");
+  const intent = intentCapabilityDigest("g", "h");
+  assert.match(browser, /^[0-9a-f]{64}$/);
+  assert.match(intent, /^[0-9a-f]{64}$/);
+  assert.notEqual(browser, intent);
+  assert.notEqual(intent, intentCapabilityDigest("g", "i"));
+});
 
 test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !connection, timeout: 120_000 }, async () => {
   const url = new URL(connection);
@@ -72,20 +89,31 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   }
   for (const signature of [
     "consume_public_booking_quota(text,text,text,text)",
+    "consume_public_booking_capability_quota(text,text,text,text)",
     "sweep_public_booking_quota_counters(integer)",
   ]) {
     assert.equal(sql(`select has_function_privilege('service_role','public.${signature}','execute')`), "t");
     for (const role of ["anon", "authenticated"]) {
       assert.equal(sql(`select has_function_privilege('${role}','public.${signature}','execute')`), "f");
-      const call = signature.startsWith("consume_")
-        ? `public.consume_public_booking_quota('bootstrap','${digest("a")}',null,null)`
-        : "public.sweep_public_booking_quota_counters(1)";
+      const call = signature.startsWith("consume_public_booking_capability")
+        ? `public.consume_public_booking_capability_quota('commit','${digest("a")}',
+          '${digest("b")}','fixture-a')`
+        : signature.startsWith("consume_")
+          ? `public.consume_public_booking_quota('bootstrap','${digest("a")}',null,null)`
+          : "public.sweep_public_booking_quota_counters(1)";
       assert.throws(() => sql(`set role ${role}; select ${call}`), /permission denied for function/);
     }
   }
   assert.equal(sql("select count(*) from private.public_booking_quota_policy"), "0");
   assert.equal(sql("select count(*) from private.public_booking_quota_cleanup_state"), "0");
   assert.throws(() => state(consume("bootstrap", "a")), /booking_quota_policy_unconfigured/);
+  assert.throws(() => state(consumeCapability("commit", "a", "b")),
+    /booking_capability_quota_policy_unconfigured/);
+  assert.throws(() => state(consumeCapability("prepare", "a", "b")),
+    /booking_capability_quota_invalid_request/);
+  assert.throws(() => state(`set role service_role; select public.consume_public_booking_capability_quota(
+    'commit','not-a-digest','${digest("b")}','fixture-a')`),
+    /booking_capability_quota_invalid_request/);
   assert.throws(() => state(consume("bootstrap", "a", "b")), /booking_quota_invalid_request/);
   assert.throws(() => state(`set role service_role; select public.consume_public_booking_quota(
     'bootstrap','127.0.0.1',null,null)`), /booking_quota_invalid_request/);
@@ -95,6 +123,11 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
     values ('bootstrap',600,2,null,clock_timestamp()),
       ('prepare',600,3,1,clock_timestamp()),
       ('reconcile',600,5,2,clock_timestamp())`);
+  sql(`insert into private.public_booking_quota_policy
+    (action_bucket,window_seconds,ip_limit,browser_tenant_limit,intent_limit,configured_at)
+    values ('commit',600,null,3,1,clock_timestamp()),
+      ('cancel',600,null,2,2,clock_timestamp()),
+      ('acknowledge',600,null,2,2,clock_timestamp())`);
   assert.throws(() => state(consume("bootstrap", "a")), /booking_quota_cleanup_stale/);
   assert.equal(state("set role service_role; select public.sweep_public_booking_quota_counters(100)").complete, true);
   sql("update private.public_booking_quota_cleanup_state set last_full_sweep_at=clock_timestamp()+interval '1 hour'");
@@ -123,6 +156,32 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.equal(state(consume("prepare", "f", "c", "fixture-b")).allowed, true,
     "the browser bucket is isolated by tenant");
 
+  assert.throws(() => state(consumeCapability("commit", "g", "h", "missing-tenant")),
+    /booking_capability_quota_invalid_request/);
+  assert.equal(state(consumeCapability("commit", "g", "h")).allowed, true);
+  const deniedIntent = state(consumeCapability("commit", "g", "h"));
+  assert.equal(deniedIntent.allowed, false);
+  assert.ok(deniedIntent.retry_after >= 1 && deniedIntent.retry_after <= 600);
+  assert.equal(sql(`select hits from private.public_booking_quota_counters
+    where action_bucket='commit' and scope='browser_tenant' and key_digest='${browserCapabilityDigest("g")}'`), "1",
+  "an exhausted intent bucket must not burn browser capacity");
+  assert.equal(state(consumeCapability("commit", "g", "i")).allowed, true);
+  assert.equal(state(consumeCapability("commit", "g", "j")).allowed, true);
+  assert.equal(state(consumeCapability("commit", "g", "k")).allowed, false,
+    "rotating intent IDs must still exhaust the browser budget");
+  assert.equal(sql(`select hits from private.public_booking_quota_counters
+    where action_bucket='commit' and scope='browser_tenant' and key_digest='${browserCapabilityDigest("g")}'`), "3");
+  assert.equal(sql(`select count(*) from private.public_booking_quota_counters
+    where action_bucket='commit' and scope='intent_capability'
+      and key_digest='${intentCapabilityDigest("g", "k")}'`), "0",
+  "a denied browser bucket must not burn intent capacity");
+  assert.equal(state(consumeCapability("commit", "g", "h", "fixture-b")).allowed, true,
+    "capability buckets are isolated by tenant");
+  assert.equal(state(consumeCapability("cancel", "g", "h")).allowed, true,
+    "a full commit budget must not starve cancellation");
+  assert.equal(state(consumeCapability("acknowledge", "g", "h")).allowed, true,
+    "a full commit budget must not starve acknowledgement");
+
   assert.equal(state(consume("reconcile", "1", "2", "fixture-a")).allowed, true);
   assert.equal(state(consume("reconcile", "1", "2", "fixture-a")).allowed, true);
   assert.equal(state(consume("reconcile", "1", "2", "fixture-a")).allowed, false);
@@ -130,6 +189,8 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.throws(() => state(consume("prepare", "f", "4", "fixture-a")), /booking_quota_cleanup_stale/);
   assert.equal(state(consume("reconcile", "1", "3", "fixture-a")).allowed, true,
     "existing recovery budget remains usable when new prepares are stale-gated");
+  assert.equal(state(consumeCapability("cancel", "l", "m")).allowed, true,
+    "bounded existing-capability recovery must remain usable when cleanup is stale");
   assert.equal(state("set role service_role; select public.sweep_public_booking_quota_counters(100)").complete, true);
 
   const concurrent = await Promise.all([
@@ -140,6 +201,19 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.equal(sql(`select hits from private.public_booking_quota_counters
     where action_bucket='bootstrap' and key_digest='${digest("5")}'`), "2",
   "concurrent calls must not exceed the cap");
+
+  const concurrentCapability = await Promise.all([
+    asyncSql(consumeCapability("cancel", "n", "o")),
+    asyncSql(consumeCapability("cancel", "n", "o")),
+    asyncSql(consumeCapability("cancel", "n", "o")),
+  ]);
+  assert.deepEqual(concurrentCapability.map(JSON.parse).map(value => value.allowed).sort(),
+    [false, true, true]);
+  for (const scope of ["browser_tenant", "intent_capability"]) {
+    assert.equal(sql(`select hits from private.public_booking_quota_counters
+      where action_bucket='cancel' and scope='${scope}' and key_digest='${scope === "browser_tenant" ? browserCapabilityDigest("n") : intentCapabilityDigest("n", "o")}'`), "2",
+    `concurrent calls must not exceed the ${scope} cap`);
+  }
 
   const secondsToWindowEnd = Number(sql(`select 600 -
     (floor(extract(epoch from clock_timestamp()))::bigint % 600)`));
@@ -185,6 +259,15 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   const secondSweep = state("set role service_role; select public.sweep_public_booking_quota_counters(1)");
   assert.equal(secondSweep.removed, 1);
   assert.equal(secondSweep.complete, true);
+  sql(`insert into private.public_booking_quota_counters
+    (action_bucket,scope,tenant_id,key_digest,window_start,hits,expires_at)
+    select 'commit','intent_capability',tenant.id,'${intentCapabilityDigest("p", "q")}',
+      now()-interval '25 hours',1,now()-interval '1 hour'
+    from public.tenants as tenant where tenant.slug='fixture-a'`);
+  const capabilitySweep = state("set role service_role; select public.sweep_public_booking_quota_counters(1)");
+  assert.equal(capabilitySweep.removed, 1);
+  assert.equal(capabilitySweep.complete, true,
+    "the bounded sweep must also remove expired capability counters");
   assert.equal(state(consume("bootstrap", "8")).allowed, true,
     "full sweep restores admission after a stale gate");
 
@@ -192,6 +275,15 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.throws(() => sql(rollback), /booking_quota_rows_present_preserve_limit/,
     "rollback must preserve a configured or used quota");
   sql("delete from private.public_booking_quota_counters; delete from private.public_booking_quota_policy");
+  sql(`insert into private.public_booking_quota_counters
+    (action_bucket,scope,tenant_id,key_digest,window_start,hits,expires_at)
+    select 'cancel','intent_capability',tenant.id,'${intentCapabilityDigest("q", "r")}',
+      now(),1,now()+interval '1 hour'
+    from public.tenants as tenant where tenant.slug='fixture-a'`);
+  assert.throws(() => sql(rollback), /booking_quota_rows_present_preserve_limit/,
+    "rollback must refuse a capability counter even without policy rows");
+  sql("delete from private.public_booking_quota_counters");
   sql(rollback);
   assert.equal(sql("select to_regprocedure('public.consume_public_booking_quota(text,text,text,text)') is null"), "t");
+  assert.equal(sql("select to_regprocedure('public.consume_public_booking_capability_quota(text,text,text,text)') is null"), "t");
 });
