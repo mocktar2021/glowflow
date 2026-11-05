@@ -8,6 +8,7 @@ type CapabilityQuotaKeys = { browserDigest: string; intentDigest: string };
 
 const keyPattern = /^[A-Za-z0-9_-]{43}$/;
 const intentPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+const qaForwardedIpSentinel = "203.0.113.77"; // RFC 5737 TEST-NET-3, never supplied by the request.
 
 function hmacKey(env: NodeJS.ProcessEnv): Buffer | null {
   const encoded = env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
@@ -17,14 +18,8 @@ function hmacKey(env: NodeJS.ProcessEnv): Buffer | null {
     && !key.equals(Buffer.alloc(32)) ? key : null;
 }
 
-function canonicalClientIp(request: Request): string | null {
-  // Vercel overwrites x-forwarded-for instead of forwarding a caller-supplied
-  // value. Never select an address from a comma-separated chain or accept a
-  // disagreeing Vercel copy. Direct/local callers must fail closed below.
-  const forwarded = request.headers.get("x-forwarded-for");
-  const vercelForwarded = request.headers.get("x-vercel-forwarded-for");
-  if (!forwarded || forwarded !== forwarded.trim() || forwarded.includes(",")
-    || (vercelForwarded !== null && vercelForwarded !== forwarded)) return null;
+function canonicalSingleIp(forwarded: string | null): string | null {
+  if (!forwarded || forwarded !== forwarded.trim() || forwarded.includes(",")) return null;
 
   const family = isIP(forwarded);
   if (family === 4) return forwarded;
@@ -42,6 +37,31 @@ function canonicalClientIp(request: Request): string | null {
   } catch {
     return null;
   }
+}
+
+function canonicalClientIp(request: Request): string | null {
+  // Vercel overwrites x-forwarded-for instead of forwarding a caller-supplied
+  // value. Never select an address from a comma-separated chain or accept a
+  // disagreeing Vercel copy. Direct/local callers must fail closed below.
+  const forwarded = request.headers.get("x-forwarded-for");
+  const vercelForwarded = request.headers.get("x-vercel-forwarded-for");
+  if (vercelForwarded !== null && vercelForwarded !== forwarded) return null;
+  return canonicalSingleIp(forwarded);
+}
+
+/** Preview diagnostic shape only. Never include an address or digest in its response. */
+export function publicBookingForwardedHeaderShape(request: Request): {
+  has_forwarded_ip: boolean; single_valid_ip: boolean; vercel_copy_matches: boolean;
+  forwarded_ip_matches_qa_sentinel: boolean;
+} {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const vercelForwarded = request.headers.get("x-vercel-forwarded-for");
+  return {
+    has_forwarded_ip: forwarded !== null,
+    single_valid_ip: canonicalSingleIp(forwarded) !== null,
+    vercel_copy_matches: forwarded !== null && vercelForwarded !== null && vercelForwarded === forwarded,
+    forwarded_ip_matches_qa_sentinel: forwarded === qaForwardedIpSentinel,
+  };
 }
 
 /** Server-only input for the dormant GLOW-56 quota RPC; never send raw keys to PostgreSQL. */
