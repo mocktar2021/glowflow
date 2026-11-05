@@ -40,15 +40,16 @@ async function load(file, dependencies) {
 }
 
 async function harness(enabled = true, rpcResult = { data: { state: "prepared", generation, intent_id: intentId }, error: null }, readModel = null,
-  quotaResult = { data: { allowed: true, retry_after: 0 }, error: null }, quotaKeys = { ipDigest: "a".repeat(64), browserDigest: "b".repeat(64) }) {
+  quotaResult = { data: { allowed: true, retry_after: 0 }, error: null }, quotaKeys = { ipDigest: "a".repeat(64), browserDigest: "b".repeat(64) },
+  quotaKeyAdapter = null) {
   const calls = [];
   const quotaCalls = [];
   const rpcOrder = [];
   const deps = {
     "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => enabled },
-    "@/lib/public-booking-quota-keys": { publicBookingQuotaKeys: (_request, browserToken) => quotaKeys && {
+    "@/lib/public-booking-quota-keys": { publicBookingQuotaKeys: quotaKeyAdapter ?? ((_request, browserToken) => quotaKeys && {
       ...quotaKeys, browserDigest: browserToken === null ? null : quotaKeys.browserDigest,
-    } },
+    }) },
     "@/lib/supabase/admin": { createAdminClient: () => ({ ...(readModel ? { from: readModel.from } : {}), rpc: async (name, args) => {
       rpcOrder.push(name);
       if (name === "consume_public_booking_quota") {
@@ -231,6 +232,44 @@ test("allowed quota precedes prepare and reconcile with digest-only arguments", 
     assert.deepEqual(args, { quota_action: args.quota_action, ip_digest: "a".repeat(64),
       browser_digest: "b".repeat(64), salon_slug: "browser-fixture" });
     assert.doesNotMatch(JSON.stringify(args), /203\.0\.113\.42|v1\.|Fictional Client|fixture@example\.invalid/);
+  }
+});
+
+test("real quota key adapter passes only digests and rejects absent or ambiguous Vercel IP", async () => {
+  const realAdapter = (await load("../lib/public-booking-quota-keys.ts", { "server-only": {} })).publicBookingQuotaKeys;
+  const priorVercel = process.env.VERCEL_ENV;
+  const priorKey = process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+  const priorCookieAge = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = Buffer.alloc(32, 29).toString("base64url");
+    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
+    const { POST, calls, quotaCalls } = await harness(true, undefined, null, undefined, undefined, realAdapter);
+    const valid = await post(POST, prepare, { headers: {
+      "x-forwarded-for": "203.0.113.42", "x-vercel-forwarded-for": "203.0.113.42",
+    } });
+    assert.equal(valid.response.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(quotaCalls.length, 1);
+    assert.match(quotaCalls[0].args.ip_digest, /^[0-9a-f]{64}$/);
+    assert.match(quotaCalls[0].args.browser_digest, /^[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(quotaCalls[0].args), /203\.0\.113\.42|v1\.|Fictional Client|fixture@example\.invalid/);
+
+    for (const headers of [{}, { "x-forwarded-for": "203.0.113.42, 10.0.0.1" },
+      { "x-forwarded-for": "203.0.113.42", "x-vercel-forwarded-for": "203.0.113.43" }]) {
+      const unavailable = await post(POST, prepare, { headers });
+      assert.equal(unavailable.response.status, 503);
+      assert.equal(unavailable.response.headers.get("retry-after"), null);
+      assert.equal(quotaCalls.length, 1);
+      assert.equal(calls.length, 1);
+    }
+  } finally {
+    if (priorVercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = priorVercel;
+    if (priorKey === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = priorKey;
+    if (priorCookieAge === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = priorCookieAge;
   }
 });
 
