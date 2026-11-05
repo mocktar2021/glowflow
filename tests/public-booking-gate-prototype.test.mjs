@@ -114,7 +114,7 @@ function prepare(browser, start, generation, email) {
     'Gate Fixture',null,'${email}','en','${generation}'::uuid);`);
 }
 
-test("GLOW-56 prototype contract gate and service-role bypass fence", {
+test("GLOW-56 NON-MIGRATION prototype contract gate and service-role bypass fence", {
   skip: !connection, timeout: 180_000,
 }, async () => {
   const url = new URL(connection);
