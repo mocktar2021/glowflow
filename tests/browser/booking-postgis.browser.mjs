@@ -101,11 +101,12 @@ test(recoveryOnly
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 },
       extraHTTPHeaders: { "x-forwarded-for": "192.0.2.10" } });
-    const page = await context.newPage();
+    let page = await context.newPage();
     page.setDefaultTimeout(45_000);
     const actions = [];
     const exactReconciles = [];
     const errors = [];
+    let legacyPosts = 0;
     let lostCommit = false;
     let committedId = null;
     let resolveCommitHandled;
@@ -121,6 +122,10 @@ test(recoveryOnly
         return route.fulfill({ json: { slots: match ? [slot.start, slot.alternateStart].map(start => ({
           slot_start: start, staff_id: "20000000-0000-0000-0000-000000000002",
         })) : [] } });
+      }
+      if (url.pathname === "/api/public-booking" && route.request().method() === "POST") {
+        legacyPosts += 1;
+        return route.abort(); // Never allow an unexpected legacy write, even on disposable PostGIS.
       }
       if (url.pathname === "/api/public-booking/v2") {
         const payload = route.request().postDataJSON();
@@ -187,9 +192,13 @@ test(recoveryOnly
       "The uncertain booking must retain only its exact local intent marker.");
       const beforeCutover = actions.length;
       assert.equal(scalar("select private.transition_public_booking_mode('v2','v2_no_prepares')"), "v2_no_prepares");
+      await page.close(); // Avoid a Next dev Fast Refresh race while retaining browser-context storage.
       await stopServer(active);
       active = startServer(true);
       await waitForServer(active);
+      page = await context.newPage();
+      page.setDefaultTimeout(45_000);
+      page.on("pageerror", () => errors.push("browser runtime error"));
       await page.goto(`${origin}/en/book/route-fixture?realV2=1&recoveryOnly=1`);
       await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
       assert.deepEqual(actions.slice(beforeCutover), ["bootstrap", "reconcile"],
@@ -210,6 +219,7 @@ test(recoveryOnly
     assert.deepEqual(exactReconciles, [savedIntentId], "Check must reconcile only the exact original intent.");
     assert.equal(actions.filter(action => action === "prepare").length, 1);
     assert.equal(actions.filter(action => action === "commit").length, 1);
+    assert.equal(legacyPosts, 0, "Neither the v2 booking nor recovery-only reload may post to the legacy route.");
     assert.ok(actions.filter(action => action === "reconcile").length >= 2);
     assert.equal(scalar("select count(distinct action_bucket) from private.public_booking_quota_counters where action_bucket in ('bootstrap','prepare','reconcile','commit')"), "4",
       "The real route must consume bootstrap, prepare, reconcile and commit quota RPCs.");
