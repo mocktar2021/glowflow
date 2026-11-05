@@ -24,6 +24,7 @@ async function layoutMetadata(environment) {
     if (name === "next/navigation") return { notFound() { throw new Error("not-found"); } };
     if (name === "@/components/glowflow/i18n-provider") return { GlowFlowIntlProvider: () => null };
     if (name === "@/components/glowflow/legal-footer") return { LegalFooter: () => null };
+    if (name === "@/components/glowflow/pwa-registration") return { PwaRegistration: () => null };
     if (name === "@/lib/i18n") return { isLocale: () => true, messages: {} };
     if (name === "react/jsx-runtime" || name === "../globals.css") return {};
     throw new Error(`Unexpected layout dependency: ${name}`);
