@@ -35,13 +35,33 @@ test("success ping is bounded, redirect-safe, and never sends a body", async () 
     assert.equal(options.cache, "no-store");
     assert.equal(options.body, undefined);
     assert.equal(options.signal.aborted, false);
-    return { status: 200 };
+    return new Response("OK", { status: 200 });
   };
   assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, fetchImpl), true);
   assert.equal(calls, 1);
-  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => ({ status: 302 })), false);
-  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => ({ status: 500 })), false);
+  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response(null, { status: 302 })), false);
+  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response(null, { status: 500 })), false);
+  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response("not found", { status: 200 })), false);
+  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response("rate limited", { status: 200 })), false);
+  assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response("x".repeat(64), { status: 200 })), false);
   assert.equal(await run("ping", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => { throw new Error(ping); }), false);
+});
+
+test("cleanup failure signals only the derived Healthchecks failure endpoint", async () => {
+  let calls = 0;
+  const fetchImpl = async (url, options) => {
+    calls += 1;
+    assert.equal(url.href, `${ping}/fail`);
+    assert.equal(options.method, "POST");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.body, undefined);
+    return new Response("OK", { status: 200 });
+  };
+  assert.equal(await run("fail", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, fetchImpl), true);
+  assert.equal(calls, 1);
+  assert.equal(await run("fail", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: `${ping}/fail` }, fetchImpl), false);
+  assert.equal(calls, 1);
+  assert.equal(await run("fail", { GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ping }, async () => new Response(null, { status: 500 })), false);
 });
 
 test("CLI failure diagnostics do not print the bearer URL", () => {
@@ -54,7 +74,7 @@ test("CLI failure diagnostics do not print the bearer URL", () => {
   assert.ok(!`${child.stdout}${child.stderr}`.includes(ping));
 });
 
-test("dormant schedule has strict opt-in, isolated secrets, and success-only ping order", () => {
+test("dormant shared-backend schedule has strict opt-in and correctly ordered signals", () => {
   const source = readFileSync(new URL("../.github/workflows/glow56-qa-cleanup.yml", import.meta.url), "utf8");
   assert.match(source, /cron: "17,47 \* \* \* \*"/);
   assert.doesNotMatch(source, /workflow_dispatch:|pull_request:|push:/);
@@ -74,7 +94,10 @@ test("dormant schedule has strict opt-in, isolated secrets, and success-only pin
   assert.match(source, /GLOWFLOW_QA_HEALTHCHECKS_PING_URL: \$\{\{ secrets\.GLOWFLOW_QA_HEALTHCHECKS_PING_URL \}\}/);
   const preflight = source.indexOf("node ops/booking-v2-healthcheck.mjs preflight");
   const sweep = source.indexOf("node ops/booking-v2-cleanup.mjs");
+  const failure = source.indexOf("node ops/booking-v2-healthcheck.mjs fail");
   const success = source.indexOf("node ops/booking-v2-healthcheck.mjs ping");
-  assert.ok(preflight >= 0 && preflight < sweep && sweep < success);
+  assert.ok(preflight >= 0 && preflight < sweep && sweep < failure && failure < success);
+  assert.match(source, /if: \$\{\{ failure\(\) && steps\.cleanup\.outcome == 'failure' \}\}/);
+  assert.match(source, /also backs the current live glowflow\.mocktar\.com site/);
   assert.doesNotMatch(source, /continue-on-error:|if: \$\{\{ always\(\) \}\}/);
 });

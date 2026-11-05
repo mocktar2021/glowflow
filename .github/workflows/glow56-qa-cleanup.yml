@@ -1,7 +1,9 @@
-name: GlowFlow QA booking cleanup (dormant)
+name: GlowFlow shared-sandbox booking cleanup (dormant)
 
-# GitHub schedule is best effort. A separate Healthchecks missed-ping alert is
-# mandatory before opt-in; the two-hour database gate remains fail closed.
+# This fixed Supabase ref also backs the current live glowflow.mocktar.com site;
+# it is NOT isolated QA. Activation requires separately approved live-backend
+# operations or a verified isolated backend and revised target. GitHub schedule
+# is best effort; the two-hour database gate remains fail closed.
 on:
   schedule:
     - cron: "17,47 * * * *"
@@ -30,7 +32,8 @@ jobs:
         run: node ops/booking-v2-healthcheck.mjs preflight
         env:
           GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ${{ secrets.GLOWFLOW_QA_HEALTHCHECKS_PING_URL }}
-      - name: Run bounded GlowFlow QA intent and quota sweeps
+      - name: Run bounded shared-sandbox intent and quota sweeps
+        id: cleanup
         run: node ops/booking-v2-cleanup.mjs
         env:
           GLOWFLOW_CLEANUP_EXECUTE: run-glowflow-qa-cleanup-only
@@ -41,6 +44,11 @@ jobs:
           GLOWFLOW_CLEANUP_MAX_WALL_MS: "60000"
           GLOWFLOW_CLEANUP_INTENT_BATCH_LIMIT: "100"
           GLOWFLOW_CLEANUP_QUOTA_BATCH_LIMIT: "1000"
+      - name: Signal cleanup failure
+        if: ${{ failure() && steps.cleanup.outcome == 'failure' }}
+        run: node ops/booking-v2-healthcheck.mjs fail
+        env:
+          GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ${{ secrets.GLOWFLOW_QA_HEALTHCHECKS_PING_URL }}
       - name: Signal complete cleanup only
         run: node ops/booking-v2-healthcheck.mjs ping
         env:
