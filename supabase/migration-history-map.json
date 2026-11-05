@@ -289,6 +289,27 @@
       "sourceVersion": "20261104004728",
       "marker": false,
       "normalizedSha256": "75a3342728da6da276d6f1253e04e9933abb3f8f016c8dea6a7870b4f3b30ac6"
+    },
+    {
+      "version": "20261104184112",
+      "name": "glow56_private_public_booking_intents",
+      "sourceVersion": "20261104184112",
+      "marker": false,
+      "normalizedSha256": "fee46be8b4677f4bccc7ce74a762a7fbcd341e333be77666d4f8f19534050c03"
+    },
+    {
+      "version": "20261104234445",
+      "name": "glow56_public_booking_quota",
+      "sourceVersion": "20261104234445",
+      "marker": false,
+      "normalizedSha256": "0941c81a76ae4b2ad4cb7b48f04121fef13fe2e5873861ddd68f66b1bd893518"
+    },
+    {
+      "version": "20261105124804",
+      "name": "glow56_public_booking_contract_gate",
+      "sourceVersion": "20261105124804",
+      "marker": false,
+      "normalizedSha256": "a9f9f5238b54fa2e85da97decc0d80c201e71137bae525ee576be3190bd16c3c"
     }
   ]
 }

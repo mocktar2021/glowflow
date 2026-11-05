@@ -111,6 +111,7 @@ test('privileged Supabase client remains limited to reviewed server operations',
     'app/[locale]/book/[slug]/page.tsx',
     'app/api/checkout/route.ts',
     'app/api/public-booking/route.ts',
+    'app/api/public-booking/v2/route.ts', // Reviewed: strict same-origin cookie actions and service-role-only intent RPCs.
     'app/api/stripe/webhook/route.ts',
     'lib/stripe-sandbox.ts',
     'lib/staff-invitation-delivery.ts',
