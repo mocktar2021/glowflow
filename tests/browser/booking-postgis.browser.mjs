@@ -177,11 +177,14 @@ test("browser recovers one real local v2 booking after its committed response is
     assert.deepEqual(errors, []);
     await context.close();
   } finally {
-    await browser?.close();
-    if (server.exitCode === null) server.kill("SIGTERM");
-    const killTimer = setTimeout(() => server.kill("SIGKILL"), 5_000);
-    try { await serverClosed; } finally { clearTimeout(killTimer); }
-    // Deliberately do not print server output; it could contain diagnostic data.
-    void serverOutput;
+    try {
+      await browser?.close();
+    } finally {
+      if (server.exitCode === null) server.kill("SIGTERM");
+      const killTimer = setTimeout(() => server.kill("SIGKILL"), 5_000);
+      try { await serverClosed; } finally { clearTimeout(killTimer); }
+      // Deliberately do not print server output; it could contain diagnostic data.
+      void serverOutput;
+    }
   }
 });
