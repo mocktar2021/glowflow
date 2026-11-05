@@ -120,12 +120,14 @@ The application flag alone cannot fence an older deployment or a legacy RPC
 already in a database transaction. The versioned database gate provides a
 transactional `legacy -> frozen -> v2` path for the named public booking RPCs
 and private intent/session writes. It does **not** block arbitrary trusted
-`service_role` direct writes to public appointments or clients. Confirm the
-accepted MVP threat model and credential custody before activation. A
-bounded pause of new online bookings with manual salon support for unresolved
-legacy attempts is the proposed cutover path; a request-key-only legacy
-lookup is a separate implementation. Never reinterpret an old ambiguous
-request as a new v2 intent.
+`service_role` direct writes to public appointments or clients. Verify
+service-role credential custody before activation. On November 5, the owner
+accepted the narrower RPC-scoped MVP boundary and a bounded pause of new
+online bookings with manual salon support for unresolved legacy attempts.
+Staffing, timing, and the exact cutover still need their own verified release
+plan; this choice is not hosted SQL or activation approval. A request-key-only
+legacy lookup remains a separate implementation. Never reinterpret an old
+ambiguous request as a new v2 intent.
 
 After v2 has accepted an intent, rollback is `v2_no_prepares`, with existing
 cookie-bound reconcile, commit, cancel, and acknowledge still available.
