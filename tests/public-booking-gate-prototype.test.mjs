@@ -1,4 +1,4 @@
-// GLOW-56 disposable-only prototype test. Not wired into rls-run or CI.
+// GLOW-56 disposable-only prototype test; run in both race orders by rls-run/CI.
 // The SQL under docs/prototypes is NOT a deployable migration.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
