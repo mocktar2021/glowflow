@@ -509,6 +509,90 @@ test("missing signing key blocks new capabilities and cannot validate old cookie
   }
 });
 
+test("an all-zero signing key cannot issue or validate browser capabilities", async () => {
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+  const previousMaxAge = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  try {
+    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
+    const zeroKey = Buffer.alloc(32);
+    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY = zeroKey.toString("base64url");
+    const now = Math.floor(Date.now() / 1000);
+    const payload = `v1.${now}.${now + 3600}.${"B".repeat(43)}`;
+    const forged = `${payload}.${createHmac("sha256", zeroKey)
+      .update("glowflow.mocktar.com").update("\0").update(payload).digest("base64url")}`;
+    const { POST, calls, quotaCalls } = await harness();
+    const fresh = await post(POST, { action: "bootstrap" }, { cookie: null });
+    assert.equal(fresh.response.status, 503);
+    assert.equal(fresh.response.headers.get("set-cookie"), null);
+    for (const cookie of [token, forged]) {
+      const existing = await post(POST, { action: "bootstrap" }, { cookie });
+      assert.equal(existing.response.status, 409);
+      assert.equal(existing.response.headers.get("set-cookie"), null);
+      assert.equal((await post(POST, { action: "reconcile", salonSlug: "browser-fixture", intentId }, { cookie })).response.status, 409);
+    }
+    assert.deepEqual(quotaCalls, []);
+    assert.deepEqual(calls, []);
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY = previous;
+    if (previousMaxAge === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previousMaxAge;
+  }
+});
+
+test("removing cookie lifetime pauses new bookings while exact signed-cookie recovery remains available", async () => {
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  try {
+    delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    const confirmed = { state: "confirmed", generation, intent_id: intentId, confirmation: {
+      appointment_id: otherIntentId, appointment_status: "confirmed",
+      confirmed_start: "2030-01-15T10:00:00+00:00", confirmed_end: "2030-01-15T10:30:00+00:00",
+      service_title: { en: "Booked title" }, currency: "EUR", saved_locale: "en",
+    } };
+    const replies = {
+      reconcile_public_booking_intent: { state: "prepared", generation, intent_id: intentId },
+      commit_public_booking_intent: confirmed,
+      cancel_public_booking_intent: { state: "not_committed", generation, intent_id: intentId },
+      acknowledge_public_booking_intent: { state: "none", generation },
+    };
+    const { POST, calls, quotaCalls } = await harness(true,
+      name => ({ data: replies[name], error: null }));
+    const fresh = await post(POST, { action: "bootstrap" }, { cookie: null });
+    assert.equal(fresh.response.status, 503);
+    assert.equal(fresh.response.headers.get("set-cookie"), null);
+    const prepared = await post(POST, prepare);
+    assert.equal(prepared.response.status, 503);
+    assert.equal(prepared.response.headers.get("set-cookie"), null);
+    const existing = await post(POST, { action: "bootstrap" });
+    assert.equal(existing.response.status, 200);
+    assert.deepEqual(existing.value, { ready: true, new_session: false });
+    assert.equal(existing.response.headers.get("set-cookie"), null);
+    for (const action of ["reconcile", "commit", "cancel", "acknowledge"]) {
+      const result = await post(POST, { action, salonSlug: "browser-fixture", intentId });
+      assert.equal(result.response.status, 200, `${action} must remain available to the existing signed cookie`);
+      assert.equal(result.response.headers.get("set-cookie"), null);
+    }
+    assert.deepEqual(calls.map(({ name }) => name), [
+      "reconcile_public_booking_intent", "commit_public_booking_intent",
+      "cancel_public_booking_intent", "acknowledge_public_booking_intent",
+    ]);
+    assert.deepEqual(quotaCalls.map(({ args }) => args.quota_action), [
+      "reconcile", "commit", "cancel", "acknowledge",
+    ]);
+
+    const legacy = await load("../app/api/public-booking/route.ts", {
+      "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => true },
+      "@/lib/supabase/admin": { createAdminClient: () => { throw Error("legacy database access"); } },
+      "@/lib/application-diagnostics": { reportApplicationFailure: () => null },
+    });
+    const legacyResponse = await legacy.POST(new Request(`${origin}/api/public-booking`, { method: "POST", body: "not json" }));
+    assert.equal(legacyResponse.status, 410, "pausing v2 issuance must not reopen legacy booking POST");
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
+  }
+});
+
 test("cookie configuration longer than the approved 24-hour window fails closed", async () => {
   const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
   try {
