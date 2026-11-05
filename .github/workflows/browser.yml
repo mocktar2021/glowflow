@@ -58,6 +58,11 @@ jobs:
         env:
           GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
         run: node tests/browser-postgis-run.mjs
+      - name: Run lost-response recovery-only cutover against disposable PostGIS
+        env:
+          GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
+          GLOWFLOW_BROWSER_POSTGIS_SCENARIO: recovery_only
+        run: node tests/browser-postgis-run.mjs
       - name: Run non-migration recovery-only local route prototype
         env:
           GLOWFLOW_RLS_ADMIN_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/postgres
