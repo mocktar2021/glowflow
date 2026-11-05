@@ -11,7 +11,9 @@ import { chromium } from "playwright";
 const database = process.env.GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL;
 const slotInput = process.env.GLOWFLOW_BROWSER_POSTGIS_SLOT;
 const runnerNonce = process.env.GLOWFLOW_BROWSER_POSTGIS_RUNNER_NONCE;
-const recoveryOnly = process.env.GLOWFLOW_BROWSER_POSTGIS_SCENARIO === "recovery_only";
+const scenario = process.env.GLOWFLOW_BROWSER_POSTGIS_SCENARIO;
+const recoveryOnly = scenario === "recovery_only" || scenario === "recovery_only_noncommitted";
+const nonCommitted = scenario === "recovery_only_noncommitted";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const fixture = resolve(root, "tests/browser/fixture");
 
@@ -33,9 +35,11 @@ function scalar(query) {
   return result.stdout.trim().split("\n").at(-1);
 }
 
-test(recoveryOnly
-  ? "browser recovers a lost real booking after v2 closes to recovery-only"
-  : "browser recovers one real local v2 booking after its committed response is lost", {
+test(nonCommitted
+  ? "browser keeps a real prepared intent locked after an uncommitted response is lost at cutover"
+  : recoveryOnly
+    ? "browser recovers a lost real booking after v2 closes to recovery-only"
+    : "browser recovers one real local v2 booking after its committed response is lost", {
   skip: !database && !slotInput && !runnerNonce, timeout: 300_000,
 }, async () => {
   if (!database || !slotInput || !runnerNonce) throw new Error("Use the disposable browser-PostGIS runner; direct invocation is unsupported.");
@@ -133,6 +137,11 @@ test(recoveryOnly
         actions.push(action); // Never retain contact details or the signed cookie.
         if (action === "reconcile" && payload.intentId) exactReconciles.push(payload.intentId);
         if (action === "commit" && !lostCommit) {
+          if (nonCommitted) {
+            lostCommit = true;
+            resolveCommitHandled();
+            return route.abort("failed"); // The request never reaches Next or PostgreSQL.
+          }
           const committed = await route.fetch(); // Server and PostgreSQL finish first.
           const body = await committed.json();
           assert.equal(committed.status(), 200);
@@ -175,15 +184,16 @@ test(recoveryOnly
     } finally { clearTimeout(commitTimeout); }
     await page.getByRole("button", { name: "Check original request" }).waitFor();
     assert.equal(lostCommit, true);
-    assert.match(committedId, /^[0-9a-f-]{36}$/);
+    if (!nonCommitted) assert.match(committedId, /^[0-9a-f-]{36}$/);
     assert.equal(await page.locator('[name="bookingTime"]').count(), 0,
       "A lost response must hide the alternate time choice.");
     assert.equal(await page.getByRole("button", { name: "Confirm appointment", exact: true }).count(), 0);
     const beforeForcedSubmit = actions.length;
     await page.locator("form").evaluate(form => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     assert.equal(actions.length, beforeForcedSubmit, "A forced submit cannot prepare or commit another booking.");
-    assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "1");
+    assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), nonCommitted ? "0" : "1");
     const savedIntentId = scalar("select id from private.public_booking_intents where tenant_id='10000000-0000-0000-0000-000000000001'");
+    if (nonCommitted) assert.equal(scalar(`select state from private.public_booking_intents where id='${savedIntentId}'`), "prepared");
     if (recoveryOnly) {
       const browserCookie = cookies.find(cookie => cookie.name === "__Host-glowflow_booking_session").value;
       assert.deepEqual(await page.evaluate(() => Object.entries(localStorage)
@@ -200,7 +210,11 @@ test(recoveryOnly
       page.setDefaultTimeout(45_000);
       page.on("pageerror", () => errors.push("browser runtime error"));
       await page.goto(`${origin}/en/book/route-fixture?realV2=1&recoveryOnly=1`);
-      await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
+      if (nonCommitted) {
+        await page.getByRole("alert").filter({ hasText: "This request is still pending" }).waitFor();
+      } else {
+        await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
+      }
       assert.deepEqual(actions.slice(beforeCutover), ["bootstrap", "reconcile"],
         "Recovery-only reload must check the exact intent without a new session, prepare, or commit.");
       assert.equal((await context.cookies(origin)).find(cookie => cookie.name === "__Host-glowflow_booking_session")?.value,
@@ -210,19 +224,32 @@ test(recoveryOnly
       assert.equal(await page.getByRole("button", { name: "Book another appointment" }).count(), 0);
       assert.equal(await page.locator('[name="bookingTime"]').count(), 0,
         "Recovery-only mode must not reveal the alternate slot.");
+      if (nonCommitted) {
+        assert.equal(await page.getByRole("button", { name: "Finish the original booking" }).count(), 0,
+          "A reloaded tab cannot silently complete an unverified original booking.");
+        assert.deepEqual(await page.evaluate(() => Object.entries(localStorage)
+          .filter(([key]) => key.startsWith("glowflow.booking.pending.route-fixture."))),
+        [[`glowflow.booking.pending.route-fixture.${savedIntentId}`, "1"]],
+        "The prepared intent stays identifiable for a later exact recovery check.");
+      }
     } else {
       await page.getByRole("button", { name: "Check original request" }).click();
     }
-    await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
-    assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), "1");
-    assert.equal(scalar("select id from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), committedId);
+    if (!nonCommitted) await page.getByRole("heading", { name: "Appointment confirmed", exact: true }).waitFor();
+    assert.equal(scalar("select count(*) from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), nonCommitted ? "0" : "1");
+    if (!nonCommitted) {
+      assert.equal(scalar("select id from public.appointments where tenant_id='10000000-0000-0000-0000-000000000001'"), committedId);
+    } else {
+      assert.equal(scalar(`select state from private.public_booking_intents where id='${savedIntentId}'`), "prepared",
+        "The cutover cannot turn a non-committed attempt into an appointment.");
+    }
     assert.deepEqual(exactReconciles, [savedIntentId], "Check must reconcile only the exact original intent.");
     assert.equal(actions.filter(action => action === "prepare").length, 1);
     assert.equal(actions.filter(action => action === "commit").length, 1);
     assert.equal(legacyPosts, 0, "Neither the v2 booking nor recovery-only reload may post to the legacy route.");
     assert.ok(actions.filter(action => action === "reconcile").length >= 2);
-    assert.equal(scalar("select count(distinct action_bucket) from private.public_booking_quota_counters where action_bucket in ('bootstrap','prepare','reconcile','commit')"), "4",
-      "The real route must consume bootstrap, prepare, reconcile and commit quota RPCs.");
+    assert.equal(scalar("select count(distinct action_bucket) from private.public_booking_quota_counters where action_bucket in ('bootstrap','prepare','reconcile','commit')"), nonCommitted ? "3" : "4",
+      "Only actions that reach the real route may consume capability quota.");
     assert.deepEqual(errors, []);
     await context.close();
   } finally {
