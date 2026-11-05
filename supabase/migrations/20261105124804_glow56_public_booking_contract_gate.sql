@@ -23,11 +23,15 @@ begin
   if to_regclass('private.public_booking_contract_gate') is not null then
     raise exception using errcode = '55000', message = 'booking_contract_gate_already_exists';
   end if;
+  -- Cleanup heartbeats also prove that the dormant predecessor contract has
+  -- been used. Do not install a new gate over unexplained operator state.
   if exists (select 1 from private.public_booking_intents)
      or exists (select 1 from private.public_booking_browser_sessions)
      or exists (select 1 from private.public_booking_intent_policy)
+     or exists (select 1 from private.public_booking_intent_cleanup_state)
      or exists (select 1 from private.public_booking_quota_policy)
-     or exists (select 1 from private.public_booking_quota_counters) then
+     or exists (select 1 from private.public_booking_quota_counters)
+     or exists (select 1 from private.public_booking_quota_cleanup_state) then
     raise exception using errcode = '55000', message = 'booking_contract_requires_empty_dormant_intents';
   end if;
 end;
