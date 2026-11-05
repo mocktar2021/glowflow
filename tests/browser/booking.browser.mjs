@@ -750,12 +750,14 @@ function v2PublishedConfirmation(locale) {
   } };
 }
 function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitRateLimitAfterSave = false,
+  loseSecondCommitAfterSave = false,
   loseCancel = false, appointmentStatus = "confirmed", published = false } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
+  let secondCommitLost = false;
   let cancelLostOnce = false;
   let resolveCommitHandled;
   // The uncertainty alert is rendered when submission begins, before prepare
@@ -802,6 +804,12 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
           lostOnce = true;
           if (commitBeforeLoss) { state = "confirmed"; appointments.set(v2IntentId, confirmation); }
           resolveCommitHandled();
+          return route.abort("failed");
+        }
+        if (loseSecondCommitAfterSave && lostOnce && !secondCommitLost) {
+          secondCommitLost = true;
+          state = "confirmed";
+          appointments.set(v2IntentId, confirmation);
           return route.abort("failed");
         }
         state = "confirmed";
@@ -1776,14 +1784,48 @@ test("v2 cancel after the original commit preserves its one confirmed appointmen
   assert.deepEqual(externalRequests, []);
 });
 
-async function offerOriginalFinish(page, server) {
-  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
-  await fillBooking(page, "en");
+async function offerOriginalFinish(page, server, locale = "en") {
+  await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+  await fillBooking(page, locale);
   await waitForLostCommitToSettle(page, server);
-  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
-  const finish = page.getByRole("button", { name: v2FinishLabels.en.finish });
+  await page.getByRole("button", { name: uncertainLabels[locale].check }).click();
+  const finish = page.getByRole("button", { name: v2FinishLabels[locale].finish });
   await finish.waitFor();
   return finish;
+}
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 explicit Finish saves once despite a lost response, then Check confirms`, async t => {
+    const server = v2Server(locale, { loseCommit: true, commitBeforeLoss: false, loseSecondCommitAfterSave: true });
+    const { page, writes, externalRequests } = await pageFor(t, locale, { v2Booking: server.handler, v2Cookie: true,
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    const finish = await offerOriginalFinish(page, server, locale);
+    assert.equal(server.appointments.size, 0, "the original lost commit did not book");
+    assert.equal(writes.filter(value => value.action === "commit").length, 1);
+    await finish.click();
+    await page.getByRole("alert").filter({ hasText: uncertainLabels[locale].warning }).waitFor();
+    await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
+    assert.equal(server.appointments.size, 1, "the explicit Finish committed before its response was lost");
+    assert.deepEqual([...server.appointments.keys()], [v2IntentId]);
+    assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+      [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0, "an uncertain Finish cannot expose another time");
+    assert.equal(await page.getByRole("button", { name: v2FinishLabels[locale].finish }).count(), 0,
+      "the failed response cannot silently offer another commit");
+    await page.locator("form").dispatchEvent("submit");
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+    assert.equal(writes.filter(value => value.action === "commit").length, 2);
+    await page.getByRole("button", { name: uncertainLabels[locale].check }).click();
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.equal(writes.filter(value => value.action === "prepare").length, 1,
+      "read-only Check must not prepare another appointment");
+    assert.equal(writes.filter(value => value.action === "commit").length, 2,
+      "read-only Check must not retry the saved Finish commit");
+    assert.equal(server.appointments.size, 1);
+    assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+    assert.deepEqual(externalRequests, []);
+  });
 }
 
 test("v2 explicit finish rechecks a cancel marker written by another tab during reconciliation", async t => {
