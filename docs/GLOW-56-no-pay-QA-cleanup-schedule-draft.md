@@ -3,14 +3,15 @@
 This is code only. [PR #224](https://github.com/mocktar2021/glowflow/pull/224)
 merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
 The GitHub Actions cleanup job is deliberately skipped
-unless the effective Actions variable `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
+unless the **repository Actions variable** `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
 `enable-glow56-qa-cleanup-20261105`.
 At merge, the owner's GitHub Settings screenshots showed no repository Actions
 variables, no variables or secrets in the `glowflow-qa-booking-cleanup`
 Environment, and no organization scope because `mocktar2021` is a personal
 account. This is a dated observation, not a continuing guarantee. There is no
-manual-dispatch trigger. The job remains skipped while the opt-in is absent.
-Before any activation, recheck the effective opt-in and secret state;
+manual-dispatch trigger. The job remains skipped while the repository opt-in is
+absent. Before any activation, recheck the repository variable and Environment
+secret state;
 this connected workspace cannot read GitHub Actions variables. A code merge
 alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to Vercel, send a
 Healthchecks ping, or contact a customer. Do not set the variable until the
@@ -26,6 +27,13 @@ Neither condition was met at code merge. This workflow cannot be cited as
 isolated-QA operational evidence.
 
 ## Candidate operation
+
+The opt-in must be set at **repository** scope if activation is separately
+approved. The workflow checks `vars.GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` in its
+job-level `if`, which GitHub evaluates before the job starts; Environment
+variables are not available until the job starts. An Environment variable of
+the same name cannot enable this job. Keep the service-role key and Healthchecks
+ping URL as protected Environment **secrets**, not repository variables.
 
 The workflow runs only on `mocktar2021/glowflow` default-branch schedules at
 17 and 47 minutes past each hour, with one non-overlapping job, a 10-minute
@@ -102,7 +110,8 @@ Cron is not a substitute because it currently allows only one invocation per
 day. The current shared sandbox is not the future `glowflow.beauty` production
 environment, but it is live and should be treated as such.
 
-References: [GitHub schedule limitations](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
+References: [GitHub configuration-variable availability](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables),
+[GitHub schedule limitations](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
 [GitHub public-runner pricing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
 [Healthchecks ping API](https://healthchecks.io/docs/http_api/),
 [Healthchecks free tier](https://healthchecks.io/pricing/),
