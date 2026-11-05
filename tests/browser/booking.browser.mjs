@@ -885,7 +885,7 @@ for (const locale of ["fr", "en", "es"]) {
     });
     await page.addInitScript(id => localStorage.setItem(`glowflow.booking.pending.browser-fixture.${id}`, "1"), v2IntentId);
     await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
-    await page.getByRole("alert").waitFor();
+    await page.locator('section[role="alert"]').waitFor();
     assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
     assert.equal(await page.getByRole("button", { name: v2FinishLabels[locale].finish }).count(), 0,
       "a reloaded prepared intent has no immutable summary and cannot be finished blindly");
