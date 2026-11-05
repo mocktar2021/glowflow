@@ -3,6 +3,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { publicBookingQuotaKeys } from "@/lib/public-booking-quota-keys";
 import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 const cookieName = "__Host-glowflow_booking_session";
 const approvedCookieMaxAgeSeconds = 24 * 60 * 60;
+const maxQuotaRetryAfterSeconds = 60 * 60;
 const maxBodyBytes = 4096;
 const tokenPattern = /^v1\.([1-9][0-9]{9,12})\.([1-9][0-9]{9,12})\.([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/;
 const keyPattern = /^[A-Za-z0-9_-]{43}$/;
@@ -38,8 +40,33 @@ type Result = {
   confirmation?: Record<string, unknown>;
 };
 
-function json(value: Record<string, unknown>, status = 200) {
-  return NextResponse.json(value, { status, headers: { "cache-control": "private, no-store" } });
+function json(value: Record<string, unknown>, status = 200, headers: Record<string, string> = {}) {
+  return NextResponse.json(value, { status, headers: { "cache-control": "private, no-store", ...headers } });
+}
+
+async function quotaFailure(
+  request: NextRequest, supabase: ReturnType<typeof createAdminClient>,
+  action: "bootstrap" | "prepare" | "reconcile", token: string | null, salonSlug: string | null,
+): Promise<NextResponse | null> {
+  const keys = publicBookingQuotaKeys(request, token);
+  if (!keys || (action === "bootstrap" ? keys.browserDigest !== null : !keys.browserDigest)) {
+    return json({ state: "unknown", error: "booking_unavailable" }, 503);
+  }
+  const { data, error } = await supabase.rpc("consume_public_booking_quota", {
+    quota_action: action, ip_digest: keys.ipDigest,
+    browser_digest: keys.browserDigest, salon_slug: salonSlug,
+  });
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    return json({ state: "unknown", error: "booking_unavailable" }, 503);
+  }
+  const result = data as Record<string, unknown>;
+  if (result.allowed === true && result.retry_after === 0) return null;
+  if (result.allowed === false && Number.isInteger(result.retry_after)
+    && (result.retry_after as number) >= 1 && (result.retry_after as number) <= maxQuotaRetryAfterSeconds) {
+    return json({ state: "unknown", error: "rate_limited" }, 429,
+      { "retry-after": String(result.retry_after) });
+  }
+  return json({ state: "unknown", error: "booking_unavailable" }, 503);
 }
 
 function configuredCookieMaxAge(): number | null {
@@ -253,6 +280,10 @@ export async function POST(request: NextRequest) {
     const maxAge = configuredCookieMaxAge();
     const signingKey = cookieSigningKey();
     if (!existing && (!maxAge || !signingKey)) return json({ state: "unknown", error: "booking_unavailable" }, 503);
+    try {
+      const quota = await quotaFailure(request, createAdminClient(), "bootstrap", null, null);
+      if (quota) return quota;
+    } catch { return json({ state: "unknown", error: "booking_unavailable" }, 503); }
     const response = json({ ready: true, new_session: !existing });
     if (!existing) {
       response.cookies.set(cookieName, newBrowserToken(request, maxAge!, signingKey!), {
@@ -293,6 +324,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const supabase = createAdminClient();
+    if (action === "prepare" || action === "reconcile") {
+      const quota = await quotaFailure(request, supabase, action, token, String(args.salon_slug));
+      if (quota) return quota;
+    }
+    // This draft does not budget commit/cancel/acknowledge. Keep the rollout
+    // gate OFF until a separately reviewed capability-scoped bound exists.
     const { data, error } = await supabase.rpc(`${action}_public_booking_intent`, args);
     // An unseeded policy or missing v2 migration must never fall back to the legacy create RPC.
     if (error) return json({ state: "unknown", error: "booking_unavailable" }, 503);
