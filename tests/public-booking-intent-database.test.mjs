@@ -201,6 +201,24 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     savedServiceTitle, "catalog edit must change the current title");
   assert.equal(state(prepare(token("a"), s1)).state, "confirmed",
     "stored success must be recoverable after catalog/publication changes");
+  // Treat the commit response as lost, then attempt a changed time. The
+  // original appointment and server-owned request key must remain the only
+  // booking for this fixture client after prepare returns stored success.
+  const originalRequestKey = sql(`select request_key from private.public_booking_intents
+    where id='${first.intent_id}'`);
+  assert.equal(sql(`select count(*) from public.appointments as appointment
+    join public.clients as client on client.id=appointment.client_id
+      and client.tenant_id=appointment.tenant_id
+    where appointment.tenant_id='${tenant}' and client.email='intent@example.invalid'`), "1",
+    "changed-time prepare after a committed response loss cannot create a second appointment");
+  assert.equal(sql(`select count(*) from public.appointments as appointment
+    join public.clients as client on client.id=appointment.client_id
+      and client.tenant_id=appointment.tenant_id
+    where appointment.tenant_id='${tenant}' and client.email='intent@example.invalid'
+      and appointment.id='${confirmed.confirmation.appointment_id}'
+      and appointment.public_booking_request_key='${originalRequestKey}'
+      and appointment.start_time='${s0}'::timestamptz`), "1",
+    "the sole appointment must retain the original intent's request key and time");
   const recovered = state(reconcile(token("a"), first.intent_id));
   assert.equal(recovered.state, "confirmed");
   assert.deepEqual(recovered.confirmation.service_title, savedServiceTitle,
