@@ -129,6 +129,8 @@ const copy = {
     uncertain: "Votre réservation a peut-être été enregistrée. Ne choisissez pas un autre créneau avant de vérifier celle-ci.",
     uncertainHelp: "Gardez cette page ouverte et réessayez la même demande. Si elle n’a pas été enregistrée, cette action peut créer le rendez-vous. Sans confirmation, contactez le salon avant de réserver à nouveau.",
     checkOriginal: "Réessayer la demande initiale",
+    legacyCutoverWarning: "Cette page de réservation ne peut plus envoyer de demandes. Votre demande initiale a peut-être été enregistrée.",
+    legacyCutoverHelp: "Contactez le salon pour vérifier cette demande avant de réserver à nouveau. Ne choisissez pas un autre créneau ici.",
     v2CheckOriginal: "Vérifier la demande initiale",
     v2CheckHelp: "La vérification ne crée pas de rendez-vous. Vous ne pouvez pas choisir un autre créneau tant que le résultat de cette demande n’est pas établi.",
     v2Finish: "Terminer la réservation initiale",
@@ -195,6 +197,8 @@ const copy = {
     uncertain: "Your booking may have succeeded. Do not choose another time until this request is checked.",
     uncertainHelp: "Keep this page open and retry the same request. If it was not saved, retrying may create the booking. Without confirmation, contact the salon before booking again.",
     checkOriginal: "Retry original request",
+    legacyCutoverWarning: "This booking page can no longer submit requests. Your original request may have been saved.",
+    legacyCutoverHelp: "Contact the salon to verify this request before booking again. Do not choose another time here.",
     v2CheckOriginal: "Check original request",
     v2CheckHelp: "Checking does not create an appointment. You cannot choose another time until this request’s outcome is known.",
     v2Finish: "Finish the original booking",
@@ -261,6 +265,8 @@ const copy = {
     uncertain: "Es posible que tu reserva se haya registrado. No elijas otra hora hasta comprobar esta solicitud.",
     uncertainHelp: "Mantén esta página abierta y reintenta la misma solicitud. Si no se guardó, el reintento puede crear la reserva. Sin confirmación, contacta con el salón antes de reservar de nuevo.",
     checkOriginal: "Reintentar la solicitud original",
+    legacyCutoverWarning: "Esta página de reservas ya no puede enviar solicitudes. Es posible que se haya guardado tu solicitud original.",
+    legacyCutoverHelp: "Contacta con el salón para comprobar esta solicitud antes de volver a reservar. No elijas otra hora aquí.",
     v2CheckOriginal: "Comprobar la solicitud original",
     v2CheckHelp: "La comprobación no crea una cita. No puedes elegir otra hora hasta que se conozca el resultado de esta solicitud.",
     v2Finish: "Completar la reserva original",
@@ -337,6 +343,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const countryDefaultLocale = salon.defaultLocale ?? "fr";
   const paymentLabels = sandboxPaymentCopy[locale];
   const retry = useRef<{ payload: BookingPayload; key: string } | null>(null);
+  const legacyCutoverManualRef = useRef(false);
   const inFlight = useRef(false);
   const uncertainRef = useRef(false);
   const contactRef = useRef<HTMLInputElement>(null);
@@ -362,6 +369,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [uncertainPublicBooking, setUncertainPublicBooking] = useState(false);
+  const [legacyCutoverManual, setLegacyCutoverManual] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
@@ -411,7 +419,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   useEffect(() => {
     if (uncertainPublicBooking) recoveryRef.current?.focus();
-  }, [uncertainPublicBooking]);
+  }, [uncertainPublicBooking, legacyCutoverManual]);
 
   useEffect(() => {
     if (v2PreparedOffer) preparedOfferRef.current?.focus();
@@ -703,7 +711,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   }
 
   async function sendBooking(payload: BookingPayload, requestKey: string) {
-    if (inFlight.current) return;
+    if (inFlight.current || (!sandbox && legacyCutoverManualRef.current)) return;
     const wasUncertain = uncertainRef.current;
     inFlight.current = true;
     setSubmitting(true);
@@ -729,6 +737,18 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         } else {
           window.location.assign(`/${locale}/book/${salon.slug}?sandboxReservation=${encodeURIComponent(result.reservationId)}`);
         }
+        return;
+      }
+
+      if (response.status === 410 && result.error === "booking_contract_changed") {
+        // A later 410 cannot prove whether an earlier lost response committed.
+        // Preserve the exact original key/payload, but never retry this closed
+        // legacy contract or let the visitor create a changed booking here.
+        legacyCutoverManualRef.current = true;
+        setLegacyCutoverManual(true);
+        uncertainRef.current = true;
+        setUncertainPublicBooking(true);
+        setError("");
         return;
       }
 
@@ -969,7 +989,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   async function retryOriginalBooking() {
     if (v2) { await recoverV2(); return; }
-    if (!uncertainPublicBooking || !retry.current || inFlight.current) return;
+    if (!uncertainPublicBooking || legacyCutoverManualRef.current || !retry.current || inFlight.current) return;
     await sendBooking(retry.current.payload, retry.current.key);
   }
 
@@ -1041,11 +1061,11 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
             <p className="mt-3 leading-7">{labels.v2StartupHelp}</p>
             <button type="button" disabled={v2RetrySeconds > 0} onClick={retryV2Startup} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">{labels.retry}</button>
           </section> : uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
-            <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{v2Warning || labels.uncertain}</h2>
-            {!v2ManualOnly ? <p className="mt-3 leading-7">{v2 ? labels.v2CheckHelp : labels.uncertainHelp}</p> : null}
+            <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{legacyCutoverManual ? labels.legacyCutoverWarning : v2Warning || labels.uncertain}</h2>
+            {!v2ManualOnly ? <p className="mt-3 leading-7">{legacyCutoverManual ? labels.legacyCutoverHelp : v2 ? labels.v2CheckHelp : labels.uncertainHelp}</p> : null}
             {v2 && !v2ManualOnly && v2Warning === labels.v2PreparedPending && !v2PreparedOffer
               ? <p className="mt-3 leading-7">{labels.v2PreparedNoSummary}</p> : null}
-            {!v2ManualOnly ? <button type="button" disabled={submitting || v2RetrySeconds > 0} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
+            {!v2ManualOnly && !legacyCutoverManual ? <button type="button" disabled={submitting || v2RetrySeconds > 0} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
               {submitting ? labels.saving : v2 ? labels.v2CheckOriginal : labels.checkOriginal}
             </button> : null}
             {v2 && !v2ManualOnly && v2PreparedOffer ? <div className="mt-5 rounded-xl border border-amber-400 bg-white/80 p-4 dark:bg-black/20">
