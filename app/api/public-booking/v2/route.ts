@@ -101,7 +101,8 @@ function cookieSigningKey(): Buffer | null {
   const encoded = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
   if (!encoded || !keyPattern.test(encoded)) return null;
   const key = Buffer.from(encoded, "base64url");
-  return key.length === 32 && key.toString("base64url") === encoded ? key : null;
+  return key.length === 32 && key.toString("base64url") === encoded
+    && !key.equals(Buffer.alloc(32)) ? key : null;
 }
 
 function cookieSignature(request: NextRequest, payload: string, key: Buffer): Buffer {
