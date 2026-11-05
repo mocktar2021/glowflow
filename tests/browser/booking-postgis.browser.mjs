@@ -10,6 +10,7 @@ import { chromium } from "playwright";
 // Not a PostgREST, Vercel-header, or hosted Supabase end-to-end test.
 const database = process.env.GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL;
 const slotInput = process.env.GLOWFLOW_BROWSER_POSTGIS_SLOT;
+const runnerNonce = process.env.GLOWFLOW_BROWSER_POSTGIS_RUNNER_NONCE;
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const fixture = resolve(root, "tests/browser/fixture");
 
@@ -32,9 +33,13 @@ function scalar(query) {
 }
 
 test("browser recovers one real local v2 booking after its committed response is lost", {
-  skip: !database || !slotInput, timeout: 300_000,
+  skip: !database && !slotInput && !runnerNonce, timeout: 300_000,
 }, async () => {
+  if (!database || !slotInput || !runnerNonce) throw new Error("Use the disposable browser-PostGIS runner; direct invocation is unsupported.");
   checkedDatabaseUrl();
+  assert.match(runnerNonce, /^[0-9a-f]{64}$/);
+  assert.equal(scalar("select nonce from private.glowflow_browser_postgis_runner_marker where singleton"), runnerNonce,
+    "The browser test must be issued by this disposable database runner.");
   const slot = JSON.parse(slotInput);
   assert.match(slot.start, /^\d{4}-\d{2}-\d{2}T/);
   assert.match(slot.localDate, /^\d{4}-\d{2}-\d{2}$/);
@@ -60,6 +65,7 @@ test("browser recovers one real local v2 booking after its committed response is
     "dev", "--webpack", "--hostname", "localhost", "--port", String(port)],
   { cwd: fixture, env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)),
     stdio: ["ignore", "pipe", "pipe"] });
+  const serverClosed = new Promise(resolve => server.once("close", resolve));
   let browser;
   let serverOutput = "";
   server.stdout.on("data", value => { serverOutput = (serverOutput + value).slice(-4096); });
@@ -155,11 +161,15 @@ test("browser recovers one real local v2 booking after its committed response is
     assert.equal(actions.filter(action => action === "prepare").length, 1);
     assert.equal(actions.filter(action => action === "commit").length, 1);
     assert.ok(actions.filter(action => action === "reconcile").length >= 2);
+    assert.equal(scalar("select count(distinct action_bucket) from private.public_booking_quota_counters where action_bucket in ('bootstrap','prepare','reconcile','commit')"), "4",
+      "The real route must consume bootstrap, prepare, reconcile and commit quota RPCs.");
     assert.deepEqual(errors, []);
     await context.close();
   } finally {
     await browser?.close();
     if (server.exitCode === null) server.kill("SIGTERM");
+    const killTimer = setTimeout(() => server.kill("SIGKILL"), 5_000);
+    try { await serverClosed; } finally { clearTimeout(killTimer); }
     // Deliberately do not print server output; it could contain diagnostic data.
     void serverOutput;
   }

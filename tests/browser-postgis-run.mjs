@@ -51,15 +51,23 @@ try {
   if (!parsedSlot?.start || !/^\d{4}-\d{2}-\d{2}$/.test(parsedSlot.localDate)) {
     throw new Error("Fictional fixture did not expose a future slot.");
   }
+  const runnerNonce = randomBytes(32).toString("hex");
+  sql(`create table private.glowflow_browser_postgis_runner_marker (
+    singleton boolean primary key check (singleton),
+    nonce text not null check (nonce ~ '^[0-9a-f]{64}$')
+  );
+  insert into private.glowflow_browser_postgis_runner_marker
+    (singleton, nonce) values (true, '${runnerNonce}')`, "runner-issued disposable marker");
   const childEnv = {
     PATH: process.env.PATH, HOME: process.env.HOME, CI: process.env.CI,
     TMPDIR: process.env.TMPDIR, XDG_CACHE_HOME: process.env.XDG_CACHE_HOME,
     PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH,
     PSQL_BIN: process.env.PSQL_BIN,
-      GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL: testUrl.href,
-      GLOWFLOW_BROWSER_POSTGIS_SLOT: JSON.stringify(parsedSlot),
-      GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY: randomBytes(32).toString("base64url"),
-      GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: randomBytes(32).toString("base64url"),
+    GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL: testUrl.href,
+    GLOWFLOW_BROWSER_POSTGIS_SLOT: JSON.stringify(parsedSlot),
+    GLOWFLOW_BROWSER_POSTGIS_RUNNER_NONCE: runnerNonce,
+    GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY: randomBytes(32).toString("base64url"),
+    GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: randomBytes(32).toString("base64url"),
   };
   const result = spawnSync(process.execPath, ["--test", "tests/browser/booking-postgis.browser.mjs"], {
     cwd: process.cwd(), stdio: "inherit", timeout: 600_000,

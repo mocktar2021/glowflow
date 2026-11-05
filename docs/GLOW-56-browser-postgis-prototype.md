@@ -4,7 +4,9 @@ The dedicated `booking-postgis` CI job creates a generated database on its
 disposable loopback PostGIS service, loads the repository schema and fictional
 fixtures, runs one Chromium booking test, and drops the database in `finally`.
 The platform fixture may create cluster roles, so never run its runner against
-a shared local PostgreSQL instance.
+a shared local PostgreSQL instance. Direct invocation of the browser test is
+unsupported; its runner creates a nonce marker inside the fresh database and
+passes the matching nonce to the browser process.
 
 The browser uses the real `LiveBookingFlow` and sends POSTs to a local Next.js
 route that re-exports the unchanged production v2 handler. Only in the browser
