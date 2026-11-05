@@ -90,11 +90,15 @@ new HTTP admission. V2 commit needs a private appointment executor so the
 legacy wrapper can be fenced without breaking intent-bound commit. The
 private intent/session grants and lock order must be reviewed before claiming
 that every insertion path is covered. In particular, the current draft grants
-`service_role` direct `INSERT` on `private.public_booking_browser_sessions`
+`service_role` direct `INSERT` on both
+`private.public_booking_browser_sessions` and `private.public_booking_intents`,
 and `EXECUTE` on the session-bootstrap helper. The versioned database gate
-must revoke or fence both paths; a route-only change cannot prevent a direct
-service-role caller from creating a new session. A failed freeze leaves v2 off
-and must not be described as a completed drain.
+must redesign or fence all three paths; a route-only change cannot prevent a
+direct service-role caller from creating a new session or prepared intent.
+Simple grant revocation would also break today's security-invoker RPCs, so
+the privilege and function design must preserve permitted exact-intent
+recovery. A failed freeze leaves v2 off and must not be described as a
+completed drain.
 
 Once v2 accepts an intent, rollback is `v2 -> v2_no_prepares`, never back to
 `legacy` or a legacy-only deployment. Keep valid signed cookies and existing
@@ -109,8 +113,9 @@ Before any hosted change, test the admission matrix and malformed settings in
 route and FR/EN/ES browser fixtures. In disposable PostgreSQL, prove no-ID
 reconcile cannot insert a session in `v2_no_prepares`, new prepare fails,
 existing-intent recovery works, and the operator freeze waits for in-flight
-legacy work. Prove a direct `service_role` INSERT and bootstrap-helper call
-cannot bypass recovery-only mode. Race `v2 -> v2_no_prepares` against an
+legacy work. Prove direct `service_role` session and intent INSERTs and a
+bootstrap-helper call cannot bypass recovery-only mode. Race
+`v2 -> v2_no_prepares` against an
 in-flight prepare in two database sessions and prove that the transition
 waits for or rejects the prepare without admitting a new post-transition
 intent. Exercise an old-page 410, older deployment/direct RPC, lock timeout,
