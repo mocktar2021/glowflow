@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const connection = process.env.GLOWFLOW_SANDBOX_TEST_DATABASE_URL;
+const raceOrder = process.env.GLOWFLOW_GATE_RACE_ORDER || "prepare_first";
 const psql = process.env.PSQL_BIN || "psql";
 const root = new URL("../", import.meta.url);
 const tenant = "10000000-0000-0000-0000-000000000001";
@@ -64,12 +65,16 @@ function heldTransaction(input) {
       status === 0 ? resolve(stdout) : reject(safeError(stderr));
     });
   });
+  // The ready promise can reject before callers await done; keep that child
+  // failure from surfacing as a second, unhandled rejection.
+  void done.catch(() => {});
   child.stdout.setEncoding("utf8").on("data", value => {
     stdout += value;
     if (stdout.includes("GATE_HELD")) readyResolve();
   });
   child.stderr.setEncoding("utf8").on("data", value => { stderr += value; });
-  child.stdin.write(`begin;\n${input}\nselect 'GATE_HELD';\n`);
+  const statement = input.trim().endsWith(";") ? input : `${input};`;
+  child.stdin.write(`begin;\n${statement}\nselect 'GATE_HELD';\n`);
   return { ready, done, release: () => child.stdin.end("commit;\n") };
 }
 
@@ -117,6 +122,7 @@ test("GLOW-56 prototype contract gate and service-role bypass fence", {
   assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(url.hostname));
   assert.match(url.pathname, /^\/glowflow_sandbox_test[0-9_]*$/);
   assert.ok(!url.search && !url.hash);
+  assert.ok(["prepare_first", "transition_first"].includes(raceOrder));
   assert.equal(sql("select count(*) from pg_tables where schemaname='public'"), "0");
 
   sql(readFileSync(new URL("tests/supabase-platform-fixture.sql", root), "utf8"));
@@ -198,14 +204,35 @@ test("GLOW-56 prototype contract gate and service-role bypass fence", {
   const existing = state(prepare(existingHash, recoveryStart, existingGeneration,
     "gate-recovery@example.invalid"));
   assert.equal(existing.state, "prepared");
+  const heldRecovery = heldTransaction(asService(`select public.reconcile_public_booking_intent(
+    'fixture-a','${existingHash}','${existing.intent_id}')`));
+  await heldRecovery.ready;
+  try {
+    await assert.rejects(asyncSql(`begin; set local lock_timeout='100ms';
+      select private.transition_public_booking_mode('v2','v2_no_prepares'); commit;`),
+    /lock timeout/);
+    assert.equal(sql("select mode from private.public_booking_contract_gate"), "v2",
+      "timed-out transition must leave admission unchanged");
+  } finally {
+    heldRecovery.release();
+    await heldRecovery.done;
+  }
   const raceHash = hash("b");
   const raceGeneration = reconcile(raceHash).generation;
-  const heldPrepare = heldTransaction(prepare(raceHash, concurrentStart, raceGeneration,
-    "gate-race@example.invalid"));
-  assert.equal(await assertTransitionWaits(heldPrepare,
-    "select private.transition_public_booking_mode('v2','v2_no_prepares')"), "v2_no_prepares");
+  if (raceOrder === "prepare_first") {
+    const heldPrepare = heldTransaction(prepare(raceHash, concurrentStart, raceGeneration,
+      "gate-race@example.invalid"));
+    assert.equal(await assertTransitionWaits(heldPrepare,
+      "select private.transition_public_booking_mode('v2','v2_no_prepares')"), "v2_no_prepares");
+  } else {
+    const heldTransition = heldTransaction(
+      "select private.transition_public_booking_mode('v2','v2_no_prepares');");
+    await assert.rejects(assertTransitionWaits(heldTransition,
+      prepare(raceHash, concurrentStart, raceGeneration,
+        "gate-race@example.invalid")), /booking_contract_closed/);
+  }
   assert.equal(sql(`select count(*) from private.public_booking_intents
-    where browser_token_hash='${raceHash}'`), "1");
+    where browser_token_hash='${raceHash}'`), raceOrder === "prepare_first" ? "1" : "0");
   const totalBefore = sql("select count(*) from private.public_booking_intents");
   assert.throws(() => sql(prepare(hash("c"), recoveryStart, existingGeneration,
     "gate-new@example.invalid")), /booking_contract_closed/);
@@ -223,11 +250,13 @@ test("GLOW-56 prototype contract gate and service-role bypass fence", {
   const acknowledged = state(asService(`select public.acknowledge_public_booking_intent(
     'fixture-a','${existingHash}','${existing.intent_id}')`));
   assert.equal(acknowledged.state, "none");
-  const raceIntent = sql(`select id from private.public_booking_intents
-    where browser_token_hash='${raceHash}'`);
-  const canceled = state(asService(`select public.cancel_public_booking_intent(
-    'fixture-a','${raceHash}','${raceIntent}')`));
-  assert.equal(canceled.state, "not_committed");
+  if (raceOrder === "prepare_first") {
+    const raceIntent = sql(`select id from private.public_booking_intents
+      where browser_token_hash='${raceHash}'`);
+    const canceled = state(asService(`select public.cancel_public_booking_intent(
+      'fixture-a','${raceHash}','${raceIntent}')`));
+    assert.equal(canceled.state, "not_committed");
+  }
   assert.throws(() => sql("select private.transition_public_booking_mode('v2_no_prepares','legacy')"),
     /booking_contract_invalid_transition/);
   assert.equal(sql("select ever_v2 from private.public_booking_contract_gate"), "t");
