@@ -1,12 +1,26 @@
--- GLOW-56 rollback is allowed only while the v2 API gate is disabled and no
--- booking intent rows exist. Never discard an unresolved or retained fence.
+-- GLOW-56 rollback is allowed only while the v2 API gate is disabled, all
+-- booking-intent state is empty, and the dependent quota and contract-gate
+-- migrations have already been rolled back. Never discard a recovery fence.
 begin;
 
 do $$
 begin
   if exists (select 1 from private.public_booking_intents)
-     or exists (select 1 from private.public_booking_intent_policy) then
+     or exists (select 1 from private.public_booking_intent_policy)
+     or exists (select 1 from private.public_booking_browser_sessions)
+     or exists (select 1 from private.public_booking_intent_cleanup_state) then
     raise exception using errcode = '55000', message = 'booking_intent_rows_present_preserve_fence';
+  end if;
+  if to_regclass('private.public_booking_quota_policy') is not null
+     or to_regclass('private.public_booking_quota_counters') is not null
+     or to_regclass('private.public_booking_quota_cleanup_state') is not null
+     or to_regclass('private.public_booking_contract_gate') is not null
+     or to_regprocedure('public.consume_public_booking_quota(text,text,text,text)') is not null
+     or to_regprocedure('public.consume_public_booking_capability_quota(text,text,text,text)') is not null
+     or to_regprocedure('public.sweep_public_booking_quota_counters(integer)') is not null
+     or to_regprocedure('private.require_public_booking_mode(text[])') is not null
+     or to_regprocedure('private.transition_public_booking_mode(text,text)') is not null then
+    raise exception using errcode = '55000', message = 'booking_intent_rollback_requires_dependents_removed';
   end if;
 end;
 $$;

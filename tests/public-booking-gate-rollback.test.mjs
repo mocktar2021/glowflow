@@ -42,17 +42,49 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
     sql(readFileSync(new URL(`supabase/migrations/${name}`, root), "utf8"));
   }
   sql(readFileSync(new URL("tests/schema-authorization.sql", root), "utf8"));
+  const legacyDefinition = sql(`select md5(pg_get_functiondef(
+    'public.create_public_appointment(text,uuid,uuid,timestamptz,text,text,text,text,uuid)'::regprocedure))`);
+  const assertRefusedInstallation = () => {
+    assert.equal(sql("select to_regclass('private.public_booking_contract_gate') is null"), "t",
+      "failed forward preflight must not install a gate");
+    assert.equal(sql(`select md5(pg_get_functiondef(
+      'public.create_public_appointment(text,uuid,uuid,timestamptz,text,text,text,text,uuid)'::regprocedure))`),
+    legacyDefinition, "failed forward preflight must not rewrite the live v1 RPC");
+  };
   sql("insert into private.public_booking_browser_sessions (tenant_id,browser_token_hash) "
     + "select id,repeat('f',64) from public.tenants limit 1");
   assert.equal(sql("select count(*) from private.public_booking_browser_sessions"), "1");
   assert.throws(() => sql(gateMigration), /booking_contract_requires_empty_dormant_intents/);
-  assert.equal(sql("select to_regclass('private.public_booking_contract_gate') is null"), "t",
-    "failed forward preflight must leave the predecessor contract unchanged");
+  assertRefusedInstallation();
   sql("delete from private.public_booking_browser_sessions");
+  sql("insert into private.public_booking_intent_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(gateMigration), /booking_contract_requires_empty_dormant_intents/,
+    "forward gate must reject an intent cleanup heartbeat");
+  assertRefusedInstallation();
+  assert.equal(sql("select count(*) from private.public_booking_intent_cleanup_state"), "1");
+  sql("delete from private.public_booking_intent_cleanup_state");
+  sql("insert into private.public_booking_quota_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(gateMigration), /booking_contract_requires_empty_dormant_intents/,
+    "forward gate must reject a quota cleanup heartbeat");
+  assertRefusedInstallation();
+  assert.equal(sql("select count(*) from private.public_booking_quota_cleanup_state"), "1");
+  sql("delete from private.public_booking_quota_cleanup_state");
   sql(gateMigration);
   const rollback = readFileSync(new URL(
     "supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql", root), "utf8");
   assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  const quotaRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104234445_drop_public_booking_quota.sql", root), "utf8");
+  const intentRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql", root), "utf8");
+  assert.throws(() => sql(quotaRollback), /booking_quota_rollback_requires_gate_removed/,
+    "quota rollback must preserve an installed legacy-mode contract gate");
+  assert.throws(() => sql(intentRollback), /booking_intent_rollback_requires_dependents_removed/,
+    "intent rollback must preserve the dependent quota and contract gate");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy",
+    "failed out-of-order rollbacks must leave the gate unchanged");
 
   sql(`insert into private.public_booking_intent_policy
     (prepared_ttl,retention_ttl,configured_at)
@@ -61,6 +93,19 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
   assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy",
     "failed rollback must leave the gate intact");
   sql("delete from private.public_booking_intent_policy");
+
+  sql("insert into private.public_booking_intent_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(rollback), /booking_contract_rollback_rows_present/,
+    "rollback must preserve an intent cleanup heartbeat");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  sql("delete from private.public_booking_intent_cleanup_state");
+  sql("insert into private.public_booking_quota_cleanup_state (singleton,last_run_at) "
+    + "values (true,clock_timestamp())");
+  assert.throws(() => sql(rollback), /booking_contract_rollback_rows_present/,
+    "rollback must preserve a quota cleanup heartbeat");
+  assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
+  sql("delete from private.public_booking_quota_cleanup_state");
 
   sql(rollback);
   assert.equal(sql("select to_regclass('private.public_booking_contract_gate') is null"), "t");

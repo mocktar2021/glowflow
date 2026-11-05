@@ -1,5 +1,6 @@
 -- GLOW-56 guarded rollback. Allowed only before v2 has ever opened and while
--- intent, session, and policy tables are empty. Never discard a recovery fence.
+-- intent, session, policy, quota, and cleanup-heartbeat tables are empty.
+-- Never discard a recovery fence or evidence of a prior cleanup run.
 -- Run only under a separately approved operator preflight; this does not undo
 -- the predecessor intent/quota migrations.
 begin;
@@ -15,8 +16,10 @@ begin
   if exists (select 1 from private.public_booking_intents)
      or exists (select 1 from private.public_booking_browser_sessions)
      or exists (select 1 from private.public_booking_intent_policy)
+     or exists (select 1 from private.public_booking_intent_cleanup_state)
      or exists (select 1 from private.public_booking_quota_policy)
-     or exists (select 1 from private.public_booking_quota_counters) then
+     or exists (select 1 from private.public_booking_quota_counters)
+     or exists (select 1 from private.public_booking_quota_cleanup_state) then
     raise exception using errcode = '55000', message = 'booking_contract_rollback_rows_present';
   end if;
 end;

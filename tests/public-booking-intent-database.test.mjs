@@ -435,7 +435,21 @@ test("GLOW-56 private intent fence, permissions and concurrent recovery", { skip
     "supabase/rollbacks/20261104184112_drop_private_public_booking_intents.sql", root), "utf8");
   assert.throws(() => sql(rollback),
   /booking_intent_rows_present_preserve_fence/, "rollback must preserve every existing fence");
-  sql("delete from private.public_booking_intents; delete from private.public_booking_browser_sessions");
+  sql("delete from private.public_booking_intents");
+  assert.notEqual(sql("select count(*) from private.public_booking_browser_sessions"), "0");
+  assert.throws(() => sql(rollback), /booking_intent_rows_present_preserve_fence/,
+    "rollback must preserve a browser generation even after intents are gone");
+  assert.equal(sql("select to_regclass('private.public_booking_intents') is not null"), "t");
+  sql("delete from private.public_booking_browser_sessions");
+  assert.equal(sql("select count(*) from private.public_booking_intent_cleanup_state"), "1");
+  assert.throws(() => sql(rollback), /booking_intent_rows_present_preserve_fence/,
+    "rollback must preserve the last cleanup heartbeat");
+  sql("delete from private.public_booking_intent_cleanup_state");
+  assert.throws(() => sql(rollback), /booking_intent_rollback_requires_dependents_removed/,
+    "intent rollback must not orphan the installed quota contract");
+  const quotaRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261104234445_drop_public_booking_quota.sql", root), "utf8");
+  sql(quotaRollback);
   sql(rollback);
   for (const table of ["public_booking_intents", "public_booking_browser_sessions",
     "public_booking_intent_policy", "public_booking_intent_cleanup_state"]) {

@@ -283,6 +283,16 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   assert.throws(() => sql(rollback), /booking_quota_rows_present_preserve_limit/,
     "rollback must refuse a capability counter even without policy rows");
   sql("delete from private.public_booking_quota_counters");
+  assert.equal(sql("select count(*) from private.public_booking_quota_cleanup_state"), "1");
+  assert.throws(() => sql(rollback), /booking_quota_rows_present_preserve_limit/,
+    "rollback must preserve the last quota cleanup heartbeat");
+  assert.equal(sql("select to_regclass('private.public_booking_quota_policy') is not null"), "t");
+  sql("delete from private.public_booking_quota_cleanup_state");
+  assert.throws(() => sql(rollback), /booking_quota_rollback_requires_gate_removed/,
+    "quota rollback must not orphan the installed contract gate");
+  const gateRollback = readFileSync(new URL(
+    "supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql", root), "utf8");
+  sql(gateRollback);
   sql(rollback);
   assert.equal(sql("select to_regprocedure('public.consume_public_booking_quota(text,text,text,text)') is null"), "t");
   assert.equal(sql("select to_regprocedure('public.consume_public_booking_capability_quota(text,text,text,text)') is null"), "t");
