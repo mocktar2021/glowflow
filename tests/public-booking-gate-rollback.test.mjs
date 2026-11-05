@@ -34,11 +34,22 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
 
   sql(readFileSync(new URL("tests/supabase-platform-fixture.sql", root), "utf8"));
   sql(readFileSync(new URL("supabase/schema.sql", root), "utf8"));
+  const gateMigration = readFileSync(new URL(
+    "supabase/migrations/20261105124804_glow56_public_booking_contract_gate.sql", root), "utf8");
   for (const name of readdirSync(new URL("supabase/migrations/", root))
-    .filter(name => name.endsWith(".sql")).sort()) {
+    .filter(name => name.endsWith(".sql")
+      && name !== "20261105124804_glow56_public_booking_contract_gate.sql").sort()) {
     sql(readFileSync(new URL(`supabase/migrations/${name}`, root), "utf8"));
   }
   sql(readFileSync(new URL("tests/schema-authorization.sql", root), "utf8"));
+  sql("insert into private.public_booking_browser_sessions (tenant_id,browser_token_hash) "
+    + "select id,repeat('f',64) from public.tenants limit 1");
+  assert.equal(sql("select count(*) from private.public_booking_browser_sessions"), "1");
+  assert.throws(() => sql(gateMigration), /booking_contract_requires_empty_dormant_intents/);
+  assert.equal(sql("select to_regclass('private.public_booking_contract_gate') is null"), "t",
+    "failed forward preflight must leave the predecessor contract unchanged");
+  sql("delete from private.public_booking_browser_sessions");
+  sql(gateMigration);
   const rollback = readFileSync(new URL(
     "supabase/rollbacks/20261105124804_drop_public_booking_contract_gate.sql", root), "utf8");
   assert.equal(sql("select mode from private.public_booking_contract_gate"), "legacy");
