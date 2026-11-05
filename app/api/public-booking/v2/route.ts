@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { publicBookingCapabilityQuotaKeys, publicBookingQuotaKeys } from "@/lib/public-booking-quota-keys";
-import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";
+import { publicBookingV2Mode } from "@/lib/public-booking-v2-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -282,7 +282,8 @@ async function enrichPublicConfirmation(
 }
 
 export async function POST(request: NextRequest) {
-  if (!publicBookingV2Enabled()) return json({ error: "not_found" }, 404);
+  const admission = publicBookingV2Mode();
+  if (admission === "off") return json({ error: "not_found" }, 404);
   if (!validOrigin(request)) return json({ error: "forbidden" }, 403);
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "")) {
     return json({ error: "invalid_content_type" }, 415);
@@ -295,6 +296,12 @@ export async function POST(request: NextRequest) {
   if (bootstrapSchema.safeParse(body).success) {
     const existing = browserToken(request);
     if (!existing && request.cookies.has(cookieName)) return json({ state: "unknown" }, 409);
+    // A signed cookie without a matching database session is not permission
+    // to create a new one. No-cookie recovery is impossible in this mode.
+    if (admission === "recovery_only") {
+      if (!existing) return json({ state: "unknown" }, 409);
+      return json({ ready: true, new_session: false, admission });
+    }
     const maxAge = configuredCookieMaxAge();
     const signingKey = cookieSigningKey();
     if (!existing && (!maxAge || !signingKey)) return json({ state: "unknown", error: "booking_unavailable" }, 503);
@@ -319,6 +326,12 @@ export async function POST(request: NextRequest) {
   const parsedReconcile = reconcileSchema.safeParse(body);
   const parsedIntent = intentSchema.safeParse(body);
   if (!parsedPrepare.success && !parsedReconcile.success && !parsedIntent.success) return json({ error: "invalid_request" }, 400);
+  if (admission === "recovery_only" && (parsedPrepare.success
+    || (parsedReconcile.success && !parsedReconcile.data.intentId))) {
+    // The current no-ID reconcile RPC can INSERT a browser session. It must
+    // remain closed until a reviewed, mode-aware SQL gate removes that path.
+    return json({ state: "unknown", error: "booking_paused" }, 503);
+  }
   if (parsedPrepare.success && !configuredCookieMaxAge()) return json({ state: "unknown", error: "booking_unavailable" }, 503);
   const token = browserToken(request);
   if (!token) return json({ state: "unknown" }, 409);

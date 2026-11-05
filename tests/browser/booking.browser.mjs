@@ -839,6 +839,203 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
     getOriginalPayload: () => originalPayload, getState: () => state };
 }
 
+const recoveryOnlyCopy = {
+  fr: "Les nouvelles réservations sont suspendues sur cette page.",
+  en: "New bookings are paused on this page.",
+  es: "Las nuevas reservas están suspendidas en esta página.",
+};
+const anotherBookingCopy = {
+  fr: "Prendre un autre rendez-vous",
+  en: "Book another appointment",
+  es: "Reservar otra cita",
+};
+const lostBookingSessionCopy = {
+  fr: "La session de réservation de ce navigateur a été perdue.",
+  en: "This browser’s booking session was lost.",
+  es: "Se perdió la sesión de reserva de este navegador.",
+};
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} recovery-only page never starts a fresh browser session or booking`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Booking: async () => { throw new Error("recovery-only page must not call booking API without a marker"); },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
+    const paused = page.getByRole("alert").filter({ hasText: recoveryOnlyCopy[locale] });
+    await paused.waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("button", { name: v2FinishLabels[locale].finish }).count(), 0);
+    await page.locator("form").dispatchEvent("submit");
+    assert.deepEqual(writes, []);
+    assert.deepEqual(externalRequests, []);
+  });
+
+  test(`${locale} recovery-only page checks only the exact pending intent`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Cookie: true,
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        requests.push(payload);
+        if (payload.action === "bootstrap") return route.fulfill({ json: { ready: true, new_session: false, admission: "recovery_only" } });
+        if (payload.action === "reconcile" && payload.intentId === v2IntentId)
+          return route.fulfill({ json: { state: "prepared", generation: v2Generation, intent_id: v2IntentId } });
+        throw new Error(`recovery-only attempted ${payload.action} without its exact pending intent`);
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.addInitScript(id => localStorage.setItem(`glowflow.booking.pending.browser-fixture.${id}`, "1"), v2IntentId);
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
+    await page.getByRole("alert").waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("button", { name: v2FinishLabels[locale].finish }).count(), 0,
+      "a reloaded prepared intent has no immutable summary and cannot be finished blindly");
+    await page.locator("form").dispatchEvent("submit");
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile"]);
+    assert.equal(writes[1].intentId, v2IntentId);
+    assert.deepEqual(externalRequests, []);
+  });
+
+  test(`${locale} recovery-only marker with no signed cookie stays manual-only`, async t => {
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        requests.push(payload);
+        assert.equal(payload.action, "bootstrap", "invalid capability cannot reach exact-intent RPC");
+        return route.fulfill({ status: 409, json: { state: "unknown" } });
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.addInitScript(id => localStorage.setItem(`glowflow.booking.pending.browser-fixture.${id}`, "1"), v2IntentId);
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
+    await page.getByRole("alert").filter({ hasText: lostBookingSessionCopy[locale] }).waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("button", { name: uncertainLabels[locale].check }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+      [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
+    assert.deepEqual(externalRequests, []);
+  });
+
+  test(`${locale} stale full-v2 tab recognizes prepare pause without retrying or changing booking`, async t => {
+    const server = v2Server(locale);
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Cookie: true,
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        if (payload.action === "prepare") {
+          requests.push(payload);
+          return route.fulfill({ status: 503, json: { state: "unknown", error: "booking_paused" } });
+        }
+        return server.handler(route, requests);
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+    await fillBooking(page, locale);
+    await page.getByRole("alert").filter({ hasText: recoveryOnlyCopy[locale] }).waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.equal(await page.getByRole("button", { name: uncertainLabels[locale].check }).count(), 0);
+    await page.locator("form").dispatchEvent("submit");
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile", "prepare"]);
+    assert.equal(server.appointments.size, 0);
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+test("stale full-v2 tab keeps an existing confirmation when recovery-only blocks another booking", async t => {
+  const server = v2Server("en");
+  let recoveryOnly = false;
+  const { page, writes } = await pageFor(t, "en", {
+    v2Cookie: true,
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (recoveryOnly && payload.action === "reconcile" && !payload.intentId) {
+        requests.push(payload);
+        return route.fulfill({ status: 503, json: { state: "unknown", error: "booking_paused" } });
+      }
+      return server.handler(route, requests);
+    },
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(server.appointments.size, 1);
+  recoveryOnly = true;
+  await page.getByRole("button", { name: "Book another appointment" }).click();
+  await page.getByRole("status").filter({ hasText: recoveryOnlyCopy.en }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Book another appointment" }).count(), 0);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile", "prepare", "commit", "acknowledge", "reconcile"]);
+});
+
+test("ordinary prepare 503 remains uncertain and offers read-only Check", async t => {
+  const server = v2Server("en");
+  const { page, writes } = await pageFor(t, "en", {
+    v2Cookie: true,
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "prepare") {
+        requests.push(payload);
+        return route.fulfill({ status: 503, json: { state: "unknown", error: "booking_unavailable" } });
+      }
+      return server.handler(route, requests);
+    },
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: "Booking recovery is temporarily unavailable" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: uncertainLabels.en.check }).count(), 1);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "reconcile", "prepare"]);
+  assert.equal(server.appointments.size, 0);
+});
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} recovery-only reload confirms the exact lost booking without a fresh session lookup`, async t => {
+    const server = v2Server(locale, { loseCommit: true });
+    const { page, writes } = await pageFor(t, locale, {
+      v2Cookie: true, v2Booking: server.handler,
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+    await fillBooking(page, locale);
+    await waitForLostCommitToSettle(page, server);
+    assert.equal(server.appointments.size, 1);
+    const priorCount = writes.length;
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
+    await page.getByRole("heading", { name: confirmationLabels[locale].success, exact: true }).waitFor();
+    assert.deepEqual(writes.slice(priorCount).map(value => [value.action, value.intentId ?? null]),
+      [["bootstrap", null], ["reconcile", v2IntentId]]);
+    assert.equal(await page.getByRole("button", { name: anotherBookingCopy[locale] }).count(), 0);
+    assert.equal(server.appointments.size, 1);
+  });
+
+  test(`${locale} recovery-only reload resolves exact not-committed intent without a no-ID lookup`, async t => {
+    const { page, writes } = await pageFor(t, locale, {
+      v2Cookie: true,
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        requests.push(payload);
+        if (payload.action === "bootstrap") return route.fulfill({ json: { ready: true, new_session: false, admission: "recovery_only" } });
+        if (payload.action === "reconcile" && payload.intentId === v2IntentId)
+          return route.fulfill({ json: { state: "not_committed", generation: v2NextGeneration, intent_id: v2IntentId } });
+        throw new Error(`unexpected recovery-only action ${payload.action}`);
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.addInitScript(id => localStorage.setItem(`glowflow.booking.pending.browser-fixture.${id}`, "1"), v2IntentId);
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1&recoveryOnly=1`);
+    await page.getByRole("alert").filter({ hasText: recoveryOnlyCopy[locale] }).waitFor();
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    assert.deepEqual(writes.map(value => [value.action, value.intentId ?? null]),
+      [["bootstrap", null], ["reconcile", v2IntentId]]);
+    assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+  });
+}
+
 async function waitForLostCommitToSettle(page, server) {
   let timeout;
   try {

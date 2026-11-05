@@ -127,7 +127,7 @@ test("offline unknown salon slugs fail closed while explicit atelier demo remain
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: (locale) => ["fr", "en", "es"].includes(locale) },
-      "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => false },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => "off" },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -163,6 +163,7 @@ test("localized booking resolves only published tenant services and passes an ex
     ],
   };
   const selections = [];
+  let bookingV2Mode = "off";
   const createAdminClient = () => ({ from(table) {
     const filters = [], included = [];
     let columns = [];
@@ -185,7 +186,7 @@ test("localized booking resolves only published tenant services and passes an ex
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
-      "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => false },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => bookingV2Mode },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -203,6 +204,11 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal("private_note" in result.props.salon, false);
       assert.equal("internal_cost" in result.props.services[0], false);
     }
+    bookingV2Mode = "recovery_only";
+    const recoveryPage = await render("fr", "published", primary);
+    assert.equal(recoveryPage.props.v2, true);
+    assert.equal(recoveryPage.props.recoveryOnly, true);
+    bookingV2Mode = "off";
     for (const [locale, slug, service] of [["fr", "hidden", null], ["en", "unknown", null], ["es", "published", foreign], ["de", "published", null]]) {
       await assert.rejects(render(locale, slug, service), /not-found/);
     }
