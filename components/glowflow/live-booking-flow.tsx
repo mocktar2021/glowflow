@@ -369,7 +369,6 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [uncertainPublicBooking, setUncertainPublicBooking] = useState(false);
-  const [legacyCutoverManual, setLegacyCutoverManual] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
@@ -381,6 +380,9 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [v2RetryNonce, setV2RetryNonce] = useState(0);
   const [v2ManualOnly, setV2ManualOnly] = useState(false);
   const [v2Warning, setV2Warning] = useState("");
+  // Reuse the recovery warning slot so the legacy handoff does not perturb
+  // unrelated booking state or claim a confirmation after a 410 response.
+  const legacyCutoverManual = !v2 && v2Warning === labels.legacyCutoverWarning;
   const [v2PreparedOffer, setV2PreparedOffer] = useState<V2OriginalPrepared | null>(null);
   const [v2AgainError, setV2AgainError] = useState(false);
   const service = services.find((item) => item.id === serviceId) ?? services[0];
@@ -745,7 +747,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         // Preserve the exact original key/payload, but never retry this closed
         // legacy contract or let the visitor create a changed booking here.
         legacyCutoverManualRef.current = true;
-        setLegacyCutoverManual(true);
+        setV2Warning(labels.legacyCutoverWarning);
         uncertainRef.current = true;
         setUncertainPublicBooking(true);
         setError("");
