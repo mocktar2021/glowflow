@@ -36,14 +36,28 @@ contract and the owner acceptance test are verified.
 ## No-pay test track
 
 1. Use a disposable local PostgreSQL/PostGIS instance and local Next.js test
-   server. Apply the reviewed migration chain only there. Use fictional
-   tenants, staff, contacts, and appointments. Test RLS and grants as `anon`,
-   `authenticated`, and `service_role`; do not copy customer rows or secrets.
+   server. Assemble the two still-separate draft tracks locally: database PR
+   #180 (intent migration), then #191 (cleanup revision), then #197 (quota
+   migration, exact head `505ff4e989689f8beb3faff3496790ba14d517e0`),
+   alongside API/browser PR #200 (exact head
+   `240f1ae397acebf536782c80faf0fd6b2d7c4709`, stacked on #199 and #198).
+   After the baseline migrations, apply the reviewed intent migration
+   `20261104184112` before quota migration `20261104234445`, only in that
+   disposable database. PR #200 alone contains neither SQL migration; its
+   route fails closed without the quota RPC. Pin the assembled source hashes
+   in the QA record, and do not merge the drafts merely to run local tests.
+   Use fictional tenants, staff, contacts, and appointments. Test RLS and
+   grants as `anon`, `authenticated`, and `service_role`; do not copy customer
+   rows or secrets.
 2. Run the deterministic v2 API/browser suite in FR, EN, and ES: committed
    response lost then changed slot, unchanged retry, true non-commit, 429 and
    503 during bootstrap/prepare/reconcile, invalid or expired signed cookie,
-   lost storage marker, concurrent tab, and no second appointment. Keep the
-   original intent marker and changed-booking lock on uncertain outcomes.
+   lost storage marker, and concurrent tab. Explicitly test commit response
+   loss and commit 429/503 *after* the original appointment is saved: the
+   pending marker must retain the exact intent ID, changed-booking controls
+   must stay locked, and authoritative reconciliation must return the original
+   confirmation without a second prepare, commit, or appointment. Assert the
+   appointment count remains one both before and after denial and recovery.
 3. Exercise quota caps concurrently at the exact boundary, shared-IP fairness,
    browser-plus-tenant isolation, IPv4/IPv6 canonicalization, fixed-window
    boundary bursts, missing/spoofed IP context, missing HMAC key, bounded
@@ -58,9 +72,12 @@ contract and the owner acceptance test are verified.
    The gate and private executor/grant refactor are still design work, not an
    installed protection.
 
-The only useful hosted no-pay Preview check before database isolation is a
-**read-only header-shape diagnostic with v2 off**. On a protected GlowFlow
-Preview, a separately reviewed temporary GET can return booleans such as
+For the hosted IP trust boundary, the useful no-pay Preview check before
+database isolation is a **read-only header-shape diagnostic with v2 off**.
+Safe read-only GET and static-route smoke checks can still establish basic
+Preview availability, but cannot prove database isolation or booking safety.
+On a protected GlowFlow Preview, a separately reviewed temporary GET can
+return booleans such as
 `has_forwarded_ip`, `single_valid_ip`, and `vercel_copy_matches`. Compare an
 ordinary request with one that supplies a forged `x-forwarded-for` header to
 verify Vercel's overwrite behavior. Never return or log the raw address,
