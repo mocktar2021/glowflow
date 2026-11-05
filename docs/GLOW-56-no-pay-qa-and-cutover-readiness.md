@@ -38,9 +38,7 @@ contract and the owner acceptance test are verified.
 1. Use a disposable local PostgreSQL/PostGIS instance and local Next.js test
    server. Assemble the two still-separate draft tracks locally: database PR
    #180 (intent migration), then #191 (cleanup revision), then #197 (quota
-   migration, exact head `505ff4e989689f8beb3faff3496790ba14d517e0`),
-   alongside API/browser PR #200 (exact head
-   `240f1ae397acebf536782c80faf0fd6b2d7c4709`, stacked on #199 and #198).
+   migration), alongside API/browser PR #200 (stacked on #199 and #198).
    After the baseline migrations, apply the reviewed intent migration
    `20261104184112` before quota migration `20261104234445`, only in that
    disposable database. PR #200 alone contains neither SQL migration; its
