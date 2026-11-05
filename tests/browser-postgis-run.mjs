@@ -14,7 +14,7 @@ if (!["postgres:", "postgresql:"].includes(admin.protocol)
 }
 const psql = process.env.PSQL_BIN || "psql";
 const scenario = process.env.GLOWFLOW_BROWSER_POSTGIS_SCENARIO ?? "current_v2";
-if (!["current_v2", "recovery_only"].includes(scenario)) {
+if (!["current_v2", "recovery_only", "recovery_only_noncommitted"].includes(scenario)) {
   throw new Error("Unsupported disposable browser-PostGIS scenario.");
 }
 const database = `glowflow_route_postgis_test_${Date.now()}_${randomInt(1_000_000)}`;
