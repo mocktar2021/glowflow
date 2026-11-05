@@ -26,6 +26,7 @@ for (const [suite, databasePrefix, databaseUrlEnv] of [
   ['schema-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-intent-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-quota-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-cleanup-cadence.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['public-booking-v2-postgis.test.mjs', 'glowflow_route_postgis_test_', 'GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL'],
   ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
   ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
