@@ -83,6 +83,27 @@ test("sort control sends the server-side mode and preserves it across pages", as
   assert.match(html, /href="\/en\/salons\?sort=price_asc&amp;country=US&amp;page=3"/);
 });
 
+test("a new search URL remounts distance results instead of retaining stale nearby cards", async () => {
+  const result = { slug: "fixture", business_name: "Fixture Salon", country_code: "US", city: "Greensboro", total_count: 20 };
+  const Page = await loadPage(async () => ({ data: [result], error: null }));
+  const distanceKey = async (locale, searchParams) => {
+    const tree = await Page({ params: Promise.resolve({ locale }), searchParams: Promise.resolve(searchParams) });
+    const find = (node) => {
+      if (Array.isArray(node)) return node.map(find).find(Boolean);
+      if (!node || typeof node !== "object") return null;
+      if (node.props?.pageSize === 9 && node.props?.filters && "fallbackAnnouncement" in node.props) return node.key;
+      return find(node.props?.children);
+    };
+    return find(tree);
+  };
+
+  const first = await distanceKey("en", { country: "US", city: "Greensboro" });
+  assert.equal(first, "/en/salons?country=US&city=Greensboro");
+  assert.notEqual(await distanceKey("en", { country: "US", city: "Durham" }), first, "a changed filter resets nearby results");
+  assert.notEqual(await distanceKey("en", { country: "US", city: "Greensboro", page: "2" }), first, "a changed page resets nearby results");
+  assert.notEqual(await distanceKey("fr", { country: "US", city: "Greensboro" }), first, "a changed locale resets nearby results");
+});
+
 test("default relevance keeps the existing RPC and unknown modes cannot reach SQL", async () => {
   const calls = [];
   const Page = await loadPage(async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; });

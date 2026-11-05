@@ -465,7 +465,8 @@ export default async function SalonSearchPage({
         {invalidDate ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidDate}</p> : null}
         {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
-        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}
+        {/* A new URL must not retain nearby cards fetched for the previous filters. */}
+        <DistanceSearch key={pageHref(locale, paginationFilters, page)} locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}
           fallbackAnnouncement={results.length === 0
             ? `${hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}. ${hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}`
             : `${total} ${total === 1 ? labels.oneResult : labels.results}.`}>
