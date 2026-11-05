@@ -41,18 +41,23 @@ async function load(file, dependencies) {
 
 async function harness(enabled = true, rpcResult = { data: { state: "prepared", generation, intent_id: intentId }, error: null }, readModel = null,
   quotaResult = { data: { allowed: true, retry_after: 0 }, error: null }, quotaKeys = { ipDigest: "a".repeat(64), browserDigest: "b".repeat(64) },
-  quotaKeyAdapter = null) {
+  quotaKeyAdapter = null, capabilityKeyAdapter = null) {
   const calls = [];
   const quotaCalls = [];
   const rpcOrder = [];
   const deps = {
     "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => enabled },
-    "@/lib/public-booking-quota-keys": { publicBookingQuotaKeys: quotaKeyAdapter ?? ((_request, browserToken) => quotaKeys && {
-      ...quotaKeys, browserDigest: browserToken === null ? null : quotaKeys.browserDigest,
-    }) },
+    "@/lib/public-booking-quota-keys": {
+      publicBookingQuotaKeys: quotaKeyAdapter ?? ((_request, browserToken) => quotaKeys && {
+        ...quotaKeys, browserDigest: browserToken === null ? null : quotaKeys.browserDigest,
+      }),
+      publicBookingCapabilityQuotaKeys: capabilityKeyAdapter ?? (() => quotaKeys && {
+        browserDigest: quotaKeys.browserDigest, intentDigest: "c".repeat(64),
+      }),
+    },
     "@/lib/supabase/admin": { createAdminClient: () => ({ ...(readModel ? { from: readModel.from } : {}), rpc: async (name, args) => {
       rpcOrder.push(name);
-      if (name === "consume_public_booking_quota") {
+      if (name === "consume_public_booking_quota" || name === "consume_public_booking_capability_quota") {
         quotaCalls.push({ name, args });
         return typeof quotaResult === "function" ? quotaResult(name, args) : quotaResult;
       }
@@ -175,7 +180,10 @@ test("invalid recovery cookies stop before quota or intent RPC", async () => {
     { cookie: signedToken({ issuedAt: now - 86401, expiresAt: now - 1 }) },
     { headers: { cookie: `${cookieName}=${token}; ${cookieName}=${token}` } },
   ];
-  for (const body of [prepare, { action: "reconcile", salonSlug: "browser-fixture", intentId }]) {
+  for (const body of [prepare, { action: "reconcile", salonSlug: "browser-fixture", intentId },
+    { action: "commit", salonSlug: "browser-fixture", intentId },
+    { action: "cancel", salonSlug: "browser-fixture", intentId },
+    { action: "acknowledge", salonSlug: "browser-fixture", intentId }]) {
     for (const options of invalidCookies) {
       const { POST, calls, quotaCalls } = await harness();
       const { response } = await post(POST, body, options);
@@ -273,6 +281,39 @@ test("real quota key adapter passes only digests and rejects absent or ambiguous
   }
 });
 
+test("real capability adapter signs browser and exact intent without requiring an IP header", async () => {
+  const realAdapter = (await load("../lib/public-booking-quota-keys.ts", { "server-only": {} }))
+    .publicBookingCapabilityQuotaKeys;
+  const previousVercel = process.env.VERCEL_ENV;
+  const previousKey = process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = Buffer.alloc(32, 29).toString("base64url");
+    const { POST, calls, quotaCalls } = await harness(true, undefined, null, undefined,
+      undefined, undefined, realAdapter);
+    const { response } = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
+    assert.equal(response.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(quotaCalls.length, 1);
+    const args = quotaCalls[0].args;
+    assert.match(args.browser_digest, /^[0-9a-f]{64}$/);
+    assert.match(args.intent_digest, /^[0-9a-f]{64}$/);
+    assert.notEqual(args.browser_digest, args.intent_digest);
+    assert.doesNotMatch(JSON.stringify(args), /v1\.|11111111-1111|Fictional Client|fixture@example\.invalid/);
+    delete process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+    const unavailable = await post(POST, { action: "cancel", salonSlug: "browser-fixture", intentId });
+    assert.equal(unavailable.response.status, 503);
+    assert.deepEqual(unavailable.value, { state: "unknown", error: "booking_unavailable" });
+    assert.equal(quotaCalls.length, 1);
+    assert.equal(calls.length, 1);
+  } finally {
+    if (previousVercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previousVercel;
+    if (previousKey === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = previousKey;
+  }
+});
+
 test("missing quota keys, RPC errors, and malformed responses fail closed", async () => {
   process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
   for (const quotaResult of [
@@ -299,16 +340,99 @@ test("missing quota keys, RPC errors, and malformed responses fail closed", asyn
   assert.equal(throwing.quotaCalls.length, 1);
 });
 
-test("commit, cancel and acknowledge remain unbudgeted until the separate capability-scoped control", async () => {
-  const { POST, calls, quotaCalls } = await harness();
+test("commit, cancel and acknowledge consume their own capability quota before action RPC", async () => {
+  const { POST, calls, quotaCalls, rpcOrder } = await harness();
   for (const action of ["commit", "cancel", "acknowledge"]) {
     const { response } = await post(POST, { action, salonSlug: "browser-fixture", intentId });
     assert.equal(response.status, 200);
   }
+  assert.deepEqual(rpcOrder, [
+    "consume_public_booking_capability_quota", "commit_public_booking_intent",
+    "consume_public_booking_capability_quota", "cancel_public_booking_intent",
+    "consume_public_booking_capability_quota", "acknowledge_public_booking_intent",
+  ]);
   assert.deepEqual(calls.map(({ name }) => name), [
     "commit_public_booking_intent", "cancel_public_booking_intent", "acknowledge_public_booking_intent",
   ]);
-  assert.deepEqual(quotaCalls, []);
+  assert.deepEqual(quotaCalls.map(({ args }) => args.quota_action), ["commit", "cancel", "acknowledge"]);
+  for (const { args } of quotaCalls) {
+    assert.deepEqual(args, { quota_action: args.quota_action, browser_digest: "b".repeat(64),
+      intent_digest: "c".repeat(64), salon_slug: "browser-fixture" });
+    assert.doesNotMatch(JSON.stringify(args), /v1\.|11111111-1111|203\.0\.113\.42/);
+  }
+});
+
+test("capability denial returns no-store 429 without burning an action RPC or changing cookie", async () => {
+  const { POST, calls, quotaCalls } = await harness(true, undefined, null,
+    { data: { allowed: false, retry_after: 43 }, error: null });
+  for (const action of ["commit", "cancel", "acknowledge"]) {
+    const { response, value } = await post(POST, { action, salonSlug: "browser-fixture", intentId });
+    assert.equal(response.status, 429);
+    assert.equal(response.headers.get("retry-after"), "43");
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.deepEqual(value, { state: "unknown", error: "rate_limited" });
+  }
+  assert.deepEqual(quotaCalls.map(({ name }) => name), Array(3).fill("consume_public_booking_capability_quota"));
+  assert.deepEqual(calls, [], "denial must not invoke an action RPC");
+});
+
+test("missing or malformed capability policy fails closed before action RPC", async () => {
+  for (const quotaResult of [
+    { data: null, error: { message: "booking_capability_quota_policy_unconfigured" } },
+    { data: null, error: null },
+    { data: { allowed: true, retry_after: 1 }, error: null },
+    { data: { allowed: false, retry_after: 0 }, error: null },
+    { data: { allowed: false, retry_after: 3601 }, error: null },
+  ]) {
+    const { POST, calls } = await harness(true, undefined, null, quotaResult);
+    const { response, value } = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("retry-after"), null);
+    assert.deepEqual(value, { state: "unknown", error: "booking_unavailable" });
+    assert.deepEqual(calls, []);
+  }
+  const unavailable = await harness(true, undefined, null, undefined, undefined,
+    undefined, () => null);
+  assert.equal((await post(unavailable.POST, { action: "cancel", salonSlug: "browser-fixture", intentId })).response.status, 503);
+  assert.deepEqual(unavailable.quotaCalls, []);
+  assert.deepEqual(unavailable.calls, []);
+});
+
+test("a denied replay reconciles the original committed appointment without another commit", async () => {
+  const confirmed = { state: "confirmed", generation, intent_id: intentId, confirmation: {
+    appointment_id: otherIntentId, appointment_status: "confirmed",
+    confirmed_start: "2030-01-15T10:00:00+00:00", confirmed_end: "2030-01-15T10:30:00+00:00",
+    service_title: { en: "Booked title" }, currency: "EUR", saved_locale: "en",
+  } };
+  let commitQuotaCalls = 0;
+  const { POST, calls, quotaCalls, rpcOrder } = await harness(true,
+    { data: confirmed, error: null }, null, (_name, args) => {
+      if (args.quota_action === "commit" && ++commitQuotaCalls === 2) {
+        return { data: { allowed: false, retry_after: 35 }, error: null };
+      }
+      return { data: { allowed: true, retry_after: 0 }, error: null };
+    });
+  const first = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
+  assert.equal(first.response.status, 200);
+  // Model the caller losing the first 200 and retrying the exact intent.
+  const replay = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
+  assert.equal(replay.response.status, 429);
+  assert.equal(replay.response.headers.get("retry-after"), "35");
+  const recovered = await post(POST, { action: "reconcile", salonSlug: "browser-fixture", intentId });
+  assert.equal(recovered.response.status, 200);
+  assert.equal(recovered.value.state, "confirmed");
+  assert.equal(recovered.value.intent_id, intentId);
+  assert.equal(recovered.value.confirmation.appointment_id, first.value.confirmation.appointment_id);
+  assert.deepEqual(calls.map(({ name }) => name), [
+    "commit_public_booking_intent", "reconcile_public_booking_intent",
+  ]);
+  assert.deepEqual(quotaCalls.map(({ args }) => args.quota_action), ["commit", "commit", "reconcile"]);
+  assert.deepEqual(rpcOrder, [
+    "consume_public_booking_capability_quota", "commit_public_booking_intent",
+    "consume_public_booking_capability_quota", "consume_public_booking_quota", "reconcile_public_booking_intent",
+  ]);
 });
 
 test("bootstrap requires explicit cookie lifetime and uses a host-only HttpOnly Secure cookie", async () => {

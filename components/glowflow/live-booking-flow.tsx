@@ -54,8 +54,11 @@ type V2Response = {
 };
 
 class V2RequestError extends Error {
-  constructor(readonly status: number, readonly retryAfterSeconds = 0) { super("v2_request_failed"); }
+  constructor(readonly status: number, readonly retryAfterSeconds = 0, readonly action?: string) {
+    super("v2_request_failed");
+  }
 }
+type V2CapabilityAction = "commit" | "cancel" | "acknowledge";
 
 async function postV2(body: Record<string, unknown>): Promise<V2Response> {
   const response = await fetch("/api/public-booking/v2", {
@@ -65,7 +68,8 @@ async function postV2(body: Record<string, unknown>): Promise<V2Response> {
   if (!response.ok) {
     const rawRetry = response.headers.get("retry-after");
     const retryAfter = rawRetry && /^[1-9][0-9]{0,3}$/.test(rawRetry) ? Number(rawRetry) : 30;
-    throw new V2RequestError(response.status, response.status === 429 ? Math.min(retryAfter, 3600) : 0);
+    throw new V2RequestError(response.status, response.status === 429 ? Math.min(retryAfter, 3600) : 0,
+      typeof body.action === "string" ? body.action : undefined);
   }
   return response.json() as Promise<V2Response>;
 }
@@ -125,7 +129,9 @@ const copy = {
     v2NotCommitted: "La demande précédente n’a pas été enregistrée. Vous pouvez choisir un nouveau créneau.",
     v2Cancel: "Annuler cette demande si elle n’a pas été enregistrée",
     v2CancelHelp: "Si la réservation a déjà été enregistrée, sa confirmation s’affichera à la place.",
+    v2CancelPending: "L’annulation n’est pas confirmée. Réessayez l’annulation de cette demande avant de réserver à nouveau.",
     v2AgainError: "Impossible d’ouvrir une nouvelle demande. Réessayez ou contactez le salon.",
+    v2AgainRateLimited: "Trop de demandes. Attendez avant d’ouvrir une nouvelle réservation.",
     v2RateLimited: "Trop de demandes de réservation. Attendez avant de réessayer la même demande.",
     v2Unavailable: "La vérification des réservations est momentanément indisponible. Réessayez sans choisir un autre créneau.",
     v2StartupHelp: "Aucune nouvelle réservation n’a été envoyée depuis cette page. Réessayez pour vérifier la session de ce navigateur.",
@@ -180,7 +186,9 @@ const copy = {
     v2NotCommitted: "The previous request was not booked. You may choose a new time.",
     v2Cancel: "Cancel this request if it was not booked",
     v2CancelHelp: "If the booking was already saved, its confirmation will appear instead.",
+    v2CancelPending: "Cancellation is not confirmed. Retry canceling this request before booking again.",
     v2AgainError: "A new request could not be opened. Try again or contact the salon.",
+    v2AgainRateLimited: "Too many requests. Wait before opening another booking.",
     v2RateLimited: "Too many booking requests. Wait before checking the same request again.",
     v2Unavailable: "Booking recovery is temporarily unavailable. Try again without choosing another time.",
     v2StartupHelp: "No new booking was sent from this page. Retry to check this browser session.",
@@ -235,7 +243,9 @@ const copy = {
     v2NotCommitted: "La solicitud anterior no se reservó. Puedes elegir otra hora.",
     v2Cancel: "Cancelar esta solicitud si no se reservó",
     v2CancelHelp: "Si la reserva ya se guardó, se mostrará su confirmación.",
+    v2CancelPending: "La cancelación no está confirmada. Vuelve a cancelar esta solicitud antes de reservar otra cita.",
     v2AgainError: "No se pudo abrir una nueva solicitud. Reinténtalo o contacta con el salón.",
+    v2AgainRateLimited: "Demasiadas solicitudes. Espera antes de abrir otra reserva.",
     v2RateLimited: "Hay demasiadas solicitudes de reserva. Espera antes de comprobar la misma solicitud.",
     v2Unavailable: "La recuperación de reservas no está disponible temporalmente. Reinténtalo sin elegir otra hora.",
     v2StartupHelp: "No se ha enviado ninguna reserva nueva desde esta página. Reintenta comprobar la sesión de este navegador.",
@@ -302,7 +312,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const v2Intent = useRef<string | null>(null);
   const v2Generation = useRef<string | null>(null);
   const v2Attempted = useRef(false);
+  const v2Acknowledged = useRef(false);
   const v2Bootstrap = useRef<Promise<V2Response> | null>(null);
+  const v2ActionCooldownRef = useRef<Partial<Record<V2CapabilityAction, true>>>({});
+  const v2ActionTimers = useRef<Partial<Record<V2CapabilityAction, number>>>({});
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   // Do not accept a native selection before React can persist it to booking state.
   const hydrated = useSyncExternalStore(noHydrationSubscription, () => true, () => false);
@@ -321,6 +334,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [v2Phase, setV2Phase] = useState<"loading" | "ready">(v2 ? "loading" : "ready");
   const [v2StartupError, setV2StartupError] = useState<"rate_limited" | "unavailable" | null>(null);
   const [v2RetrySeconds, setV2RetrySeconds] = useState(0);
+  const [v2ActionCooldown, setV2ActionCooldown] = useState<Partial<Record<V2CapabilityAction, true>>>({});
   const [v2RetryNonce, setV2RetryNonce] = useState(0);
   const [v2ManualOnly, setV2ManualOnly] = useState(false);
   const [v2Warning, setV2Warning] = useState("");
@@ -367,6 +381,30 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     return () => window.clearTimeout(timer);
   }, [v2RetrySeconds]);
 
+  useEffect(() => {
+    const timers = v2ActionTimers.current;
+    return () => { for (const timer of Object.values(timers)) window.clearTimeout(timer); };
+  }, []);
+
+  function actionCoolingDown(action: V2CapabilityAction): boolean {
+    return v2ActionCooldownRef.current[action] === true;
+  }
+
+  function recordActionRetry(action: V2CapabilityAction, seconds: number) {
+    const prior = v2ActionTimers.current[action];
+    if (prior !== undefined) window.clearTimeout(prior);
+    const next = { ...v2ActionCooldownRef.current, [action]: true as const };
+    v2ActionCooldownRef.current = next;
+    setV2ActionCooldown(next);
+    v2ActionTimers.current[action] = window.setTimeout(() => {
+      const current = { ...v2ActionCooldownRef.current };
+      delete current[action];
+      v2ActionCooldownRef.current = current;
+      setV2ActionCooldown(current);
+      delete v2ActionTimers.current[action];
+    }, seconds * 1000);
+  }
+
   function pendingIntentIds(): string[] | null {
     try {
       const ids: string[] = [];
@@ -374,8 +412,9 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         const key = window.localStorage.key(index);
         if (!key?.startsWith(markerPrefix)) continue;
         const id = key.slice(markerPrefix.length);
+        const marker = window.localStorage.getItem(key);
         if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)
-          || window.localStorage.getItem(key) !== "1") return null;
+          || (marker !== "1" && marker !== "cancel")) return null;
         ids.push(id);
       }
       return ids;
@@ -384,8 +423,23 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   function markPending(intentId: string): boolean {
     if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intentId)) return false;
-    try { window.localStorage.setItem(`${markerPrefix}${intentId}`, "1"); return true; }
+    try {
+      const key = `${markerPrefix}${intentId}`;
+      if (window.localStorage.getItem(key) !== "cancel") window.localStorage.setItem(key, "1");
+      return true;
+    }
     catch { return false; }
+  }
+
+  function markCancelRequested(intentId: string): boolean {
+    if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intentId)) return false;
+    try { window.localStorage.setItem(`${markerPrefix}${intentId}`, "cancel"); return true; }
+    catch { return false; }
+  }
+
+  function cancelRequested(intentId: string): boolean | null {
+    try { return window.localStorage.getItem(`${markerPrefix}${intentId}`) === "cancel"; }
+    catch { return null; }
   }
 
   function removeMarker(intentId: string): boolean {
@@ -407,11 +461,14 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     setV2Phase("ready");
   }
 
-  function lockV2ForRequestFailure(reason: unknown) {
+  function lockV2ForRequestFailure(reason: unknown, action?: "bootstrap" | "prepare" | "reconcile" | V2CapabilityAction) {
     // The v2 API uses 409 when the browser capability is absent or invalid.
     // Retrying with that same cookie cannot reconcile an earlier attempt.
     if (reason instanceof V2RequestError && reason.status === 429) {
-      setV2RetrySeconds(reason.retryAfterSeconds);
+      const deniedAction = reason.action ?? action;
+      if (deniedAction === "commit" || deniedAction === "cancel" || deniedAction === "acknowledge") {
+        recordActionRetry(deniedAction, reason.retryAfterSeconds);
+      } else setV2RetrySeconds(reason.retryAfterSeconds);
       lockV2(false, labels.v2RateLimited);
     } else {
       setV2RetrySeconds(0);
@@ -542,7 +599,13 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           return;
         }
         if (confirmed.length === 1) { applyV2Result(confirmed[0], true); return; }
-        if (prepared.length === 1) { applyV2Result(prepared[0], true); return; }
+        if (prepared.length === 1) {
+          if (cancelRequested(prepared[0].intent_id!)) {
+            v2Intent.current = prepared[0].intent_id!;
+            lockV2(false, labels.v2CancelPending);
+          } else applyV2Result(prepared[0], true);
+          return;
+        }
         const result = await postV2({ action: "reconcile", salonSlug: salon.slug });
         if (active) applyV2Result(result, (pendingIntentIds()?.length ?? 1) > 0, true);
       } catch (reason) {
@@ -652,6 +715,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     if (inFlight.current) return;
     inFlight.current = true;
     setSubmitting(true);
+    let stage: "prepare" | "commit" = "prepare";
     try {
       const prepared = await postV2({ action: "prepare", ...payload, expectedGeneration: v2Generation.current });
       if (prepared.state !== "prepared" || !prepared.intent_id) {
@@ -660,11 +724,17 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       }
       v2Intent.current = prepared.intent_id;
       // Preparation cannot book. Before the first appointment-creating POST,
-      // persist only a boolean marker so a later lost cookie fails closed.
+      // persist only a non-contact intent marker so a lost cookie fails closed.
       if (!markPending(prepared.intent_id)) { lockV2(true, labels.v2Manual); return; }
+      const wantsCancel = cancelRequested(prepared.intent_id);
+      if (wantsCancel !== false) {
+        lockV2(wantsCancel === null, wantsCancel === null ? labels.v2Manual : labels.v2CancelPending);
+        return;
+      }
+      stage = "commit";
       const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: prepared.intent_id });
       await handleV2Response(committed);
-    } catch (reason) { lockV2ForRequestFailure(reason); }
+    } catch (reason) { lockV2ForRequestFailure(reason, stage); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
@@ -672,6 +742,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
     if (v2ManualOnly || inFlight.current) return;
     inFlight.current = true;
     setSubmitting(true);
+    let stage: "bootstrap" | "reconcile" | "commit" = "reconcile";
     try {
       let intentId = v2Intent.current;
       if (!intentId) {
@@ -685,8 +756,10 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           // A failed bootstrap or terminal follow-up may leave no exact intent
           // in this mounted page. Only a fresh current-session snapshot can
           // authorize the form again; an exact old terminal generation cannot.
+          stage = "bootstrap";
           const boot = await postV2({ action: "bootstrap" });
           if (boot.ready !== true) throw new Error("bootstrap_failed");
+          stage = "reconcile";
           const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
           applyV2Result(current, false, true);
           return;
@@ -705,35 +778,52 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
         return;
       }
       v2Intent.current = reconciled.intent_id;
+      const wantsCancel = cancelRequested(reconciled.intent_id);
+      if (wantsCancel === null) { lockV2(true, labels.v2Manual); return; }
+      if (wantsCancel) { lockV2(false, labels.v2CancelPending); return; }
       // A cookie-only prepared attempt must restore its independent marker
       // before a recovered original-commit retry can create an appointment.
       if (!markPending(reconciled.intent_id)) { lockV2(true, labels.v2Manual); return; }
+      if (actionCoolingDown("commit")) {
+        lockV2(false, labels.v2RateLimited);
+        return;
+      }
+      const stillWantsCancel = cancelRequested(reconciled.intent_id);
+      if (stillWantsCancel !== false) {
+        lockV2(stillWantsCancel === null, stillWantsCancel === null ? labels.v2Manual : labels.v2CancelPending);
+        return;
+      }
+      stage = "commit";
       const committed = await postV2({ action: "commit", salonSlug: salon.slug, intentId: reconciled.intent_id });
       await handleV2Response(committed);
-    } catch (reason) { lockV2ForRequestFailure(reason); }
+    } catch (reason) { lockV2ForRequestFailure(reason, stage); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
   async function cancelV2() {
-    if (!v2Intent.current || v2ManualOnly || inFlight.current) return;
+    if (!v2Intent.current || v2ManualOnly || actionCoolingDown("cancel") || inFlight.current) return;
+    if (!markCancelRequested(v2Intent.current)) { lockV2(true, labels.v2Manual); return; }
     inFlight.current = true;
     setSubmitting(true);
     try {
       const result = await postV2({ action: "cancel", salonSlug: salon.slug, intentId: v2Intent.current });
       await handleV2Response(result);
-    } catch (reason) { lockV2ForRequestFailure(reason); }
+    } catch (reason) { lockV2ForRequestFailure(reason, "cancel"); }
     finally { inFlight.current = false; setSubmitting(false); }
   }
 
   async function anotherBooking() {
     if (!v2) { setConfirmation(null); reloadAvailability(); return; }
-    if (!v2Intent.current || inFlight.current) return;
+    if (!v2Intent.current || actionCoolingDown("acknowledge") || v2RetrySeconds > 0 || inFlight.current) return;
     inFlight.current = true;
     setV2AgainError(false);
     try {
-      const result = await postV2({ action: "acknowledge", salonSlug: salon.slug, intentId: v2Intent.current });
-      if (result.state !== "none" || !result.generation
-        || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.generation)) throw new Error("acknowledgement_unresolved");
+      if (!v2Acknowledged.current) {
+        const result = await postV2({ action: "acknowledge", salonSlug: salon.slug, intentId: v2Intent.current });
+        if (result.state !== "none" || !result.generation
+          || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(result.generation)) throw new Error("acknowledgement_unresolved");
+        v2Acknowledged.current = true;
+      }
       if (pendingIntentIds()?.length !== 0) throw new Error("another_attempt_unresolved");
       const current = await postV2({ action: "reconcile", salonSlug: salon.slug });
       if (current.state !== "none" || !current.generation
@@ -741,9 +831,16 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
       v2Generation.current = current.generation;
       v2Intent.current = null;
       v2Attempted.current = false;
+      v2Acknowledged.current = false;
       setConfirmation(null);
       reloadAvailability();
-    } catch { setV2AgainError(true); }
+    } catch (reason) {
+      if (reason instanceof V2RequestError && reason.status === 429) {
+        if (reason.action === "acknowledge") recordActionRetry("acknowledge", reason.retryAfterSeconds);
+        else setV2RetrySeconds(reason.retryAfterSeconds);
+      }
+      setV2AgainError(true);
+    }
     finally { inFlight.current = false; }
   }
 
@@ -804,8 +901,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </dl>
           <p className="mt-4 border-t border-[#eee5da] pt-4 text-xs text-slate-500">{labels.reference}: {confirmation.appointment_id}</p>
         </div>
-        {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700 dark:text-rose-300">{labels.v2AgainError}</p> : null}
-        <button type="button" onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 dark:focus-visible:outline-white">{labels.another}</button>
+        {v2AgainError ? <p role="alert" className="mt-4 text-sm font-semibold text-rose-700 dark:text-rose-300">{v2ActionCooldown.acknowledge || v2RetrySeconds > 0 ? labels.v2AgainRateLimited : labels.v2AgainError}</p> : null}
+        <button type="button" disabled={Boolean(v2ActionCooldown.acknowledge) || v2RetrySeconds > 0} onClick={anotherBooking} className="mt-6 min-h-12 rounded-full border border-[#d9c7b2] px-6 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.another}</button>
       </section>
     </main>;
   }
@@ -849,7 +946,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
             </button> : null}
             {v2 && !v2ManualOnly && v2Intent.current ? <div className="mt-4">
               <p className="text-sm">{labels.v2CancelHelp}</p>
-              <button type="button" disabled={submitting} onClick={cancelV2} className="mt-3 min-h-12 rounded-full border border-current px-5 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.v2Cancel}</button>
+              <button type="button" disabled={submitting || Boolean(v2ActionCooldown.cancel)} onClick={cancelV2} className="mt-3 min-h-12 rounded-full border border-current px-5 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:focus-visible:outline-white">{labels.v2Cancel}</button>
             </div> : null}
           </section> : <>
           <label className="block font-semibold">{labels.service}

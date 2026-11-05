@@ -3,7 +3,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { publicBookingQuotaKeys } from "@/lib/public-booking-quota-keys";
+import { publicBookingCapabilityQuotaKeys, publicBookingQuotaKeys } from "@/lib/public-booking-quota-keys";
 import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -44,6 +44,20 @@ function json(value: Record<string, unknown>, status = 200, headers: Record<stri
   return NextResponse.json(value, { status, headers: { "cache-control": "private, no-store", ...headers } });
 }
 
+function quotaOutcome(data: unknown, error: unknown): NextResponse | null {
+  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+    return json({ state: "unknown", error: "booking_unavailable" }, 503);
+  }
+  const result = data as Record<string, unknown>;
+  if (result.allowed === true && result.retry_after === 0) return null;
+  if (result.allowed === false && Number.isInteger(result.retry_after)
+    && (result.retry_after as number) >= 1 && (result.retry_after as number) <= maxQuotaRetryAfterSeconds) {
+    return json({ state: "unknown", error: "rate_limited" }, 429,
+      { "retry-after": String(result.retry_after) });
+  }
+  return json({ state: "unknown", error: "booking_unavailable" }, 503);
+}
+
 async function quotaFailure(
   request: NextRequest, supabase: ReturnType<typeof createAdminClient>,
   action: "bootstrap" | "prepare" | "reconcile", token: string | null, salonSlug: string | null,
@@ -56,17 +70,20 @@ async function quotaFailure(
     quota_action: action, ip_digest: keys.ipDigest,
     browser_digest: keys.browserDigest, salon_slug: salonSlug,
   });
-  if (error || !data || typeof data !== "object" || Array.isArray(data)) {
-    return json({ state: "unknown", error: "booking_unavailable" }, 503);
-  }
-  const result = data as Record<string, unknown>;
-  if (result.allowed === true && result.retry_after === 0) return null;
-  if (result.allowed === false && Number.isInteger(result.retry_after)
-    && (result.retry_after as number) >= 1 && (result.retry_after as number) <= maxQuotaRetryAfterSeconds) {
-    return json({ state: "unknown", error: "rate_limited" }, 429,
-      { "retry-after": String(result.retry_after) });
-  }
-  return json({ state: "unknown", error: "booking_unavailable" }, 503);
+  return quotaOutcome(data, error);
+}
+
+async function capabilityQuotaFailure(
+  supabase: ReturnType<typeof createAdminClient>, action: "commit" | "cancel" | "acknowledge",
+  token: string, intentId: string, salonSlug: string,
+): Promise<NextResponse | null> {
+  const keys = publicBookingCapabilityQuotaKeys(token, intentId);
+  if (!keys) return json({ state: "unknown", error: "booking_unavailable" }, 503);
+  const { data, error } = await supabase.rpc("consume_public_booking_capability_quota", {
+    quota_action: action, browser_digest: keys.browserDigest,
+    intent_digest: keys.intentDigest, salon_slug: salonSlug,
+  });
+  return quotaOutcome(data, error);
 }
 
 function configuredCookieMaxAge(): number | null {
@@ -323,7 +340,7 @@ export async function POST(request: NextRequest) {
   } else {
     const input = parsedIntent.data!;
     action = input.action;
-    args = { salon_slug: input.salonSlug, browser_token_hash: hash, intent_id: input.intentId };
+    args = { salon_slug: input.salonSlug, browser_token_hash: hash, intent_id: input.intentId.toLowerCase() };
   }
 
   try {
@@ -331,13 +348,15 @@ export async function POST(request: NextRequest) {
     if (action === "prepare" || action === "reconcile") {
       const quota = await quotaFailure(request, supabase, action, token, String(args.salon_slug));
       if (quota) return quota;
+    } else {
+      const quota = await capabilityQuotaFailure(supabase, action, token,
+        String(args.intent_id), String(args.salon_slug));
+      if (quota) return quota;
     }
-    // This draft does not budget commit/cancel/acknowledge. Keep the rollout
-    // gate OFF until a separately reviewed capability-scoped bound exists.
     const { data, error } = await supabase.rpc(`${action}_public_booking_intent`, args);
     // An unseeded policy or missing v2 migration must never fall back to the legacy create RPC.
     if (error) return json({ state: "unknown", error: "booking_unavailable" }, 503);
-    const expectedIntentId = parsedIntent.success ? parsedIntent.data.intentId
+    const expectedIntentId = parsedIntent.success ? parsedIntent.data.intentId.toLowerCase()
       : parsedReconcile.success ? parsedReconcile.data.intentId ?? null : null;
     const result = validResult(data, action, expectedIntentId);
     if (!result) return json({ state: "unknown", error: "booking_unavailable" }, 503);

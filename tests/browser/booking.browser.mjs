@@ -745,12 +745,13 @@ function v2PublishedConfirmation(locale) {
   } };
 }
 function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitRateLimitAfterSave = false,
-  appointmentStatus = "confirmed", published = false } = {}) {
+  loseCancel = false, appointmentStatus = "confirmed", published = false } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
   let originalPayload = null;
   let lostOnce = false;
+  let cancelLostOnce = false;
   const confirmation = { ...(published ? v2PublishedConfirmation(locale) : v2Confirmation(locale)), appointment_status: appointmentStatus };
   const handler = async (route, writes) => {
     const payload = route.request().postDataJSON();
@@ -796,6 +797,10 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitR
     }
     if (payload.action === "cancel") {
       if (state === "prepared") { state = "not_committed"; generation = v2NextGeneration; }
+      if (loseCancel && !cancelLostOnce) {
+        cancelLostOnce = true;
+        return route.abort("failed");
+      }
       return route.fulfill({ json: state === "not_committed"
         ? { state, generation, intent_id: v2IntentId }
         : { state: "confirmed", generation, intent_id: v2IntentId, confirmation } });
@@ -1094,13 +1099,50 @@ test("v2 commit 429 after save preserves exact marker and reconciles without a s
   await page.locator("form").dispatchEvent("submit");
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
-  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  const recover = page.getByRole("button", { name: uncertainLabels.en.check });
+  assert.equal(await recover.isEnabled(), true, "commit cooldown must not delay exact-intent reconcile");
+  await recover.click();
   await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
   assert.deepEqual(writes.filter(value => value.action === "reconcile" && value.intentId).map(value => value.intentId), [v2IntentId]);
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
   assert.equal(server.appointments.size, 1);
   assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 commit 429 before save reconciles immediately but does not retry commit during cooldown", async t => {
+  const server = v2Server("en");
+  let denied = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "commit" && !denied) {
+      denied = true;
+      writes.push(payload);
+      return route.fulfill({ status: 429, headers: { "retry-after": "2" }, json: { state: "unknown" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: v2RateLimitLabels.en.warning }).waitFor();
+  const recover = page.getByRole("button", { name: uncertainLabels.en.check });
+  assert.equal(await recover.isEnabled(), true);
+  await recover.click();
+  assert.equal(writes.filter(value => value.action === "reconcile" && value.intentId === v2IntentId).length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+  await page.waitForTimeout(2100);
+  await recover.click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "commit").length, 2);
+  assert.equal(server.appointments.size, 1);
   assert.deepEqual(externalRequests, []);
 });
 
@@ -1388,5 +1430,195 @@ test("v2 failed acknowledgement keeps confirmation visible with readable dark-mo
   await page.keyboard.press("Tab");
   assert.equal(await again.evaluate(element => document.activeElement === element), true);
   assert.notEqual(await again.evaluate(element => getComputedStyle(element).outlineStyle), "none");
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 acknowledge 429 keeps confirmation and waits before opening another booking", async t => {
+  const server = v2Server("en");
+  let denied = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "acknowledge" && !denied) {
+      denied = true;
+      writes.push(payload);
+      return route.fulfill({ status: 429, headers: { "retry-after": "2" }, json: { state: "unknown" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  const again = page.getByRole("button", { name: "Book another appointment" });
+  await again.click();
+  await page.getByRole("alert").filter({ hasText: "Wait before opening another booking" }).waitFor();
+  assert.equal(await again.isDisabled(), true);
+  await again.dispatchEvent("click");
+  assert.equal(writes.filter(value => value.action === "acknowledge").length, 1);
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 1);
+  assert.equal(server.appointments.size, 1);
+  await page.waitForFunction(() => {
+    const button = [...document.querySelectorAll("button")].find(value => value.textContent?.trim() === "Book another appointment");
+    return button && !button.disabled;
+  });
+  await again.click();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.equal(writes.filter(value => value.action === "acknowledge").length, 2);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 reconcile 429 after successful acknowledgement retries reconciliation only", async t => {
+  const server = v2Server("en");
+  let acknowledged = false;
+  let deniedReconcile = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "acknowledge") acknowledged = true;
+    if (acknowledged && payload.action === "reconcile" && !payload.intentId && !deniedReconcile) {
+      deniedReconcile = true;
+      writes.push(payload);
+      return route.fulfill({ status: 429, headers: { "retry-after": "2" }, json: { state: "unknown" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  const again = page.getByRole("button", { name: "Book another appointment" });
+  await again.click();
+  await page.getByRole("alert").filter({ hasText: "Wait before opening another booking" }).waitFor();
+  assert.equal(await again.isDisabled(), true);
+  assert.equal(writes.filter(value => value.action === "acknowledge").length, 1);
+  await again.dispatchEvent("click");
+  assert.equal(writes.filter(value => value.action === "acknowledge").length, 1);
+  assert.equal(await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).count(), 1);
+  await page.waitForTimeout(2100);
+  await again.click();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.equal(writes.filter(value => value.action === "acknowledge").length, 1,
+    "a successful acknowledgement must never be reposted for a denied follow-up reconcile");
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 cancel 429 keeps the exact pending intent and waits before retry", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  let denied = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "cancel" && !denied) {
+      denied = true;
+      writes.push(payload);
+      return route.fulfill({ status: 429, headers: { "retry-after": "2" }, json: { state: "unknown" } });
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  const cancel = page.getByRole("button", { name: "Cancel this request if it was not booked" });
+  await cancel.click();
+  await page.getByRole("alert").filter({ hasText: v2RateLimitLabels.en.warning }).waitFor();
+  assert.equal(await cancel.isDisabled(), true);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "cancel"]]);
+  await cancel.dispatchEvent("click");
+  assert.equal(writes.filter(value => value.action === "cancel").length, 1);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  const recover = page.getByRole("button", { name: uncertainLabels.en.check });
+  assert.equal(await recover.isEnabled(), true, "cancel cooldown must not block reconciliation");
+  await recover.click();
+  await page.getByRole("alert").filter({ hasText: "Cancellation is not confirmed" }).waitFor();
+  assert.equal(writes.filter(value => value.action === "commit").length, 1,
+    "reconciling a prepared intent after cancel denial must not commit it");
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: "Cancellation is not confirmed" }).waitFor();
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  assert.equal(writes.filter(value => value.action === "commit").length, 1,
+    "the persisted cancel choice must survive reload without auto-commit");
+  // The browser cooldown is advisory across reloads; the server quota is authoritative.
+  await page.waitForTimeout(2100);
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.equal(writes.filter(value => value.action === "cancel").length, 2);
+  assert.equal(server.appointments.size, 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 cancel transport failure before mutation never auto-commits on reload", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false });
+  let lostCancel = false;
+  const handler = (route, writes) => {
+    const payload = route.request().postDataJSON();
+    if (payload.action === "cancel" && !lostCancel) {
+      lostCancel = true;
+      writes.push(payload);
+      return route.abort("failed");
+    }
+    return server.handler(route, writes);
+  };
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.waitForFunction(() => document.querySelector("form")?.getAttribute("aria-busy") === "false");
+  assert.equal(server.getState(), "prepared");
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "cancel"]]);
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: "Cancellation is not confirmed" }).waitFor();
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 cancel response lost after definitive non-commit recovers without a booking", async t => {
+  const server = v2Server("en", { loseCommit: true, commitBeforeLoss: false, loseCancel: true });
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(server.getState(), "not_committed");
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "cancel"]]);
+  await page.reload();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 0);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 cancel after the original commit preserves its one confirmed appointment", async t => {
+  const server = v2Server("en", { loseCommit: true });
+  const { page, writes, externalRequests } = await pageFor(t, "en", { v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  await page.getByRole("button", { name: "Cancel this request if it was not booked" }).click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
   assert.deepEqual(externalRequests, []);
 });

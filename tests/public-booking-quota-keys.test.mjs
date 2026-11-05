@@ -11,7 +11,7 @@ const js = ts.transpileModule(source, { compilerOptions: {
 } }).outputText;
 const loaded = { exports: {} };
 new Function("require", "exports", js)((name) => name === "server-only" ? {} : require(name), loaded.exports);
-const { publicBookingQuotaKeys } = loaded.exports;
+const { publicBookingQuotaKeys, publicBookingCapabilityQuotaKeys } = loaded.exports;
 const encodedKey = Buffer.alloc(32, 29).toString("base64url");
 const env = { VERCEL_ENV: "preview", GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: encodedKey };
 const request = (ip, extra = {}) => new Request("https://glowflow.mocktar.com/api/public-booking/v2", {
@@ -58,4 +58,40 @@ test("IPv6 variants and IPv4-mapped addresses share quota buckets", () => {
     publicBookingQuotaKeys(request("2001:db8::1"), null, env).ipDigest);
   assert.equal(publicBookingQuotaKeys(request("::ffff:192.0.2.1"), null, env).ipDigest,
     publicBookingQuotaKeys(request("192.0.2.1"), null, env).ipDigest);
+});
+
+test("capability digests bind one browser and canonical intent without requiring client IP", () => {
+  const first = publicBookingCapabilityQuotaKeys("signed-browser-cookie",
+    "11111111-1111-4111-8111-111111111111", env);
+  assert.match(first.browserDigest, /^[0-9a-f]{64}$/);
+  assert.match(first.intentDigest, /^[0-9a-f]{64}$/);
+  assert.equal(first.browserDigest, publicBookingQuotaKeys(request("192.0.2.1"),
+    "signed-browser-cookie", env).browserDigest);
+  assert.equal(first.intentDigest, publicBookingCapabilityQuotaKeys("signed-browser-cookie",
+    "11111111-1111-4111-8111-111111111111".toUpperCase(), env).intentDigest);
+  assert.notEqual(first.intentDigest, publicBookingCapabilityQuotaKeys("signed-browser-cookie",
+    "22222222-2222-4222-8222-222222222222", env).intentDigest);
+  assert.notEqual(first.browserDigest, publicBookingCapabilityQuotaKeys("other-cookie",
+    "11111111-1111-4111-8111-111111111111", env).browserDigest);
+  assert.notEqual(first.intentDigest, publicBookingCapabilityQuotaKeys("other-cookie",
+    "11111111-1111-4111-8111-111111111111", env).intentDigest);
+  assert.doesNotMatch(JSON.stringify(first), /signed-browser-cookie|11111111-1111/);
+});
+
+test("capability keys fail closed on missing trust, key, cookie, or intent", () => {
+  const intent = "11111111-1111-4111-8111-111111111111";
+  for (const runtime of [undefined, "development", "test"]) {
+    assert.equal(publicBookingCapabilityQuotaKeys("signed-browser-cookie", intent,
+      { ...env, VERCEL_ENV: runtime }), null);
+  }
+  for (const key of [undefined, "short", "A".repeat(43), `${encodedKey}=`]) {
+    assert.equal(publicBookingCapabilityQuotaKeys("signed-browser-cookie", intent,
+      { ...env, GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY: key }), null);
+  }
+  for (const browser of ["", "x".repeat(257)]) {
+    assert.equal(publicBookingCapabilityQuotaKeys(browser, intent, env), null);
+  }
+  for (const invalid of ["", "not-a-uuid", "11111111-1111-4111-8111-11111111111z"]) {
+    assert.equal(publicBookingCapabilityQuotaKeys("signed-browser-cookie", invalid, env), null);
+  }
 });

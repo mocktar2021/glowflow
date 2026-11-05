@@ -4,8 +4,10 @@ import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 
 type QuotaKeys = { ipDigest: string; browserDigest: string | null };
+type CapabilityQuotaKeys = { browserDigest: string; intentDigest: string };
 
 const keyPattern = /^[A-Za-z0-9_-]{43}$/;
+const intentPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function hmacKey(env: NodeJS.ProcessEnv): Buffer | null {
   const encoded = env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
@@ -57,4 +59,19 @@ export function publicBookingQuotaKeys(
     .update(`glowflow:public-booking-quota:v1:${scope}\0`)
     .update(value).digest("hex");
   return { ipDigest: digest("ip", ip), browserDigest: browserToken === null ? null : digest("browser", browserToken) };
+}
+
+/** Only call after the route validates the signed cookie and exact intent UUID. */
+export function publicBookingCapabilityQuotaKeys(
+  browserToken: string, intentId: string, env: NodeJS.ProcessEnv = process.env,
+): CapabilityQuotaKeys | null {
+  if (env.VERCEL_ENV !== "production" && env.VERCEL_ENV !== "preview") return null;
+  const key = hmacKey(env);
+  if (!key || !browserToken || browserToken.length > 256 || !intentPattern.test(intentId)) return null;
+  const browserDigest = createHmac("sha256", key)
+    .update("glowflow:public-booking-quota:v1:browser\0").update(browserToken).digest("hex");
+  const intentDigest = createHmac("sha256", key)
+    .update("glowflow:public-booking-quota:v1:browser-intent\0")
+    .update(browserToken).update("\0").update(intentId.toLowerCase()).digest("hex");
+  return { browserDigest, intentDigest };
 }
