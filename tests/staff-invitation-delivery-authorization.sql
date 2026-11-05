@@ -214,4 +214,49 @@ select public.test_assert(
      and tenant_id = '10000000-0000-0000-0000-000000000002') = 1,
   'one salon cannot issue into another salon'
 );
+
+-- A lost provider acknowledgement is not a known non-send. The same
+-- recipient must remain blocked from a new token until an operator reconciles
+-- the possibly delivered invitation. This uses only disposable local data.
+create temporary table uncertain_claim as
+  select * from public.claim_staff_invitation_delivery(
+    'local-test-passphrase-at-least-32-bytes');
+select public.test_assert(
+  (select count(*) from uncertain_claim
+   where delivery_id = (select id from other_salon_delivery)
+     and attempt_number = 1) = 1,
+  'second-salon handoff obtains exactly one provider claim'
+);
+select public.test_assert(
+  public.settle_staff_invitation_delivery(
+    (select id from other_salon_delivery), 'uncertain'),
+  'ambiguous provider outcome settles as uncertain'
+);
+select public.test_assert(
+  (select count(*) from private.staff_invitation_delivery_outbox as delivery
+   join private.staff_invitations as invitation
+     on invitation.id = delivery.invitation_id
+   where delivery.id = (select id from other_salon_delivery)
+     and delivery.status = 'uncertain'
+     and delivery.token_ciphertext is not null
+     and delivery.lease_until is null
+     and delivery.provider_message_id is null
+     and invitation.revoked_at is null) = 1,
+  'uncertain delivery preserves its token and awaits reconciliation'
+);
+select public.test_assert(
+  (select id from other_salon_delivery) = public.enqueue_staff_invitation_delivery(
+    '20000000-0000-0000-0000-000000000003', 'handoff@example.invalid',
+    '71000000-0000-4000-8000-000000000005',
+    'local-test-passphrase-at-least-32-bytes')
+  and (select count(*) from private.staff_invitation_delivery_outbox
+       where tenant_id = '10000000-0000-0000-0000-000000000002'
+         and email_normalized = 'handoff@example.invalid') = 1,
+  'a fresh request key cannot create a second token after an uncertain send'
+);
+select public.test_assert(
+  (select count(*) from public.claim_staff_invitation_delivery(
+    'local-test-passphrase-at-least-32-bytes')) = 0,
+  'an uncertain delivery cannot be blindly reclaimed for another send'
+);
 reset request.jwt.claim.sub;
