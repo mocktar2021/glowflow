@@ -280,10 +280,14 @@ export async function POST(request: NextRequest) {
     const maxAge = configuredCookieMaxAge();
     const signingKey = cookieSigningKey();
     if (!existing && (!maxAge || !signingKey)) return json({ state: "unknown", error: "booking_unavailable" }, 503);
-    try {
-      const quota = await quotaFailure(request, createAdminClient(), "bootstrap", null, null);
-      if (quota) return quota;
-    } catch { return json({ state: "unknown", error: "booking_unavailable" }, 503); }
+    if (!existing) {
+      // Reusing an authenticated browser capability issues no cookie. Do not
+      // let its repeated bootstrap calls exhaust the shared IP issuance cap.
+      try {
+        const quota = await quotaFailure(request, createAdminClient(), "bootstrap", null, null);
+        if (quota) return quota;
+      } catch { return json({ state: "unknown", error: "booking_unavailable" }, 503); }
+    }
     const response = json({ ready: true, new_session: !existing });
     if (!existing) {
       response.cookies.set(cookieName, newBrowserToken(request, maxAge!, signingKey!), {

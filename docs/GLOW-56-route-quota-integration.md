@@ -6,9 +6,10 @@ branch. That SQL needs its advisory-lock time-zone review resolved before it
 can be considered for merge or hosted application. No hosted SQL, policy
 values, cleanup schedule, or secret is installed by this draft.
 
-With the v2 flag on in a future isolated QA environment, `bootstrap`,
-`prepare`, and `reconcile` consume their respective durable quota bucket
-before issuing a cookie or calling an intent RPC. The route validates the
+With the v2 flag on in a future isolated QA environment, new-cookie
+`bootstrap`, `prepare`, and `reconcile` consume their respective durable quota
+bucket before issuing a cookie or calling an intent RPC. Valid existing-cookie
+bootstrap does not consume the shared-IP issuance bucket. The route validates the
 existing signed browser cookie before consuming prepare/reconcile quota. It
 passes only server-HMAC IP and browser digests to the service-role quota RPC,
 not the raw IP, browser token, or client contact. A denied bucket returns 429

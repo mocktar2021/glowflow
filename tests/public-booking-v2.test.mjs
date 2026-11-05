@@ -202,6 +202,19 @@ test("invalid existing bootstrap cookie cannot burn quota or mint a new capabili
   }
 });
 
+test("repeated valid-cookie bootstrap never burns shared-IP issuance quota", async () => {
+  const { POST, calls, quotaCalls } = await harness(true, undefined, null,
+    { data: { allowed: false, retry_after: 1 }, error: null });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { response, value } = await post(POST, { action: "bootstrap" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(value, { ready: true, new_session: false });
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  assert.deepEqual(quotaCalls, []);
+  assert.deepEqual(calls, []);
+});
+
 test("allowed quota precedes prepare and reconcile with digest-only arguments", async () => {
   process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
   const { POST, rpcOrder, quotaCalls } = await harness();
@@ -263,7 +276,7 @@ test("bootstrap requires explicit cookie lifetime and uses a host-only HttpOnly 
   const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
   try {
     delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
-    const { POST, calls } = await harness();
+    const { POST, calls, quotaCalls } = await harness();
     assert.equal((await post(POST, { action: "bootstrap" }, { cookie: null })).response.status, 503);
     process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "86400";
     const { response, value } = await post(POST, { action: "bootstrap" }, { cookie: null });
@@ -277,7 +290,9 @@ test("bootstrap requires explicit cookie lifetime and uses a host-only HttpOnly 
     assert.match(setCookie, /Max-Age=86400/);
     assert.doesNotMatch(setCookie, /Domain=/i);
     assert.deepEqual(calls, []);
+    assert.deepEqual(quotaCalls.map(({ args }) => args.quota_action), ["bootstrap"]);
     assert.deepEqual((await post(POST, { action: "bootstrap" })).value, { ready: true, new_session: false });
+    assert.equal(quotaCalls.length, 1);
   } finally {
     if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
     else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
