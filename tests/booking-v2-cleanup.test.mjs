@@ -93,10 +93,9 @@ test("manual entrypoint invokes only the two fixed RPCs and never logs credentia
   const calls = [];
   const logs = [];
   const code = await main(fixtureEnv, async (url, options) => {
-    calls.push({ url, body: options.body, method: options.method, key: options.headers.apikey });
-    return { ok: true, async json() {
-      return url.endsWith("sweep_public_booking_intents") ? intent(true, 1) : quota(true, 2);
-    } };
+    calls.push({ url, body: options.body, method: options.method,
+      key: options.headers.apikey, redirect: options.redirect });
+    return Response.json(url.endsWith("sweep_public_booking_intents") ? intent(true, 1) : quota(true, 2));
   }, line => logs.push(line));
   assert.equal(code, 0);
   assert.deepEqual(calls.map(({ url }) => url), [
@@ -104,7 +103,8 @@ test("manual entrypoint invokes only the two fixed RPCs and never logs credentia
     "https://rfwhqutkiztxkagbhevp.supabase.co/rest/v1/rpc/sweep_public_booking_quota_counters",
   ]);
   assert.deepEqual(calls.map(({ body }) => JSON.parse(body).batch_limit), [2, 3]);
-  assert.ok(calls.every(({ method, key }) => method === "POST" && key === fixtureEnv.GLOWFLOW_CLEANUP_SERVICE_ROLE_KEY));
+  assert.ok(calls.every(({ method, key, redirect }) => method === "POST" && redirect === "error"
+    && key === fixtureEnv.GLOWFLOW_CLEANUP_SERVICE_ROLE_KEY));
   assert.equal(JSON.parse(logs[0]).status, "complete");
   assert.doesNotMatch(logs.join(""), /fixture-only-opaque-key|email|phone|browser_token/);
 
@@ -123,4 +123,36 @@ test("manual entrypoint invokes only the two fixed RPCs and never logs credentia
     async () => { contacted = true; }, () => {});
   assert.equal(wrongScope, 1);
   assert.equal(contacted, false);
+});
+
+test("redirects fail closed without following a second request or logging the service key", async () => {
+  const calls = [];
+  const logs = [];
+  const code = await main(fixtureEnv, async (url, options) => {
+    calls.push({ url, redirect: options.redirect });
+    return new Response(null, { status: 302, headers: { location: "https://other.example.invalid/receive" } });
+  }, line => logs.push(line));
+  assert.equal(code, 1);
+  assert.deepEqual(calls, [{
+    url: "https://rfwhqutkiztxkagbhevp.supabase.co/rest/v1/rpc/sweep_public_booking_intents",
+    redirect: "error",
+  }]);
+  assert.equal(JSON.parse(logs[0]).status, "failed");
+  assert.doesNotMatch(logs.join(""), /fixture-only-opaque-key|other\.example\.invalid/);
+});
+
+test("oversized successful RPC responses fail safely without reaching quota sweep", async () => {
+  let calls = 0;
+  const logs = [];
+  const code = await main(fixtureEnv, async () => {
+    calls += 1;
+    return new Response("x".repeat(4_097), { status: 200 });
+  }, line => logs.push(line));
+  assert.equal(code, 1);
+  assert.equal(calls, 1);
+  assert.deepEqual(JSON.parse(logs[0]), {
+    event: "glowflow_booking_cleanup", scope: "glowflow_qa",
+    status: "failed", stage: "intent", code: "transport",
+  });
+  assert.doesNotMatch(logs.join(""), /xxxxx|fixture-only-opaque-key/);
 });

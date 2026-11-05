@@ -13,7 +13,9 @@ sweep first, then the quota sweep. Each incomplete pass may continue only
 within those limits. Busy, incomplete, malformed, timed-out, or failed RPCs
 produce a nonzero exit. Output has a fixed event, stage, code and aggregate
 counts only. It never prints the credential, customer contact, browser token,
-IP address, intent ID, raw RPC error or response body.
+IP address, intent ID, raw RPC error or response body. HTTP redirects are
+rejected before credentials can be forwarded, and RPC response bodies are
+limited to 4,096 bytes.
 
 A complete result transactionally stamps each sweep's freshness heartbeat.
 The private heartbeat tables are not exposed through the Data API, so this

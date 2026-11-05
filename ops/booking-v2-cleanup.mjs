@@ -107,10 +107,31 @@ function postgresRpc(config, fetchImpl) {
         accept: "application/json",
       },
       body: JSON.stringify({ batch_limit: batchLimit }),
+      // A redirected request must never forward the service-role key.
+      redirect: "error",
       signal: AbortSignal.timeout(Math.max(1, Math.floor(timeoutMs))),
     });
     if (!response.ok) throw new Error("RPC unavailable");
-    return response.json();
+    // Sweep replies contain only a few aggregate fields. Do not buffer an
+    // unexpected response body without a bound, even on an HTTP 200.
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("RPC response unavailable");
+    const chunks = [];
+    let length = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > 4_096) {
+        void reader.cancel().catch(() => {});
+        throw new Error("RPC response too large");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   };
 }
 
