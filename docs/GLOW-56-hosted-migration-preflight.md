@@ -1,4 +1,4 @@
-# GLOW-56 hosted migration preflight (draft, read-only)
+# GLOW-56 hosted migration preflight (read-only)
 
 This is an evidence checklist, not authority to apply SQL. Its only target is
 Supabase organization `goutxcrujaxjjssbjfsn`, project
@@ -15,12 +15,15 @@ preflight.
 
 ## Immutable source and ledger gate
 
-The recorded source baseline is reviewed master commit
-[`d27c72c4e0e695caed4dfe80792f518a93871a19`](https://github.com/mocktar2021/glowflow/commit/d27c72c4e0e695caed4dfe80792f518a93871a19)
-plus the still-unmerged hardened migration in draft
-[#221](https://github.com/mocktar2021/glowflow/pull/221) at
-`ba902571cfb99790c0aa8020ecdd4bcc4ef67214`. This documentation draft
-is stacked on that exact code; it does not assert the hardening is on master.
+The migration source baseline began at reviewed master commit
+[`d27c72c4e0e695caed4dfe80792f518a93871a19`](https://github.com/mocktar2021/glowflow/commit/d27c72c4e0e695caed4dfe80792f518a93871a19).
+Hardened [#221](https://github.com/mocktar2021/glowflow/pull/221) head
+`ba902571cfb99790c0aa8020ecdd4bcc4ef67214` merged as
+`b9f6066074a60a5471d98bcabac428e55f457f2e`; this runbook in
+[#222](https://github.com/mocktar2021/glowflow/pull/222) merged as
+`a14a648456fc4ccadf22b671e45925713a17ef20`. At this reconciliation,
+master is `e53701510030db033155190b759858ad2b0f9d60`. These merges
+committed source files only; they did not apply the three hosted migrations.
 Use an immutable reviewed GlowFlow commit, not a moving branch, as the source.
 Before doing anything hosted, verify the local migration map identifies the
 same organization and project and contains exactly 44 entries. Its last three
@@ -240,8 +243,8 @@ all intent, browser-session, intent-cleanup, intent-policy, quota-policy,
 quota-counter, and quota-cleanup tables are empty before considering reverse
 order. This independent operator stop condition applies
 even if a rollback file contains its own guards; do not treat a file guard as
-complete authorization. Draft [#221](https://github.com/mocktar2021/glowflow/pull/221)
-proposes stronger cleanup-heartbeat guards and is included in this stacked
-draft, but it is not yet merged to master. Recheck the exact rollback files
-after any subsequent source change. This document provides no rollback
-approval or executable rollback command.
+complete authorization. The stronger cleanup-heartbeat guards from merged
+[#221](https://github.com/mocktar2021/glowflow/pull/221) are in master as
+source files only, not applied to the hosted database. Recheck the exact
+rollback files after any subsequent source change. This document provides no
+rollback approval or executable rollback command.
