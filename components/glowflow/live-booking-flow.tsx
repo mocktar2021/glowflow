@@ -129,7 +129,6 @@ const copy = {
     v2RateLimited: "Trop de demandes de réservation. Attendez avant de réessayer la même demande.",
     v2Unavailable: "La vérification des réservations est momentanément indisponible. Réessayez sans choisir un autre créneau.",
     v2StartupHelp: "Aucune nouvelle réservation n’a été envoyée depuis cette page. Réessayez pour vérifier la session de ce navigateur.",
-    v2RetryIn: "Réessayer dans {seconds} s",
     success: "Rendez-vous confirmé",
     confirmation: "Votre rendez-vous est enregistré dans l’agenda du salon.",
     salon: "Salon",
@@ -185,7 +184,6 @@ const copy = {
     v2RateLimited: "Too many booking requests. Wait before checking the same request again.",
     v2Unavailable: "Booking recovery is temporarily unavailable. Try again without choosing another time.",
     v2StartupHelp: "No new booking was sent from this page. Retry to check this browser session.",
-    v2RetryIn: "Retry in {seconds} s",
     success: "Appointment confirmed",
     confirmation: "Your appointment is saved in the salon calendar.",
     salon: "Salon",
@@ -241,7 +239,6 @@ const copy = {
     v2RateLimited: "Hay demasiadas solicitudes de reserva. Espera antes de comprobar la misma solicitud.",
     v2Unavailable: "La recuperación de reservas no está disponible temporalmente. Reinténtalo sin elegir otra hora.",
     v2StartupHelp: "No se ha enviado ninguna reserva nueva desde esta página. Reintenta comprobar la sesión de este navegador.",
-    v2RetryIn: "Reintentar en {seconds} s",
     success: "Cita confirmada",
     confirmation: "Tu cita está guardada en el calendario del salón.",
     salon: "Salón",
@@ -366,7 +363,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   useEffect(() => {
     if (v2RetrySeconds <= 0) return;
-    const timer = window.setTimeout(() => setV2RetrySeconds((remaining) => Math.max(0, remaining - 1)), 1000);
+    const timer = window.setTimeout(() => setV2RetrySeconds(0), v2RetrySeconds * 1000);
     return () => window.clearTimeout(timer);
   }, [v2RetrySeconds]);
 
@@ -815,7 +812,6 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
   const contactError = error === labels.contact;
   const locked = uncertainPublicBooking || (v2 && (v2Phase === "loading" || v2StartupError !== null));
-  const retryLabel = v2RetrySeconds > 0 ? labels.v2RetryIn.replace("{seconds}", String(v2RetrySeconds)) : labels.retry;
 
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
@@ -844,12 +840,12 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           </section> : v2 && v2StartupError ? <section role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
             <h2 className="text-xl font-semibold">{v2StartupError === "rate_limited" ? labels.v2RateLimited : labels.v2Unavailable}</h2>
             <p className="mt-3 leading-7">{labels.v2StartupHelp}</p>
-            <button type="button" disabled={v2RetrySeconds > 0} onClick={retryV2Startup} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">{retryLabel}</button>
+            <button type="button" disabled={v2RetrySeconds > 0} onClick={retryV2Startup} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">{labels.retry}</button>
           </section> : uncertainPublicBooking ? <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-50">
             <h2 ref={recoveryRef} tabIndex={-1} className="text-xl font-semibold">{v2Warning || labels.uncertain}</h2>
             {!v2ManualOnly ? <p className="mt-3 leading-7">{labels.uncertainHelp}</p> : null}
             {!v2ManualOnly ? <button type="button" disabled={submitting || v2RetrySeconds > 0} onClick={retryOriginalBooking} className="mt-5 min-h-12 rounded-full bg-slate-950 px-6 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950 disabled:opacity-45 dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-white">
-              {submitting ? labels.saving : v2RetrySeconds > 0 ? retryLabel : labels.checkOriginal}
+              {submitting ? labels.saving : labels.checkOriginal}
             </button> : null}
             {v2 && !v2ManualOnly && v2Intent.current ? <div className="mt-4">
               <p className="text-sm">{labels.v2CancelHelp}</p>

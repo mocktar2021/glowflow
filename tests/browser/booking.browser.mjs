@@ -730,9 +730,9 @@ const v2LostSessionLabels = {
   es: "Se perdió la sesión de reserva de este navegador.",
 };
 const v2RateLimitLabels = {
-  fr: { warning: "Trop de demandes de réservation", retry: "Réessayer", waiting: "Réessayer dans 3 s" },
-  en: { warning: "Too many booking requests", retry: "Try again", waiting: "Retry in 3 s" },
-  es: { warning: "Hay demasiadas solicitudes de reserva", retry: "Reintentar", waiting: "Reintentar en 3 s" },
+  fr: { warning: "Trop de demandes de réservation", retry: "Réessayer" },
+  en: { warning: "Too many booking requests", retry: "Try again" },
+  es: { warning: "Hay demasiadas solicitudes de reserva", retry: "Reintentar" },
 };
 function v2Confirmation(locale) {
   return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
@@ -744,7 +744,8 @@ function v2PublishedConfirmation(locale) {
     service_title: { fr: "Prestation réservée", en: "Booked service", es: "Servicio reservado" },
   } };
 }
-function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, appointmentStatus = "confirmed", published = false } = {}) {
+function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, commitRateLimitAfterSave = false,
+  appointmentStatus = "confirmed", published = false } = {}) {
   const appointments = new Map();
   let state = "none";
   let generation = v2Generation;
@@ -777,6 +778,12 @@ function v2Server(locale, { loseCommit = false, commitBeforeLoss = true, appoint
     if (payload.action === "commit") {
       if (payload.intentId !== v2IntentId) return route.fulfill({ json: { state: "unknown" } });
       if (state === "prepared") {
+        if (commitRateLimitAfterSave && !lostOnce) {
+          lostOnce = true;
+          state = "confirmed";
+          appointments.set(v2IntentId, confirmation);
+          return route.fulfill({ status: 429, headers: { "retry-after": "1" }, json: { state: "unknown" } });
+        }
         if (loseCommit && !lostOnce) {
           lostOnce = true;
           if (commitBeforeLoss) { state = "confirmed"; appointments.set(v2IntentId, confirmation); }
@@ -946,14 +953,17 @@ for (const locale of ["fr", "en", "es"]) {
     });
     await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
     await page.getByRole("status").filter({ hasText: v2RateLimitLabels[locale].warning }).waitFor();
-    const waiting = page.getByRole("button", { name: v2RateLimitLabels[locale].waiting });
-    assert.equal(await waiting.isDisabled(), true);
+    const retry = page.getByRole("button", { name: v2RateLimitLabels[locale].retry, exact: true });
+    assert.equal(await retry.isDisabled(), true);
     assert.equal(await page.getByText(uncertainLabels[locale].warning).count(), 0);
     assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
     await page.locator("form").dispatchEvent("submit");
     assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
-    const retry = page.getByRole("button", { name: v2RateLimitLabels[locale].retry, exact: true });
-    await retry.waitFor();
+    await page.waitForFunction(label => {
+      const button = [...document.querySelectorAll("button")].find(value => value.textContent?.trim() === label);
+      return button && !button.disabled;
+    }, v2RateLimitLabels[locale].retry);
+    assert.equal(await retry.isEnabled(), true, "the stable button label remains after cooldown");
     await retry.click();
     await page.locator('[name="bookingTime"]').waitFor();
     assert.deepEqual(writes.map(value => value.action), ["bootstrap", "bootstrap", "reconcile"]);
@@ -1007,11 +1017,13 @@ test(`v2 ${deniedStatus} during marker reconciliation retains the marker and ret
   await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
   await fillBooking(page, "en");
   await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  assert.equal(server.appointments.size, 1, "the first commit happened before its response was lost");
   denyMarkerReconcile = true;
   await page.reload();
   await page.getByRole("alert").filter({ hasText: deniedStatus === 429
     ? v2RateLimitLabels.en.warning : "Booking recovery is temporarily unavailable" }).waitFor();
   assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.equal(server.appointments.size, 1, "quota denial cannot create or erase an appointment");
   assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
     [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
   await page.locator("form").dispatchEvent("submit");
@@ -1023,9 +1035,74 @@ test(`v2 ${deniedStatus} during marker reconciliation retains the marker and ret
   assert.equal(writes.filter(value => value.action === "prepare").length, 1);
   assert.equal(writes.filter(value => value.action === "commit").length, 1);
   assert.equal(writes.filter(value => value.action === "reconcile" && value.intentId === v2IntentId).length, 2);
+  assert.equal(server.appointments.size, 1, "recovery returns the original appointment only");
   assert.deepEqual(externalRequests, []);
 });
 }
+
+test("v2 prepare quota denial cannot submit a changed booking until a current-session reconcile clears it", async t => {
+  const server = v2Server("en");
+  let denied = false;
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "prepare" && !denied) {
+        denied = true;
+        requests.push(payload);
+        return route.fulfill({ status: 429, headers: { "retry-after": "1" }, json: { state: "unknown" } });
+      }
+      return server.handler(route, requests);
+    },
+    v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot, { ...slot, slot_start: "2030-01-15T11:00:00Z" }] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: v2RateLimitLabels.en.warning }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.equal(server.appointments.size, 0);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 0);
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.locator('[name="bookingTime"]').first().waitFor();
+  assert.equal(writes.filter(value => value.action === "reconcile").length, 2,
+    "fresh current-session reconcile must precede any new prepare");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  await fillBooking(page, "en");
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 2);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(externalRequests, []);
+});
+
+test("v2 commit 429 after save preserves exact marker and reconciles without a second commit", async t => {
+  const server = v2Server("en", { commitRateLimitAfterSave: true });
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    v2Booking: server.handler, v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot, { ...slot, slot_start: "2030-01-15T11:00:00Z" }] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: v2RateLimitLabels.en.warning }).waitFor();
+  assert.equal(server.appointments.size, 1);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  await page.getByRole("button", { name: uncertainLabels.en.check }).click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.deepEqual(writes.filter(value => value.action === "reconcile" && value.intentId).map(value => value.intentId), [v2IntentId]);
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(server.appointments.size, 1);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))), []);
+  assert.deepEqual(externalRequests, []);
+});
 
 test("v2 cookie rejected after bootstrap cannot repeat prepare or offer recovery retry", async t => {
   const server = v2Server("en");
