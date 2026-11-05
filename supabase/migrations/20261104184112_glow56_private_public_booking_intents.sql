@@ -455,6 +455,7 @@ begin
     select 1 from private.public_booking_intent_cleanup_state as cleanup
     where cleanup.singleton
       and cleanup.last_full_sweep_at >= pg_catalog.clock_timestamp() - interval '2 hours'
+      and cleanup.last_full_sweep_at <= pg_catalog.clock_timestamp()
   ) then
     raise exception using errcode = '55000', message = 'booking_intent_cleanup_stale';
   end if;
