@@ -1,15 +1,19 @@
-# GLOW-56 no-pay shared-backend cleanup schedule (dormant draft)
+# GLOW-56 no-pay shared-backend cleanup schedule (dormant)
 
-This is code only. The new GitHub Actions workflow is deliberately skipped
-unless the effective Actions variable `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
+This is code only. [PR #224](https://github.com/mocktar2021/glowflow/pull/224)
+merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
+The GitHub Actions cleanup job is deliberately skipped
+unless the **repository Actions variable** `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
 `enable-glow56-qa-cleanup-20261105`.
-That variable and all referenced secrets are **not** configured by this PR.
-There is no manual-dispatch trigger. Merging this draft would not run the
-cleanup job while the effective variable is absent or differs. **Do not merge
-without owner confirmation** that the effective variable is absent or differs
-across organization and repository settings, and any applicable Environment
-scope. This connected workspace cannot read GitHub Actions variables. A code
-merge alone would not apply SQL, seed a policy, turn on v2, deploy a scheduler to Vercel, send a
+At merge, the owner's GitHub Settings screenshots showed no repository Actions
+variables, no variables or secrets in the `glowflow-qa-booking-cleanup`
+Environment, and no organization scope because `mocktar2021` is a personal
+account. This is a dated observation, not a continuing guarantee. There is no
+manual-dispatch trigger. The job remains skipped while the repository opt-in is
+absent. Before any activation, recheck the repository variable and Environment
+secret state;
+this connected workspace cannot read GitHub Actions variables. A code merge
+alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to Vercel, send a
 Healthchecks ping, or contact a customer. Do not set the variable until the
 steps below are separately reviewed and approved.
 
@@ -19,10 +23,17 @@ steps below are separately reviewed and approved.
 activated, the schedule would mutate that live/shared GlowFlow sandbox
 backend. Activation therefore needs separate approval for a live-backend
 operation, or a verified isolated backend plus a reviewed target change.
-Neither condition is met by this draft. This workflow cannot be cited as
+Neither condition was met at code merge. This workflow cannot be cited as
 isolated-QA operational evidence.
 
 ## Candidate operation
+
+The opt-in must be set at **repository** scope if activation is separately
+approved. The workflow checks `vars.GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` in its
+job-level `if`, which GitHub evaluates before the job starts; Environment
+variables are not available until the job starts. An Environment variable of
+the same name cannot enable this job. Keep the service-role key and Healthchecks
+ping URL as protected Environment **secrets**, not repository variables.
 
 The workflow runs only on `mocktar2021/glowflow` default-branch schedules at
 17 and 47 minutes past each hour, with one non-overlapping job, a 10-minute
@@ -45,7 +56,7 @@ in source code or PR workflows.
 The code pins `actions/checkout` v4.2.2 at
 `11bd71901bbe5b1630ceea73d27597364c9af683` and `actions/setup-node`
 v4.4.0 at `49933ea5288caeca8642d1e84afbd3f7d6820020`; both identities
-were checked against the corresponding official Git tags before this draft.
+were checked against the corresponding official Git tags before code merge.
 The fixed runner bounds are 25 calls per sweep, 60 seconds total, 100 intent
 rows and 1,000 quota rows per call. These are upper bounds, not proof the
 actual shared-backend backlog drains on time. No runner should refresh a full-sweep
@@ -75,16 +86,22 @@ two-hour deadline. Use a separate credential owner and backup for the GitHub
 Environment and Healthchecks account. Keep Healthchecks UUID URLs private:
 they are bearer credentials that can falsely mark a check healthy if leaked.
 
+The same owner screenshots show that the Environment permits administrators
+to bypass its protection rules and has no deployment-branch restriction. Do
+not add a service-role secret or opt in while either condition remains. Before
+storing the key, require reviewed changes to protected `master` and an
+Environment that permits only `master` with non-bypassable human approval.
+If this account cannot enforce those controls, do not store the key or opt in.
+Recheck the actual protection settings rather than relying on these screenshots.
+
 Before opt-in, verify the existing shared GlowFlow project identity and migration
 ledger, apply only separately approved hosted migrations, approve quota and
 intent policy, prove cleanup can drain the expected backlog within the fixed
 limits, and test missing secrets, forced sweep failure, missed schedule,
 failed/redirected success and failure pings, real alert delivery, and fail-closed booking
 behavior. Review GitHub Actions and Healthchecks free-plan limits and account
-status at activation. Before adding a service-role secret, protect `master`
-against unreviewed workflow edits or require a separate Environment approval
-process, confirm the Environment is restricted to `master`, and establish
-secure secret custody. Read-only GitHub token permissions do not constrain
+status at activation. Establish secure secret custody before adding a
+service-role key. Read-only GitHub token permissions do not constrain
 what code with that service-role secret can do to Supabase. A public GitHub
 repository's standard hosted runner is currently free, and Healthchecks'
 free Hobbyist plan currently offers 20
@@ -93,7 +110,8 @@ Cron is not a substitute because it currently allows only one invocation per
 day. The current shared sandbox is not the future `glowflow.beauty` production
 environment, but it is live and should be treated as such.
 
-References: [GitHub schedule limitations](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
+References: [GitHub configuration-variable availability](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables),
+[GitHub schedule limitations](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
 [GitHub public-runner pricing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
 [Healthchecks ping API](https://healthchecks.io/docs/http_api/),
 [Healthchecks free tier](https://healthchecks.io/pricing/),
