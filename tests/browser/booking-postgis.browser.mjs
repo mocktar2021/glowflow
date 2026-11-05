@@ -85,6 +85,8 @@ test("browser recovers one real local v2 booking after its committed response is
     const errors = [];
     let lostCommit = false;
     let committedId = null;
+    let resolveCommitHandled;
+    const commitHandled = new Promise(resolve => { resolveCommitHandled = resolve; });
     page.on("pageerror", () => errors.push("browser runtime error"));
     await context.route("**/*", async route => {
       const url = new URL(route.request().url());
@@ -108,6 +110,7 @@ test("browser recovers one real local v2 booking after its committed response is
           assert.equal(body.state, "confirmed");
           committedId = body.confirmation.appointment_id;
           lostCommit = true;
+          resolveCommitHandled();
           return route.abort("failed"); // Only the browser loses the response.
         }
       }
@@ -133,6 +136,12 @@ test("browser recovers one real local v2 booking after its committed response is
     await page.locator('[name="fullName"]').fill("Fictional Browser Client");
     await page.locator('[name="email"]').fill("browser-postgis@example.invalid");
     await page.getByRole("button", { name: "Confirm appointment", exact: true }).click();
+    let commitTimeout;
+    try {
+      await Promise.race([commitHandled, new Promise((_, reject) => {
+        commitTimeout = setTimeout(() => reject(new Error("Local committed response was not observed.")), 45_000);
+      })]);
+    } finally { clearTimeout(commitTimeout); }
     await page.getByRole("button", { name: "Check original request" }).waitFor();
     assert.equal(lostCommit, true);
     assert.match(committedId, /^[0-9a-f-]{36}$/);
