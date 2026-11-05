@@ -7,7 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 // Actual local Next HTTP routes + test-only psql adapter + disposable PostGIS.
-// The SQL gate is NON-MIGRATION and must never be applied to hosted Supabase.
+// The versioned SQL gate is applied only to this disposable local database.
 const connection = process.env.GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL;
 const runnerNonce = process.env.GLOWFLOW_RECOVERY_ONLY_RUNNER_NONCE;
 const slotInput = process.env.GLOWFLOW_RECOVERY_ONLY_SLOTS;

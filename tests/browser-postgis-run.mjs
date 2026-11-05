@@ -39,6 +39,10 @@ try {
     sql(readFileSync(`supabase/migrations/${migration}`, "utf8"), migration);
   }
   sql(readFileSync("tests/public-booking-v2-postgis-fixture.sql", "utf8"), "fictional booking fixture");
+  if (sql("select private.transition_public_booking_mode('legacy','frozen'); "
+    + "select private.transition_public_booking_mode('frozen','v2')", "open disposable v2 gate") !== "v2") {
+    throw new Error("Disposable gate did not open v2 mode.");
+  }
   const slot = sql(`set role service_role;
     select jsonb_build_object('start', min(slot_start), 'alternateStart', max(slot_start),
       'localDate', to_char(min(slot_start) at time zone 'America/New_York', 'YYYY-MM-DD'))

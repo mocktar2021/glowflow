@@ -194,6 +194,8 @@ test("production v2 route reaches real disposable PostGIS quota and intent RPCs"
     sql(readFileSync(new URL("supabase/migrations/" + migration, root), "utf8"), migration);
   }
   sql(readFileSync(new URL("tests/public-booking-v2-postgis-fixture.sql", root), "utf8"), "fictional route fixture");
+  assert.equal(sql("select private.transition_public_booking_mode('legacy','frozen'); "
+    + "select private.transition_public_booking_mode('frozen','v2')", "open disposable v2 gate"), "v2");
 
   const slots = JSON.parse(sql(
     "set role service_role; select coalesce(jsonb_agg(jsonb_build_object('start', slot_start, 'staff', staff_id) order by slot_start), '[]'::jsonb) from (select slot_start, staff_id from public.get_public_booking_slots('route-fixture','40000000-0000-0000-0000-000000000001', current_date + (8 - extract(dow from current_date)::integer)) where staff_id='20000000-0000-0000-0000-000000000002' order by slot_start limit 5) as future_slots;",

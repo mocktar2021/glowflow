@@ -2,7 +2,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 
-// NON-MIGRATION prototype on a disposable loopback PostGIS INSTANCE only.
+// Versioned gate migration on a disposable loopback PostGIS INSTANCE only.
 const supplied = process.env.GLOWFLOW_RLS_ADMIN_DATABASE_URL;
 let admin;
 try { admin = new URL(supplied); } catch { throw new Error("Disposable loopback PostgreSQL admin URL required."); }
@@ -38,9 +38,7 @@ try {
     sql(readFileSync(`supabase/migrations/${migration}`, "utf8"), migration);
   }
   sql(readFileSync("tests/public-booking-v2-postgis-fixture.sql", "utf8"), "fictional fixture");
-  // Deliberate path: this SQL is NOT in supabase/migrations and never applied
-  // by a migration command or to a hosted project.
-  sql(readFileSync("docs/prototypes/GLOW-56-booking-contract-gate.sql", "utf8"), "non-migration gate prototype");
+  // The ordered migration set installed the legacy-mode contract gate.
   assertState("legacy");
   sql("select private.transition_public_booking_mode('legacy','frozen')", "freeze local contract");
   sql("select private.transition_public_booking_mode('frozen','v2')", "open local v2 preparation");

@@ -2,9 +2,8 @@
 
 `tests/recovery-only-postgis-run.mjs` creates a generated database on a
 disposable loopback PostgreSQL/PostGIS instance. It loads the repository schema,
-ordered migrations, fictional booking fixture, and then explicitly applies
-`GLOW-56-booking-contract-gate.sql` from this prototype directory. That SQL is
-**not a migration** and must not be applied to hosted Supabase. The runner
+ordered migrations (including the code-only versioned contract gate) and a
+fictional booking fixture. No SQL is applied to hosted Supabase. The runner
 transitions the local gate from `legacy` to `frozen` to `v2`, and always drops
 the generated database afterward. The platform fixture may create cluster
 roles, so the whole PostgreSQL instance must be disposable.

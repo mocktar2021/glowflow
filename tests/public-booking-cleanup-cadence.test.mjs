@@ -70,6 +70,8 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
       insert into private.public_booking_quota_policy
       (action_bucket,window_seconds,ip_limit,browser_tenant_limit,configured_at)
       values ('bootstrap',600,100,null,clock_timestamp());`);
+    assert.equal(sql("select private.transition_public_booking_mode('legacy','frozen'); "
+      + "select private.transition_public_booking_mode('frozen','v2')"), 'v2');
 
     const starts = JSON.parse(sql(`select json_agg(slot_start order by slot_start)
       from public.get_public_booking_slots('fixture-a','${service}',
