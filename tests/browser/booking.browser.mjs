@@ -729,6 +729,11 @@ const v2LostSessionLabels = {
   en: "This browser’s booking session was lost.",
   es: "Se perdió la sesión de reserva de este navegador.",
 };
+const v2RateLimitLabels = {
+  fr: { warning: "Trop de demandes de réservation", retry: "Réessayer", waiting: "Réessayer dans 3 s" },
+  en: { warning: "Too many booking requests", retry: "Try again", waiting: "Retry in 3 s" },
+  es: { warning: "Hay demasiadas solicitudes de reserva", retry: "Reintentar", waiting: "Reintentar en 3 s" },
+};
 function v2Confirmation(locale) {
   return { ...confirmedBooking(locale), salon_name: "", details: null, appointment_status: "confirmed" };
 }
@@ -921,6 +926,105 @@ for (const locale of ["fr", "en", "es"]) {
     assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
     assert.deepEqual(externalRequests, []);
   });
+}
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} v2 bootstrap quota denial waits and retries without claiming an ambiguous booking`, async t => {
+    const server = v2Server(locale);
+    let denied = false;
+    const { page, writes, externalRequests } = await pageFor(t, locale, {
+      v2Booking: async (route, requests) => {
+        const payload = route.request().postDataJSON();
+        if (payload.action === "bootstrap" && !denied) {
+          denied = true;
+          requests.push(payload);
+          return route.fulfill({ status: 429, headers: { "retry-after": "3" }, json: { state: "unknown" } });
+        }
+        return server.handler(route, requests);
+      },
+      publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+    });
+    await page.goto(`${origin}/${locale}/book/browser-fixture?v2=1`);
+    await page.getByRole("status").filter({ hasText: v2RateLimitLabels[locale].warning }).waitFor();
+    const waiting = page.getByRole("button", { name: v2RateLimitLabels[locale].waiting });
+    assert.equal(await waiting.isDisabled(), true);
+    assert.equal(await page.getByText(uncertainLabels[locale].warning).count(), 0);
+    assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+    await page.locator("form").dispatchEvent("submit");
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap"]);
+    const retry = page.getByRole("button", { name: v2RateLimitLabels[locale].retry, exact: true });
+    await retry.waitFor();
+    await retry.click();
+    await page.locator('[name="bookingTime"]').waitFor();
+    assert.deepEqual(writes.map(value => value.action), ["bootstrap", "bootstrap", "reconcile"]);
+    assert.deepEqual(externalRequests, []);
+  });
+}
+
+test("v2 initial 503 with no pending marker offers safe startup retry", async t => {
+  const server = v2Server("en");
+  let unavailable = true;
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "bootstrap" && unavailable) {
+        unavailable = false;
+        requests.push(payload);
+        return route.fulfill({ status: 503, json: { state: "unknown" } });
+      }
+      return server.handler(route, requests);
+    },
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await page.getByRole("status").filter({ hasText: "Booking recovery is temporarily unavailable" }).waitFor();
+  assert.equal(await page.getByText(uncertainLabels.en.warning).count(), 0);
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.locator('[name="bookingTime"]').waitFor();
+  assert.deepEqual(writes.map(value => value.action), ["bootstrap", "bootstrap", "reconcile"]);
+  assert.deepEqual(externalRequests, []);
+});
+
+for (const deniedStatus of [429, 503]) {
+test(`v2 ${deniedStatus} during marker reconciliation retains the marker and retries that exact intent`, async t => {
+  const server = v2Server("en", { loseCommit: true });
+  let denyMarkerReconcile = false;
+  const { page, writes, externalRequests } = await pageFor(t, "en", {
+    v2Booking: async (route, requests) => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === "reconcile" && payload.intentId && denyMarkerReconcile) {
+        denyMarkerReconcile = false;
+        requests.push(payload);
+        return route.fulfill({ status: deniedStatus,
+          ...(deniedStatus === 429 ? { headers: { "retry-after": "1" } } : {}), json: { state: "unknown" } });
+      }
+      return server.handler(route, requests);
+    },
+    v2Cookie: true,
+    publicBooking: async route => route.fulfill({ json: { slots: [slot] } }),
+  });
+  await page.goto(`${origin}/en/book/browser-fixture?v2=1`);
+  await fillBooking(page, "en");
+  await page.getByRole("alert").filter({ hasText: uncertainLabels.en.warning }).waitFor();
+  denyMarkerReconcile = true;
+  await page.reload();
+  await page.getByRole("alert").filter({ hasText: deniedStatus === 429
+    ? v2RateLimitLabels.en.warning : "Booking recovery is temporarily unavailable" }).waitFor();
+  assert.equal(await page.locator('[name="bookingTime"]').count(), 0);
+  assert.deepEqual(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith("glowflow.booking.pending."))),
+    [[`glowflow.booking.pending.browser-fixture.${v2IntentId}`, "1"]]);
+  await page.locator("form").dispatchEvent("submit");
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  const retry = page.getByRole("button", { name: uncertainLabels.en.check });
+  await retry.waitFor();
+  await retry.click();
+  await page.getByRole("heading", { name: confirmationLabels.en.success, exact: true }).waitFor();
+  assert.equal(writes.filter(value => value.action === "prepare").length, 1);
+  assert.equal(writes.filter(value => value.action === "commit").length, 1);
+  assert.equal(writes.filter(value => value.action === "reconcile" && value.intentId === v2IntentId).length, 2);
+  assert.deepEqual(externalRequests, []);
+});
 }
 
 test("v2 cookie rejected after bootstrap cannot repeat prepare or offer recovery retry", async t => {
