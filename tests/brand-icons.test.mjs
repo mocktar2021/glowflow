@@ -69,7 +69,9 @@ test("metadata and manifest advertise all icon and social previews", async () =>
   assert.equal((await layoutMetadata({ VERCEL_URL: "preview.vercel.app" })).metadataBase.href, "https://preview.vercel.app/");
 
   const webApp = manifest();
+  assert.equal(webApp.id, "/");
   assert.equal(webApp.start_url, "/fr/salons");
+  assert.equal(webApp.scope, "/");
   assert.deepEqual(webApp.icons.map(({ src, sizes }) => [src, sizes]), [
     ["/icon-192.png", "192x192"],
     ["/icon-512.png", "512x512"],
