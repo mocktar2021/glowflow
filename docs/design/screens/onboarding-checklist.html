@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlowFlow, Get your salon ready</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  .side{background:var(--linen);border-right:1px solid var(--line);padding:24px 16px;display:flex;flex-direction:column;gap:4px}
+  .side .logo{height:26px;margin:4px 10px 28px}
+  .nav{display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:12px;font-size:15px;color:var(--ink-2)}
+  .nav .icon{color:var(--muted)}
+  .nav.on{background:var(--white);color:var(--ink);font-weight:500;box-shadow:var(--shadow-sm)}
+  .nav.on .icon{color:var(--mulberry)}
+  .nav .count{margin-left:auto;font-size:12px;background:var(--blush);color:var(--mulberry-deep);border-radius:var(--r-pill);padding:1px 8px;font-weight:500}
+  .side .sep{height:1px;background:var(--line);margin:14px 10px}
+  .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:var(--white);border:1px solid var(--line)}
+  .av{width:36px;height:36px;border-radius:50%;background:var(--blush);color:var(--mulberry-deep);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex:0 0 36px}
+  .me b{display:block;font-size:14px;font-weight:500}
+  .me span{font-size:12.5px;color:var(--muted)}
+
+  .main{padding:28px 48px 56px}
+  .bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:36px}
+  .search{display:flex;align-items:center;gap:10px;height:44px;width:360px;padding:0 16px;border-radius:var(--r-pill);background:var(--white);border:1px solid var(--line);color:var(--muted);font-size:14.5px}
+  .bar .right{display:flex;gap:10px;align-items:center}
+  .iconbtn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--white);display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+
+  .hello{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:32px;gap:24px}
+  .hello .eyebrow{margin-bottom:12px}
+  .hello p.lead{font-size:17px;margin-top:10px;max-width:680px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;align-items:start}
+  .check{padding:32px}
+  .check-head{display:flex;gap:24px;align-items:center;padding-bottom:24px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .ring{position:relative;width:96px;height:96px;flex:0 0 96px}
+  .ring svg{width:96px;height:96px;transform:rotate(-90deg)}
+  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .num b{font-family:var(--font-display);font-size:30px;font-weight:600;line-height:1;color:var(--ink)}
+  .ring .num span{font-size:12px;color:var(--muted)}
+  .check-head h2{margin-bottom:4px}
+  .check-head p{font-size:15px;color:var(--muted)}
+  .tasks{list-style:none}
+  .task{display:grid;grid-template-columns:36px 1fr auto;gap:16px;align-items:center;padding:18px 4px;border-bottom:1px solid var(--line)}
+  .task:last-child{border-bottom:0;padding-bottom:4px}
+  .tick{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--line-strong);display:flex;align-items:center;justify-content:center}
+  .done .tick{background:var(--mulberry);border-color:var(--mulberry)}
+  .done .tick svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .task b{display:block;font-size:16px;font-weight:500;color:var(--ink)}
+  .done b{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-strong);font-weight:400}
+  .task p{font-size:14px;color:var(--muted)}
+  .task.next{background:var(--blush-soft);border-radius:var(--r-md);padding:18px 16px;margin:8px -12px;border-bottom:0}
+  .task.next .tick{border-color:var(--mulberry);border-style:dashed}
+  .meta{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .meta .icon{width:16px;height:16px}
+
+  .col{display:grid;gap:24px}
+  .empty{padding:28px;text-align:center}
+  .empty svg.art{width:100%;max-width:260px;height:150px;margin:4px auto 18px;display:block}
+  .empty h3{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1.15;margin-bottom:6px}
+  .empty p{font-size:14.5px;color:var(--muted);max-width:300px;margin:0 auto 20px}
+  .empty .btns{display:flex;gap:10px;justify-content:center}
+  .help{padding:22px 24px;display:flex;gap:16px;align-items:center;background:var(--linen);border:1px solid var(--line);border-radius:var(--r-lg)}
+  .help .av{width:48px;height:48px;flex:0 0 48px;font-size:15px}
+  .help b{display:block;font-size:15px;font-weight:500}
+  .help p{font-size:14px;color:var(--muted)}
+  .help .btn{margin-left:auto}
+  .help>div{flex:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <img class="logo" src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow">
+    <a class="nav on"><svg class="icon" viewBox="0 0 24 24"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></svg>Get started<span class="count">3</span></a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Calendar</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>Clients</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Services</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>Products</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Availability</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payments</a>
+    <div class="sep"></div>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>Public profile</a>
+    <a class="nav"><svg class="icon" viewBox="0 0 24 24"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.8l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.8v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings</a>
+    <div class="me"><span class="av">AD</span><span><b>Aïcha Diallo</b><span>Maison Aïcha, owner</span></span></div>
+  </aside>
+
+  <main class="main">
+    <div class="bar">
+      <div class="search"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Search clients, services, bookings</div>
+      <div class="right">
+        <span class="iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span>
+        <a class="btn btn-ghost btn-sm"><svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Preview booking page</a>
+      </div>
+    </div>
+
+    <div class="hello">
+      <div>
+        <p class="eyebrow">Maison Aïcha, Lyon</p>
+        <h1 class="display-lg">Let's get your salon <em>ready</em></h1>
+        <p class="lead">Five small steps and clients can book you online. Most owners finish in about 15 minutes.</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="col">
+      <section class="card check">
+        <div class="check-head">
+          <div class="ring" aria-label="2 of 5 steps done">
+            <svg viewBox="0 0 96 96"><circle cx="48" cy="48" r="42" fill="none" stroke="var(--blush)" stroke-width="8"/><circle cx="48" cy="48" r="42" fill="none" stroke="var(--mulberry)" stroke-width="8" stroke-linecap="round" stroke-dasharray="263.9" stroke-dashoffset="158.3"/></svg>
+            <div class="num"><b>2/5</b><span>done</span></div>
+          </div>
+          <div>
+            <h2 class="display-sm">Your setup checklist</h2>
+            <p>Next up: invite your team so clients can pick their stylist.</p>
+          </div>
+        </div>
+        <ol class="tasks">
+          <li class="task done"><span class="tick"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><div><b>Add your services</b><p>6 services added, from 25 € to 120 €</p></div><span class="meta">Done</span></li>
+          <li class="task done"><span class="tick"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><div><b>Set opening hours</b><p>Tue to Sat, 9:30 to 19:00</p></div><span class="meta">Done</span></li>
+          <li class="task next"><span class="tick"></span><div><b>Invite your team</b><p>Add stylists so each one gets their own calendar column.</p></div><a class="btn btn-primary btn-sm">Invite team</a></li>
+          <li class="task"><span class="tick"></span><div><b>Publish your profile</b><p>Photos, address and a short bio for the marketplace.</p></div><span class="meta"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>5 min</span></li>
+          <li class="task"><span class="tick"></span><div><b>Connect payments</b><p>Take deposits to cut no-shows. Card and mobile money.</p></div><span class="meta"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>4 min</span></li>
+        </ol>
+      </section>
+        <div class="help"><span class="av">LM</span><div><b>Need a hand?</b><p>Léa from our team can set it up with you.</p></div><a class="btn btn-ghost btn-sm">Book a call</a></div>
+      </div>
+
+      <div class="col">
+        <section class="card empty">
+          <svg class="art" viewBox="0 0 260 150" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="40" y="22" width="180" height="116" rx="16" fill="var(--blush-soft)" stroke="var(--rose)" stroke-width="1.6"/>
+            <path d="M40 52h180" stroke="var(--rose)" stroke-width="1.6"/>
+            <path d="M76 12v20M184 12v20" stroke="var(--mulberry)" stroke-width="1.6"/>
+            <g stroke="var(--line-strong)" stroke-width="1.4">
+              <path d="M70 72h20M110 72h20M150 72h20M190 72h10"/>
+              <path d="M70 96h20M150 96h20M190 96h10"/>
+              <path d="M70 120h20M110 120h20"/>
+            </g>
+            <rect x="104" y="88" width="32" height="18" rx="9" fill="var(--white)" stroke="var(--mulberry)" stroke-width="1.6"/>
+            <circle cx="214" cy="118" r="22" fill="var(--porcelain)" stroke="var(--champagne)" stroke-width="1.6"/>
+            <path d="M214 108v10l7 5" stroke="var(--champagne-deep)" stroke-width="1.6"/>
+          </svg>
+          <h3>No bookings yet</h3>
+          <p>Once your profile is live, new bookings land here and in your calendar.</p>
+          <div class="btns"><a class="btn btn-soft btn-sm">Add a walk-in</a><a class="btn btn-ghost btn-sm">Copy booking link</a></div>
+        </section>
+
+        <section class="card empty">
+          <svg class="art" viewBox="0 0 260 150" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="96" cy="64" r="22" fill="var(--blush-soft)" stroke="var(--rose)" stroke-width="1.6"/>
+            <path d="M60 128c0-20 16-36 36-36s36 16 36 36" fill="var(--blush-soft)" stroke="var(--rose)" stroke-width="1.6"/>
+            <circle cx="168" cy="58" r="18" fill="var(--porcelain)" stroke="var(--line-strong)" stroke-width="1.6" stroke-dasharray="4 5"/>
+            <path d="M138 128c0-17 13-30 30-30s30 13 30 30" stroke="var(--line-strong)" stroke-width="1.6" stroke-dasharray="4 5"/>
+            <circle cx="206" cy="36" r="13" fill="var(--white)" stroke="var(--mulberry)" stroke-width="1.6"/>
+            <path d="M206 30v12M200 36h12" stroke="var(--mulberry)" stroke-width="1.6"/>
+          </svg>
+          <h3>No clients yet</h3>
+          <p>Import your contacts from a phone or spreadsheet. Clients who book online appear here on their own.</p>
+          <div class="btns"><a class="btn btn-soft btn-sm">Import clients</a><a class="btn btn-ghost btn-sm">Add one client</a></div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

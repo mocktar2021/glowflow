@@ -1,0 +1,225 @@
+/* GlowFlow theme: "Porcelain & Mulberry"
+   Drop-in replacement for app/globals.css. Keeps every shadcn variable name the
+   repo already uses, so components/ui keeps working. Brand tokens are added on top.
+   Fonts come from app/fonts.ts (next/font), exposed as --font-jost and --font-cormorant. */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../vendor/shadcn-tailwind-4.13.0.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Brand palette */
+  --gf-porcelain: #faf6f1;
+  --gf-linen: #f3ece4;
+  --gf-sand: #eadfd3;
+  --gf-ink: #2a2129;
+  --gf-ink-2: #4a3d46;
+  --gf-muted: #6e5f68;
+  --gf-line: #e6dbd0;
+  --gf-line-strong: #d6c7b9;
+  --gf-mulberry: #7a4659;
+  --gf-mulberry-deep: #5e3445;
+  --gf-blush: #f2ddd6;
+  --gf-blush-soft: #f8ece7;
+  --gf-rose: #d9a7a8;
+  --gf-champagne: #c8a27a;       /* decorative only, never body text */
+  --gf-champagne-deep: #8a6a44;  /* text-safe champagne (4.6:1 on porcelain) */
+  --gf-champagne-soft: #f1e4d2;
+  --gf-sage: #b8c6b3;
+  --gf-sage-deep: #4f6b53;
+  --gf-sage-soft: #e7ede3;
+  --gf-brick: #a8443c;
+  --gf-brick-soft: #f6e1dd;
+
+  /* shadcn semantic tokens (light) */
+  --background: var(--gf-porcelain);
+  --foreground: var(--gf-ink);
+  --card: #ffffff;
+  --card-foreground: var(--gf-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--gf-ink);
+  --primary: var(--gf-mulberry);
+  --primary-foreground: #ffffff;
+  --secondary: var(--gf-blush);
+  --secondary-foreground: var(--gf-mulberry-deep);
+  --muted: var(--gf-linen);
+  --muted-foreground: var(--gf-muted);
+  --accent: var(--gf-blush-soft);
+  --accent-foreground: var(--gf-mulberry-deep);
+  --destructive: var(--gf-brick);
+  --border: var(--gf-line);
+  --input: var(--gf-line-strong);
+  --ring: color-mix(in srgb, var(--gf-mulberry) 45%, transparent);
+  --chart-1: var(--gf-mulberry);
+  --chart-2: var(--gf-rose);
+  --chart-3: var(--gf-champagne);
+  --chart-4: var(--gf-sage-deep);
+  --chart-5: var(--gf-ink-2);
+  --sidebar: var(--gf-linen);
+  --sidebar-foreground: var(--gf-ink);
+  --sidebar-primary: var(--gf-mulberry);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--gf-blush);
+  --sidebar-accent-foreground: var(--gf-mulberry-deep);
+  --sidebar-border: var(--gf-line);
+  --sidebar-ring: color-mix(in srgb, var(--gf-mulberry) 45%, transparent);
+
+  /* Status (appointments) */
+  --status-confirmed: var(--gf-sage-soft);
+  --status-confirmed-foreground: var(--gf-sage-deep);
+  --status-pending: var(--gf-champagne-soft);
+  --status-pending-foreground: var(--gf-champagne-deep);
+  --status-cancelled: var(--gf-brick-soft);
+  --status-cancelled-foreground: var(--gf-brick);
+  --status-walkin: var(--gf-blush-soft);
+  --status-walkin-foreground: var(--gf-mulberry-deep);
+
+  --radius: 1.25rem; /* 20px cards. Inputs use radius-md (14px), buttons are pills */
+
+  --shadow-soft: 0 1px 2px rgb(42 33 41 / 0.05), 0 1px 1px rgb(42 33 41 / 0.03);
+  --shadow-float: 0 10px 30px -12px rgb(42 33 41 / 0.18), 0 2px 6px rgb(42 33 41 / 0.04);
+  --shadow-lift: 0 30px 60px -24px rgb(94 52 69 / 0.28), 0 8px 20px -10px rgb(42 33 41 / 0.1);
+  --ease-glow: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.dark {
+  --background: #1d171c;
+  --foreground: #f6efea;
+  --card: #261e24;
+  --card-foreground: #f6efea;
+  --popover: #2b2229;
+  --popover-foreground: #f6efea;
+  --primary: #e6bac6;
+  --primary-foreground: #2a2129;
+  --secondary: #3a2c35;
+  --secondary-foreground: #f6efea;
+  --muted: #2b2229;
+  --muted-foreground: #b5a6ae;
+  --accent: #35282f;
+  --accent-foreground: #f2d6de;
+  --destructive: #e2867c;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: rgb(230 186 198 / 0.5);
+  --chart-1: #e6bac6;
+  --chart-2: #b07a8d;
+  --chart-3: #d9b48f;
+  --chart-4: #9fbea2;
+  --chart-5: #cfc3ca;
+  --sidebar: #181317;
+  --sidebar-foreground: #f6efea;
+  --sidebar-primary: #e6bac6;
+  --sidebar-primary-foreground: #2a2129;
+  --sidebar-accent: #35282f;
+  --sidebar-accent-foreground: #f2d6de;
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-ring: rgb(230 186 198 / 0.5);
+  --status-confirmed: #24302a;
+  --status-confirmed-foreground: #a9c7ad;
+  --status-pending: #33291f;
+  --status-pending-foreground: #d9b48f;
+  --status-cancelled: #3a2220;
+  --status-cancelled-foreground: #e2867c;
+  --status-walkin: #35242c;
+  --status-walkin-foreground: #f2d6de;
+}
+
+@theme inline {
+  --font-sans: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cormorant), Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Brand utilities: bg-porcelain, text-mulberry, bg-blush, border-line ... */
+  --color-porcelain: var(--gf-porcelain);
+  --color-linen: var(--gf-linen);
+  --color-sand: var(--gf-sand);
+  --color-ink: var(--gf-ink);
+  --color-mulberry: var(--gf-mulberry);
+  --color-mulberry-deep: var(--gf-mulberry-deep);
+  --color-blush: var(--gf-blush);
+  --color-blush-soft: var(--gf-blush-soft);
+  --color-rose: var(--gf-rose);
+  --color-champagne: var(--gf-champagne);
+  --color-champagne-deep: var(--gf-champagne-deep);
+  --color-champagne-soft: var(--gf-champagne-soft);
+  --color-sage: var(--gf-sage);
+  --color-sage-deep: var(--gf-sage-deep);
+  --color-sage-soft: var(--gf-sage-soft);
+  --color-line: var(--gf-line);
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-confirmed-foreground: var(--status-confirmed-foreground);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-foreground: var(--status-pending-foreground);
+  --color-status-cancelled: var(--status-cancelled);
+  --color-status-cancelled-foreground: var(--status-cancelled-foreground);
+  --color-status-walkin: var(--status-walkin);
+  --color-status-walkin-foreground: var(--status-walkin-foreground);
+
+  --radius-sm: calc(var(--radius) - 10px); /* 10px */
+  --radius-md: calc(var(--radius) - 6px);  /* 14px: inputs */
+  --radius-lg: var(--radius);              /* 20px: cards */
+  --radius-xl: calc(var(--radius) + 8px);  /* 28px: hero frames */
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-float: var(--shadow-float);
+  --shadow-lift: var(--shadow-lift);
+  --ease-glow: var(--ease-glow);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { @apply bg-background text-foreground font-sans; font-weight: 400; }
+  h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: lining-nums proportional-nums; }
+  h1 em, h2 em, h3 em { font-style: italic; color: var(--primary); }
+  ::selection { background: var(--gf-blush); color: var(--gf-mulberry-deep); }
+}
+
+@layer utilities {
+  .eyebrow { font-size: 0.78rem; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 500; color: var(--gf-champagne-deep); }
+  .dark .eyebrow { color: #d9b48f; }
+  .scrollbar-thin { scrollbar-width: thin; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-gutter-stable { scrollbar-gutter: stable; }
+}
+
+@keyframes landing-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

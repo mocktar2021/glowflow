@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GlowFlow brand board</title>
+<link rel="stylesheet" href="brand.css"><style>
+body{width:1440px;padding:72px 80px 90px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:56px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:22px}
+.tile{border-radius:24px;border:1px solid var(--line);background:#fff;padding:30px;position:relative}
+.tl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;font-weight:500}
+.logo-main{grid-column:span 8;height:340px;display:grid;place-items:center;background:var(--porcelain)}
+.logo-dark{grid-column:span 4;height:340px;background:var(--ink);border-color:var(--ink);display:grid;place-items:center}
+.logo-dark .tl{color:#b5a6ae;position:absolute;top:30px;left:30px}
+.logo-main .tl{position:absolute;top:30px;left:30px}
+.icons{grid-column:span 5;display:flex;gap:18px;align-items:flex-end}
+.icons img{border-radius:22%}
+.rules{grid-column:span 7}
+.rules ul{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:12px 28px;font-size:14.5px;color:var(--ink-2)}
+.rules li{display:flex;gap:10px}.rules b{font-weight:600}
+.ok{color:var(--sage-deep)}.no{color:var(--brick)}
+.pal{grid-column:span 12}
+.sw{display:grid;grid-template-columns:repeat(8,1fr);gap:14px}
+.s{border-radius:18px;overflow:hidden;border:1px solid var(--line)}
+.s .c{height:110px;display:flex;align-items:flex-end;padding:12px;font-size:12px;font-weight:500}
+.s .m{padding:12px 14px;font-size:13px;background:#fff}.s .m b{display:block;font-weight:600;font-size:14px}.s .m span{color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}
+.type{grid-column:span 7}
+.type .d{font-family:var(--font-display);font-size:64px;line-height:1.02;font-weight:500}.type .d em{color:var(--mulberry)}
+.type .row{display:flex;gap:36px;margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
+.type .row div{flex:1;font-size:14px;color:var(--muted)}.type .row b{display:block;color:var(--ink);font-size:20px;font-weight:500;margin-bottom:4px}
+.ui{grid-column:span 5;display:flex;flex-direction:column;gap:16px}
+.ui .r{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.vid{grid-column:span 12;display:grid;grid-template-columns:2fr 1.1fr 2fr;gap:18px}
+.vid img{border-radius:16px;border:1px solid var(--line);width:100%;height:220px;object-fit:cover}
+.vid p{font-size:13.5px;color:var(--muted);margin-top:10px}.vid b{color:var(--ink);font-weight:600}
+</style></head><body>
+<div class="top"><div><span class="eyebrow">Brand board v1 · November 2026</span><h1 class="display-lg" style="margin-top:12px">Porcelain <em>&amp;</em> Mulberry</h1></div>
+<p class="body-sm" style="max-width:420px;text-align:right">Calm, glamorous, editorial. Warm porcelain, plum ink, one action colour, a single champagne halo for the glow.</p></div>
+<div class="grid">
+  <div class="tile logo-main"><span class="tl">Primary wordmark</span><img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow wordmark" style="width:560px"></div>
+  <div class="tile logo-dark"><span class="tl">On dark</span><img src="../brand/logo/glowflow-wordmark-on-dark.svg" alt="" style="width:300px"></div>
+  <div class="tile icons"><div><span class="tl">App icon and favicon</span><div style="display:flex;gap:18px;align-items:flex-end">
+    <img src="../brand/logo/glowflow-app-icon.svg" width="120" alt=""><img src="../brand/logo/glowflow-app-icon-dark.svg" width="88" alt=""><img src="../brand/png/icon-48.png" width="48" alt=""><img src="../brand/png/icon-32.png" width="32" alt="" style="image-rendering:auto"><img src="../brand/png/icon-16.png" width="16" alt=""></div></div></div>
+  <div class="tile rules"><span class="tl">Rules</span><ul>
+    <li><span class="ok">✓</span>The halo is the only glow. Champagne, thin, over the first o.</li>
+    <li><span class="no">✕</span>No sparkles, stars, wands, robots or "AI" wording.</li>
+    <li><span class="ok">✓</span>Mulberry is the only action colour.</li>
+    <li><span class="no">✕</span>No purple to blue gradients, neon or glass effects.</li>
+    <li><span class="ok">✓</span>One italic word per headline, in mulberry.</li>
+    <li><span class="no">✕</span>No em dashes in any copy.</li>
+    <li><span class="ok">✓</span>Pill buttons, 20 px cards, hairline borders.</li>
+    <li><span class="no">✕</span>Never recolour or stretch the logo.</li></ul></div>
+  <div class="tile pal"><span class="tl">Palette · all text pairs pass WCAG AA</span><div class="sw">
+    <div class="s"><div class="c" style="background:#FAF6F1;color:#2A2129">14.5 : 1</div><div class="m"><b>Porcelain</b><span>#FAF6F1</span></div></div>
+    <div class="s"><div class="c" style="background:#F3ECE4;color:#6E5F68">5.1 : 1</div><div class="m"><b>Linen</b><span>#F3ECE4</span></div></div>
+    <div class="s"><div class="c" style="background:#2A2129;color:#FAF6F1">Text</div><div class="m"><b>Ink</b><span>#2A2129</span></div></div>
+    <div class="s"><div class="c" style="background:#7A4659;color:#fff">7.4 : 1</div><div class="m"><b>Mulberry</b><span>#7A4659</span></div></div>
+    <div class="s"><div class="c" style="background:#F2DDD6;color:#5E3445">7.8 : 1</div><div class="m"><b>Blush</b><span>#F2DDD6</span></div></div>
+    <div class="s"><div class="c" style="background:#C8A27A;color:#2A2129">Decor only</div><div class="m"><b>Champagne</b><span>#C8A27A</span></div></div>
+    <div class="s"><div class="c" style="background:#E7EDE3;color:#4F6B53">Confirmed</div><div class="m"><b>Sage</b><span>#E7EDE3 / #4F6B53</span></div></div>
+    <div class="s"><div class="c" style="background:#1D171C;color:#E6BAC6">Dark mode</div><div class="m"><b>Night</b><span>#1D171C / #E6BAC6</span></div></div>
+  </div></div>
+  <div class="tile type"><span class="tl">Typography</span><div class="d">Less admin.<br>More room for your <em>craft</em>.</div>
+    <div class="row"><div><b style="font-family:var(--font-display);font-size:24px">Cormorant Garamond</b>Headlines, 500 and 600, one italic accent word</div><div><b>Jost</b>Interface and body, 300 to 700 variable</div></div></div>
+  <div class="tile ui"><span class="tl">Interface</span>
+    <div class="r"><a class="btn btn-primary">Create your workspace</a><a class="btn btn-ghost">Explore salons</a></div>
+    <div class="r"><a class="btn btn-soft btn-sm">Add walk-in</a><a class="btn btn-ink btn-sm">Check out</a></div>
+    <div class="r"><span class="chip chip-sage">● Confirmed</span><span class="chip chip-champ">● Pending</span><span class="chip chip-blush">● Walk-in</span></div>
+    <input class="input" value="Camille Laurent" aria-label="Name"></div>
+  <div class="tile vid"><div><span class="tl">Motion · hero loop</span><img src="../motion/glowflow-hero-loop-poster.jpg" alt=""><p><b>10 s seamless loop.</b> A client books on her phone, the slot lands in the calendar.</p></div>
+    <div><span class="tl">Booking flow · 4:5</span><img src="../motion/glowflow-booking-flow-poster.jpg" alt="" style="object-position:top"><p><b>9.5 s.</b> Service, time, details, booked.</p></div>
+    <div><span class="tl">Logo reveal</span><img src="../motion/glowflow-logo-reveal-poster.jpg" alt=""><p><b>5 s.</b> Letters draw like a pen stroke, then the halo.</p></div></div>
+</div></body></html>

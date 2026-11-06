@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GlowFlow Client</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+body{background:var(--porcelain);font-variant-numeric:lining-nums}
+.display-xl,.display-lg,.display-md,.display-sm,.card-t{font-variant-numeric:lining-nums}
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.sidebar{min-height:100vh;display:flex;flex-direction:column;gap:18px;padding:24px 16px 18px;background:var(--linen);border-right:1px solid var(--line)}
+.sb-logo{padding:2px 10px 4px}
+.sb-logo img{height:28px;width:auto}
+.salon-switch{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);font:inherit;color:var(--ink);cursor:pointer;text-align:left}
+.salon-switch .icon{width:16px;height:16px;color:var(--muted);margin-left:auto}
+.salon-av{width:34px;height:34px;border-radius:10px;background:var(--mulberry);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:16px;flex:none}
+.salon-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.salon-txt b{font-weight:500;font-size:14.5px}
+.salon-txt small{font-size:12.5px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:var(--r-pill);font-size:14.5px;color:var(--ink-2);transition:background .2s var(--ease)}
+.nav-item .icon{width:18px;height:18px;color:var(--muted)}
+.nav-item:hover{background:rgba(255,255,255,.6)}
+.nav-item.active{background:var(--blush);color:var(--mulberry-deep);font-weight:500}
+.nav-item.active .icon{color:var(--mulberry)}
+.nav-badge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--champagne-soft);color:var(--champagne-deep);font-size:12px;font-weight:500;display:grid;place-items:center}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:12px;border-top:1px solid var(--line)}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 10px 0;line-height:1.2}
+.sb-user b{font-weight:500;font-size:14px;display:block}
+.sb-user small{font-size:12.5px;color:var(--muted)}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid rgba(122,70,89,.4);outline-offset:2px}
+
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:500;font-size:15px;flex:none;letter-spacing:.02em}
+.av-sm{width:34px;height:34px;font-size:13px}
+.av-blush{background:var(--blush);color:var(--mulberry-deep)}
+.av-sage{background:var(--sage-soft);color:var(--sage-deep)}
+.av-champ{background:var(--champagne-soft);color:var(--champagne-deep)}
+.av-linen{background:var(--linen);color:var(--ink-2)}
+
+.topbar{height:72px;display:flex;align-items:center;gap:16px;padding:0 32px;border-bottom:1px solid var(--line);background:var(--porcelain);position:sticky;top:0;z-index:5}
+.search{display:flex;align-items:center;gap:10px;height:42px;padding:0 16px;border-radius:var(--r-pill);background:var(--white);border:1px solid var(--line);color:var(--muted);font-size:14px;width:280px}
+.search .icon{width:17px;height:17px}
+.search kbd{margin-left:auto;font:500 11.5px var(--font-sans);color:var(--muted);background:var(--linen);border-radius:6px;padding:2px 7px}
+.icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--white);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;position:relative;flex:none}
+.icon-btn .icon{width:18px;height:18px}
+.dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--mulberry);border:2px solid var(--white)}
+.status{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--r-pill);font-size:12px;font-weight:500;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-confirmed{background:var(--sage-soft);color:var(--sage-deep)}
+.st-pending{background:var(--champagne-soft);color:var(--champagne-deep)}
+.st-walkin{background:var(--blush);color:var(--mulberry-deep)}
+.st-done{background:var(--linen);color:var(--muted)}
+.st-noshow{background:var(--brick-soft);color:var(--brick)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-t{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.15;color:var(--ink)}
+.link{font-size:13.5px;font-weight:500;color:var(--mulberry);display:inline-flex;align-items:center;gap:4px}
+.link .icon{width:15px;height:15px}
+
+.content{min-width:0;display:flex;flex-direction:column}
+.topbar{justify-content:space-between}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.crumbs .icon{width:14px;height:14px}
+.crumbs [aria-current]{color:var(--ink);font-weight:500}
+.tb-right{display:flex;gap:10px;align-items:center}
+.search{width:240px;white-space:nowrap}
+.tb-right .btn .icon,.h-act .btn .icon,.upc-a .icon{width:17px;height:17px}
+.wrap{padding:28px 40px 48px;display:flex;flex-direction:column;gap:20px;max-width:1188px;width:100%}
+.head{padding:28px 28px 0;display:grid;grid-template-columns:1fr auto;gap:20px;overflow:hidden}
+.h-main{display:flex;gap:22px;align-items:flex-start}
+.big-av{width:92px;height:92px;border-radius:50%;background:var(--blush);color:var(--mulberry-deep);display:grid;place-items:center;font-family:var(--font-display);font-weight:500;font-size:38px;flex:none;box-shadow:0 0 0 6px var(--blush-soft)}
+.h-txt .eyebrow{margin-bottom:4px}
+.h-contact{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:10px;font-size:14px;color:var(--ink-2)}
+.h-contact span{display:flex;align-items:center;gap:7px}
+.h-contact .icon{width:16px;height:16px;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.chip.add{border:1px dashed var(--line-strong);background:transparent;color:var(--muted);cursor:pointer;font-family:inherit}
+.chip .icon{width:14px;height:14px}
+.h-act{display:flex;gap:8px;align-items:flex-start}
+.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);margin:6px -28px 0;border-top:1px solid var(--line);background:var(--porcelain)}
+.kpis div{padding:16px 28px;border-left:1px solid var(--line);display:flex;flex-direction:column}
+.kpis div:first-child{border-left:0}
+.kpis span{font-size:12.5px;color:var(--muted)}
+.kpis b{font-weight:400;font-size:26px;letter-spacing:-.015em;line-height:1.25}
+.kpis div:first-child b{color:var(--mulberry)}
+.kpis small{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 400px;gap:20px;align-items:start}
+.col-r,.col-l{display:flex;flex-direction:column;gap:20px}
+.pad{padding:22px 24px}
+.seg{display:flex;padding:3px;border-radius:var(--r-pill);background:var(--linen);border:1px solid var(--line)}
+.seg button{height:30px;padding:0 14px;border-radius:var(--r-pill);border:0;background:transparent;font:500 13px var(--font-sans);color:var(--muted);cursor:pointer}
+.seg .on{background:var(--white);color:var(--ink);box-shadow:var(--shadow-sm)}
+.tl{list-style:none;margin-top:20px;position:relative}
+.tl::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:1px;background:var(--line-strong)}
+.v{display:flex;gap:18px;padding-bottom:22px;position:relative}
+.v-dot{width:13px;height:13px;border-radius:50%;background:var(--white);border:2px solid var(--rose);flex:none;margin-top:5px;position:relative;z-index:1}
+.v:first-child .v-dot{background:var(--mulberry);border-color:var(--mulberry);box-shadow:0 0 0 4px var(--blush)}
+.v-dot.miss{border-color:var(--brick)}
+.v-b{flex:1;min-width:0}
+.v-h{display:flex;align-items:center;gap:10px}
+.v-h b{font-weight:500;font-size:15px}
+.v-p{margin-left:auto;font-size:14.5px;font-weight:500}
+.v-m{font-size:13px;color:var(--muted);margin-top:2px}
+.v-n{margin-top:8px;font-size:13.5px;line-height:1.5;color:var(--ink-2);background:var(--porcelain);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px}
+.more{margin-left:31px}
+.upc{background:linear-gradient(180deg,var(--blush-soft),var(--white) 70%)}
+.upc-d{display:flex;gap:16px;margin-top:14px;align-items:flex-start}
+.date-b{width:62px;height:68px;border-radius:var(--r-md);background:var(--white);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;box-shadow:var(--shadow-sm)}
+.date-b span{font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--mulberry);font-weight:500}
+.date-b b{font-family:var(--font-display);font-weight:600;font-size:30px;line-height:1;font-variant-numeric:lining-nums}
+.upc-d h3{font-family:var(--font-display);font-weight:600;font-size:21px;line-height:1.15}
+.upc-d p{font-size:13.5px;color:var(--ink-2);margin-top:3px}
+.upc-f{display:flex;align-items:center;gap:12px;margin-top:16px}
+.dep{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--sage-deep)}
+.dep .icon{width:14px;height:14px}
+.upc-a{display:flex;gap:8px;margin-top:16px}
+.upc-a .btn{flex:1}
+.fm{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);padding:14px;background:var(--porcelain)}
+.fm-2{margin-top:10px}
+.fm-h{display:flex;gap:12px;align-items:center}
+.fm-ic{width:34px;height:34px;border-radius:50%;background:var(--champagne-soft);color:var(--champagne-deep);display:grid;place-items:center;flex:none}
+.fm-ic .icon{width:17px;height:17px}
+.fm-h b{font-weight:500;font-size:14px;display:block;line-height:1.3}
+.fm-h small{font-size:12px;color:var(--muted)}
+.fm dl{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.fm dl div{display:grid;grid-template-columns:74px 1fr;gap:10px;font-size:13px;line-height:1.45}
+.fm dt{color:var(--muted)}
+.fm dd{color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}
+.icon-btn.sm{width:34px;height:34px}
+.allergy{display:flex;gap:10px;background:var(--brick-soft);color:var(--brick);border-radius:var(--r-md);padding:12px;font-size:13px;line-height:1.45;margin-top:14px}
+.allergy .icon{width:18px;height:18px;flex:none;margin-top:1px}
+.allergy b{display:block;font-weight:500}
+.allergy span{color:var(--ink-2)}
+.notes{list-style:none;margin-top:6px}
+.notes li{padding:12px 0;border-top:1px solid var(--line)}
+.notes li:first-child{border-top:0}
+.notes p{font-size:14px;line-height:1.5;color:var(--ink-2)}
+.rp{list-style:none;margin-top:10px}
+.rp li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.rp li:first-child{border-top:0}
+.rp div{flex:1;min-width:0;line-height:1.3}
+.rp b{font-weight:500;font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp small{font-size:12px;color:var(--muted)}
+.rp .btn{height:32px;padding:0 12px;font-size:12.5px}
+.rp-img{width:40px;height:40px;border-radius:12px;flex:none;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.6),transparent 50%),var(--blush)}
+.rp-2{background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.6),transparent 50%),var(--champagne-soft)}
+.rp-3{background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.6),transparent 50%),var(--sage-soft)}
+.notes small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Workspace navigation">
+  <div class="sb-logo"><img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow" height="28"></div>
+  <button class="salon-switch" aria-label="Switch salon">
+    <span class="salon-av">AA</span>
+    <span class="salon-txt"><b>Atelier Aïcha</b><small>Cotonou, Haie Vive</small></span>
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <nav class="nav"><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="15.5" r="1.6"/></svg><span>Today</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg><span>Calendar</span></a><a href="#" class="nav-item active" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clients</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg><span>Services</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6v4H9z"/><path d="M8 6h8l1 4v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10z"/><path d="M7 13h10"/></svg><span>Products</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Availability</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4a1.5 1.5 0 1 0 0 .01"/><path d="m9 20 3-6 3 3v4M6 12l3-4 4 1 3 3 3 1"/></svg><span>Walk-ins</span><span class="nav-badge">2</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg><span>Payments</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Public profile</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Team</span></a></nav>
+  <div class="sb-bottom">
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></a>
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><span>Help centre</span></a>
+    <div class="sb-user"><span class="av av-sm av-blush">AD</span><span><b>Aïcha Diallo</b><small>Owner</small></span></div>
+  </div>
+</aside>
+<div class="content">
+  <header class="topbar">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Clients</a><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg><span aria-current="page">Camille Laurent</span></nav>
+    <div class="tb-right">
+      <label class="search"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search clients</span><kbd>/</kbd></label>
+      <button class="icon-btn" aria-label="Notifications, 3 new"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+      <button class="btn btn-primary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="card head">
+      <div class="h-main">
+        <span class="big-av">CL</span>
+        <div class="h-txt">
+          <p class="eyebrow">Client since March 2023</p>
+          <h1 class="display-md">Camille <em>Laurent</em></h1>
+          <div class="h-contact">
+            <span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.18 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>+33 6 12 48 90 37</span>
+            <span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m22 7-10 6L2 7"/></svg>camille.laurent@example.invalid</span>
+            <span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Prefers WhatsApp</span>
+          </div>
+          <div class="tags"><span class="chip chip-blush">VIP</span><span class="chip chip-champ">Prefers mornings</span><span class="chip">Colour client</span><span class="chip chip-sage">Reminders on</span><button class="chip add"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Tag</button></div>
+        </div>
+      </div>
+      <div class="h-act">
+        <button class="btn btn-primary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>Book again</button>
+        <button class="btn btn-ghost btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Message</button>
+        <button class="icon-btn" aria-label="More actions"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+      </div>
+      <div class="kpis">
+        <div><span>Lifetime spend</span><b>2 340 €</b><small>across 24 visits</small></div>
+        <div><span>Average ticket</span><b>97 €</b><small>salon average 64 €</small></div>
+        <div><span>Visits every</span><b>6 weeks</b><small>on average</small></div>
+        <div><span>No-shows</span><b>1</b><small>deposit kept, July</small></div>
+      </div>
+    </section>
+
+    <div class="grid2">
+      <div class="col-l">
+        <section class="card pad">
+          <div class="card-h"><h2 class="card-t">Visit history</h2><div class="seg"><button class="on">All</button><button>Hair</button><button>Lashes</button></div></div>
+          <ol class="tl"><li class="v">
+  <span class="v-dot"></span>
+  <div class="v-b">
+    <div class="v-h"><b>Balayage refresh and toner</b><span class="status st-done">Completed</span><span class="v-p">165 €</span></div>
+    <p class="v-m">15 Oct 2026 · with Aïcha</p>
+    <p class="v-n">Toned with formula B. Very happy, booked next visit at checkout.</p>
+  </div>
+</li><li class="v">
+  <span class="v-dot"></span>
+  <div class="v-b">
+    <div class="v-h"><b>Cut and blow-dry</b><span class="status st-done">Completed</span><span class="v-p">45 €</span></div>
+    <p class="v-m">3 Sep 2026 · with Aïcha</p>
+    <p class="v-n">Took 2 cm off, face-framing layers.</p>
+  </div>
+</li><li class="v">
+  <span class="v-dot"></span>
+  <div class="v-b">
+    <div class="v-h"><b>Lash lift and tint</b><span class="status st-done">Completed</span><span class="v-p">55 €</span></div>
+    <p class="v-m">12 Aug 2026 · with Inès</p>
+
+  </div>
+</li><li class="v">
+  <span class="v-dot miss"></span>
+  <div class="v-b">
+    <div class="v-h"><b>Balayage, full head</b><span class="status st-noshow">No-show, deposit kept</span><span class="v-p">180 €</span></div>
+    <p class="v-m">22 Jul 2026 · with Aïcha</p>
+    <p class="v-n">Called the day after, family emergency. Waived the rebooking fee.</p>
+  </div>
+</li><li class="v">
+  <span class="v-dot"></span>
+  <div class="v-b">
+    <div class="v-h"><b>Gloss and treatment</b><span class="status st-done">Completed</span><span class="v-p">70 €</span></div>
+    <p class="v-m">18 Jun 2026 · with Aïcha</p>
+    <p class="v-n">Olaplex No.2, 15 min.</p>
+  </div>
+</li></ol>
+          <a href="#" class="link more">Show 19 earlier visits <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></a>
+        </section>
+        <section class="card pad">
+          <div class="card-h"><h2 class="card-t">Notes</h2><button class="icon-btn sm" aria-label="Edit notes"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></div>
+          <div class="allergy" role="note"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><div><b>Patch test required</b><span>Mild reaction to PPD in 2022. Patch test 48 h before any new dye. Last test 13 Oct, clear.</span></div></div>
+          <ul class="notes">
+            <li><p>Prefers 9:00 or 9:30 starts, drops her son at school first.</p><small>Aïcha, 3 Sep</small></li>
+            <li><p>Likes oat milk flat white. No music too loud near the basin.</p><small>Inès, 12 Aug</small></li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="col-r">
+        <section class="card pad upc">
+          <p class="eyebrow">Upcoming booking</p>
+          <div class="upc-d"><div class="date-b"><span>Nov</span><b>26</b></div>
+            <div><h3>Root touch-up and gloss</h3><p>Thursday 26 November, 09:30 to 11:30</p><p>with Aïcha · 95 €</p></div></div>
+          <div class="upc-f"><span class="status st-confirmed">Confirmed</span><span class="dep"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>20 € deposit paid</span></div>
+          <div class="upc-a"><button class="btn btn-ghost btn-sm">Reschedule</button><button class="btn btn-soft btn-sm">Send reminder</button></div>
+        </section>
+
+        <section class="card pad">
+          <div class="card-h"><h2 class="card-t">Formulas</h2><button class="link" style="background:none;border:0;cursor:pointer"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add</button></div>
+          <div class="fm">
+            <div class="fm-h"><span class="fm-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6M10 2v6L4.5 18.5A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.8-2.5L14 8V2"/><path d="M7 15h10"/></svg></span><div><b>Colour formula B, balayage toner</b><small>Updated 15 Oct by Aïcha</small></div></div>
+            <dl>
+              <div><dt>Lightener</dt><dd>Blondor Multi-Blonde + 6% (1:2), 35 min</dd></div>
+              <div><dt>Toner</dt><dd>Shinefinity 09/13 + 09/61 (1:1) + activator, 20 min</dd></div>
+              <div><dt>Base</dt><dd>Natural level 6, warm undertone</dd></div>
+            </dl>
+          </div>
+          <div class="fm fm-2">
+            <div class="fm-h"><span class="fm-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6M10 2v6L4.5 18.5A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.8-2.5L14 8V2"/><path d="M7 15h10"/></svg></span><div><b>Lash lift</b><small>Updated 12 Aug by Inès</small></div></div>
+            <dl><div><dt>Shield</dt><dd>M, 8 min lift, 6 min set, tint brown-black</dd></div></dl>
+          </div>
+        </section>
+
+        <section class="card pad">
+          <div class="card-h"><h2 class="card-t">Retail purchases</h2><span class="chip">186 € total</span></div>
+          <ul class="rp">
+            <li><span class="rp-img" aria-hidden="true"></span><div><b>Blondme bond shampoo, 250 ml</b><small>15 Oct · 24 €</small></div><button class="btn btn-ghost btn-sm">Reorder</button></li>
+            <li><span class="rp-img rp-2" aria-hidden="true"></span><div><b>Shea leave-in cream</b><small>3 Sep · 18 €</small></div><button class="btn btn-ghost btn-sm">Reorder</button></li>
+            <li><span class="rp-img rp-3" aria-hidden="true"></span><div><b>Silk scrunchie set</b><small>12 Aug · 12 €</small></div><button class="btn btn-ghost btn-sm">Reorder</button></li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+</body>
+</html>

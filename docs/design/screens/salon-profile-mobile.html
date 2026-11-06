@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maison Aïcha · GlowFlow</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  :focus-visible{outline:2px solid rgba(122,70,89,.4);outline-offset:2px}
+
+  .ph{position:relative;overflow:hidden;background:radial-gradient(circle at 1px 1px,rgba(42,33,41,.06) 1px,transparent 1.4px) 0 0/5px 5px,radial-gradient(120% 90% at 20% 15%,var(--blush-soft),transparent 60%),linear-gradient(160deg,var(--blush),var(--sand));}
+  .ph.linen{background:radial-gradient(circle at 1px 1px,rgba(42,33,41,.06) 1px,transparent 1.4px) 0 0/5px 5px,radial-gradient(120% 90% at 80% 10%,var(--porcelain),transparent 60%),linear-gradient(200deg,var(--linen),var(--sand));}
+  .ph.champ{background:radial-gradient(circle at 1px 1px,rgba(42,33,41,.06) 1px,transparent 1.4px) 0 0/5px 5px,radial-gradient(110% 80% at 30% 90%,var(--champagne-soft),transparent 65%),linear-gradient(140deg,var(--linen),var(--champagne-soft) 55%,var(--sand));}
+  .ph img{display:block;width:100%;height:100%;object-fit:cover}
+
+  .hero{position:relative;height:340px}
+  .hero img{width:100%;height:100%;object-fit:cover;object-position:50% 45%}
+  .hero-top{position:absolute;top:52px;left:16px;right:16px;display:flex;justify-content:space-between}
+  .hero-top div{display:flex;gap:8px}
+  .rb{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink);box-shadow:var(--shadow-sm)}
+  .rb .icon{width:19px;height:19px}
+  .count{position:absolute;right:16px;bottom:44px;background:rgba(42,33,41,.72);color:var(--porcelain);font-size:12.5px;padding:5px 11px;border-radius:var(--r-pill)}
+  .sheet{position:relative;margin-top:-28px;background:var(--porcelain);border-radius:28px 28px 0 0;padding:24px 16px 0}
+  .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:22px}
+  .thumbs .ph{height:84px;border-radius:var(--r-md)}
+  h1{margin:6px 0 10px}
+  .meta{display:flex;flex-direction:column;gap:8px;font-size:14.5px;color:var(--ink-2)}
+  .meta span{display:flex;align-items:center;gap:8px}
+  .meta .icon{width:17px;height:17px;color:var(--champagne-deep);flex:none}
+  .meta .star{fill:var(--champagne);stroke:var(--champagne)}
+  .meta b{font-weight:500;color:var(--ink)}
+  .open{color:var(--sage-deep);font-weight:500}
+  .tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin:22px -16px 0;padding:0 16px;position:sticky;top:0;background:var(--porcelain);z-index:3;overflow:hidden}
+  .tabs a{padding:13px 0;font-size:14.5px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+  .tabs a.on{color:var(--ink);font-weight:500;border-color:var(--mulberry)}
+  section{padding:26px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  h2{margin-bottom:12px}
+  .seg{display:flex;gap:8px;margin:0 -16px 6px;padding:0 16px;overflow:hidden}
+  .seg span{height:36px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--line-strong);display:inline-flex;align-items:center;font-size:14px;color:var(--ink-2);white-space:nowrap}
+  .seg span.on{background:var(--ink);color:var(--porcelain);border-color:var(--ink)}
+  .grp{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;color:var(--champagne-deep);margin:18px 0 2px}
+  .svc{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .svc:last-child{border-bottom:0}
+  .svc h4{font-weight:500;font-size:15.5px}
+  .svc p{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:2px}
+  .svc p .icon{width:14px;height:14px}
+  .svc .pr{margin-left:auto;font-weight:500;white-space:nowrap}
+  .svc .btn{height:44px;padding:0 16px;font-size:14px}
+  .more{margin-top:12px;width:100%}
+  .about p{font-size:15px;color:var(--ink-2);line-height:1.65;font-weight:350}
+  .facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .team{display:flex;gap:14px;overflow:hidden;margin-right:-16px}
+  .m{flex:none;width:84px;text-align:center}
+  .av{width:68px;height:68px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;font-family:var(--font-display);font-size:24px;font-weight:600;color:var(--mulberry-deep);border:3px solid var(--white);box-shadow:var(--shadow-sm)}
+  .m b{display:block;font-weight:500;font-size:13.5px;line-height:1.2}
+  .m span{font-size:12px;color:var(--muted)}
+  .rv-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .score{font-family:var(--font-display);font-size:48px;line-height:1;font-weight:500}
+  .stars{display:flex;gap:2px}
+  .stars .icon{width:14px;height:14px;fill:var(--champagne);stroke:var(--champagne)}
+  .rv{padding:16px;margin-bottom:12px}
+  .rv-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .rv-av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--mulberry-deep);background:var(--blush)}
+  .rv-top b{display:block;font-weight:500;font-size:14.5px}
+  .rv-top span{font-size:12.5px;color:var(--muted)}
+  .rv-top .stars{margin-left:auto}
+  .rv p{font-size:14.5px;color:var(--ink-2);line-height:1.6}
+  .hours{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;color:var(--ink-2)}
+  .hours .today{font-weight:500;color:var(--ink)}
+  .minimap{height:140px;border-radius:var(--r-lg);overflow:hidden;margin:16px 0 10px;border:1px solid var(--line)}
+  .powered{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:var(--muted);padding:26px 0 24px}
+  .powered img{height:18px}
+
+  .bookbar{position:sticky;bottom:0;background:var(--white);border-top:1px solid var(--line);padding:12px 16px 28px;display:flex;align-items:center;gap:14px;box-shadow:0 -14px 30px -18px rgba(42,33,41,.22);z-index:10}
+  .bookbar div{line-height:1.3}
+  .bookbar small{display:block;font-size:12.5px;color:var(--muted)}
+  .bookbar b{font-weight:500;font-size:14.5px;color:var(--sage-deep)}
+  .bookbar .btn{margin-left:auto;height:52px;padding:0 22px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.3-4.3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></symbol>
+  <symbol id="i-calplus" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18M12 13.5v5M9.5 16h5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.5 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.8l2.85 5.78 6.38.93-4.62 4.5 1.09 6.35L12 17.36l-5.7 3 1.09-6.35-4.62-4.5 6.38-.93z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-arrowleft" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 20v-6M4 10V4M12 20v-8M12 8V4M20 20v-4M20 12V4M2 14h4M10 8h4M18 16h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="m16 6-4-4-4 4M12 2v13"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7a2 2 0 0 1 1.7 2z"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11 22 2l-9 19-2-8z"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4.5M12 8h.01"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5 9 3.5l6 3 6-3v14l-6 3-6-3-6 3z"/><path d="M9 3.5v14M15 6.5v14"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<div class="hero">
+  <img src="glowflow-manicure.png" alt="A nail technician at Maison Aïcha shaping a client's cuticles">
+  <div class="hero-top">
+    <a href="salons-search.html" class="rb" aria-label="Back"><svg class="icon"><use href="#i-arrowleft"/></svg></a>
+    <div><span class="rb" aria-label="Share"><svg class="icon"><use href="#i-share"/></svg></span><span class="rb" aria-label="Save"><svg class="icon"><use href="#i-heart"/></svg></span></div>
+  </div>
+  <span class="count">1 / 24</span>
+</div>
+
+<main class="sheet">
+  <div class="thumbs">
+    <div class="ph"><img src="photos/nail-bar-interior.jpg" alt="Daylit salon interior"></div>
+    <div class="ph linen"><img src="photos/nude-polishes.jpg" alt="Nude and rose nail polishes"></div>
+    <div class="ph champ"><img src="photos/almond-nails.jpg" alt="Finished almond-shaped nail art"></div>
+  </div>
+
+  <p class="eyebrow">Nail studio · Oberkampf</p>
+  <h1 class="display-lg">Maison <em>Aïcha</em></h1>
+  <div class="meta">
+    <span><svg class="icon star"><use href="#i-star"/></svg><b>4.9</b>(312 reviews)</span>
+    <span><svg class="icon"><use href="#i-pin"/></svg>48 rue Oberkampf, 75011 Paris</span>
+    <span class="open"><svg class="icon" style="color:var(--sage-deep)"><use href="#i-clock"/></svg>Open today until 20:00</span>
+  </div>
+
+  <nav class="tabs" aria-label="Sections"><a href="#" class="on">Services</a><a href="#">About</a><a href="#">Team</a><a href="#">Reviews</a><a href="#">Hours</a></nav>
+
+  <section>
+    <h2 class="display-sm">Services</h2>
+    <div class="seg"><span class="on">Popular</span><span>Manicure</span><span>Pedicure</span><span>Nail art</span></div>
+    <p class="grp">Manicure</p>
+    <div>
+      <div class="svc"><div><h4>Gel manicure</h4><p><svg class="icon"><use href="#i-clock"/></svg>1 h · 38 €</p></div><button class="btn btn-ghost" style="margin-left:auto">Book</button></div>
+      <div class="svc"><div><h4>Russian manicure</h4><p><svg class="icon"><use href="#i-clock"/></svg>1 h 30 · 52 €</p></div><button class="btn btn-ghost" style="margin-left:auto">Book</button></div>
+      <div class="svc"><div><h4>Classic manicure</h4><p><svg class="icon"><use href="#i-clock"/></svg>45 min · 28 €</p></div><button class="btn btn-ghost" style="margin-left:auto">Book</button></div>
+    </div>
+    <p class="grp">Pedicure</p>
+    <div>
+      <div class="svc"><div><h4>Spa pedicure</h4><p><svg class="icon"><use href="#i-clock"/></svg>1 h 15 · 45 €</p></div><button class="btn btn-ghost" style="margin-left:auto">Book</button></div>
+      <div class="svc"><div><h4>Express pedicure</h4><p><svg class="icon"><use href="#i-clock"/></svg>40 min · 30 €</p></div><button class="btn btn-ghost" style="margin-left:auto">Book</button></div>
+    </div>
+    <button class="btn btn-soft more">See all 14 services</button>
+  </section>
+
+  <section class="about">
+    <h2 class="display-sm">About</h2>
+    <p>Aïcha Diallo opened her studio in 2019 after ten years in Paris salons. A quiet, four-chair space with HEMA-free gels, natural light and appointments that run on time.</p>
+    <div class="facts"><span class="chip">HEMA-free gels</span><span class="chip">Card and cash</span><span class="chip">Step-free access</span></div>
+  </section>
+
+  <section>
+    <h2 class="display-sm">Team</h2>
+    <div class="team">
+      <div class="m"><div class="av" style="background:var(--blush)">AD</div><b>Aïcha</b><span>Founder</span></div>
+      <div class="m"><div class="av" style="background:var(--champagne-soft);color:var(--champagne-deep)">IM</div><b>Inès</b><span>Gel</span></div>
+      <div class="m"><div class="av" style="background:var(--sage-soft);color:var(--sage-deep)">FN</div><b>Fatou</b><span>Pedicure</span></div>
+      <div class="m"><div class="av" style="background:var(--linen)">LM</div><b>Léa</b><span>Brows</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="display-sm">Reviews</h2>
+    <div class="rv-head"><span class="score">4.9</span><div><div class="stars"><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg></div><span class="body-sm">312 verified reviews</span></div></div>
+    <article class="card rv"><div class="rv-top"><span class="rv-av">CL</span><div><b>Camille L.</b><span>Gel manicure · Oct 2026</span></div><span class="stars"><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg></span></div><p>Three weeks later and not a single chip. Inès fixed the shape I had been fighting with for months.</p></article>
+    <article class="card rv"><div class="rv-top"><span class="rv-av" style="background:var(--sage-soft);color:var(--sage-deep)">KM</span><div><b>Koffi M.</b><span>Spa pedicure · Oct 2026</span></div><span class="stars"><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg></span></div><p>The calmest hour of my month. Spotless, on time, and booking took less than a minute.</p></article>
+    <button class="btn btn-ghost more">Read all reviews</button>
+  </section>
+
+  <section>
+    <h2 class="display-sm">Hours and location</h2>
+    <div class="hours">
+      <span>Monday</span><span>Closed</span>
+      <span>Tue to Wed</span><span>10:00 to 19:00</span>
+      <span class="today">Thursday (today)</span><span class="today">10:00 to 20:00</span>
+      <span>Friday</span><span>10:00 to 20:00</span>
+      <span>Saturday</span><span>09:30 to 18:00</span>
+      <span>Sunday</span><span>Closed</span>
+    </div>
+    <div class="minimap">
+      <svg viewBox="0 0 360 140" width="100%" height="140" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="360" height="140" fill="var(--linen)"/>
+        <g stroke="var(--sand)" fill="none" stroke-linecap="round"><path d="M-10 80 L370 56" stroke-width="10"/><path d="M110 -10 L140 150" stroke-width="8"/><path d="M260 -10 C 250 60, 280 90, 270 150" stroke-width="7"/></g>
+        <rect x="160" y="90" width="80" height="34" rx="12" fill="var(--sage-soft)"/>
+        <circle cx="190" cy="66" r="18" fill="var(--mulberry)" opacity=".15"/><circle cx="190" cy="66" r="8" fill="var(--mulberry)" stroke="#fff" stroke-width="2.5"/>
+      </svg>
+    </div>
+    <p class="body-sm">Métro Parmentier (line 3), 3 min walk</p>
+  </section>
+  <p class="powered">Booking powered by <img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow"></p>
+</main>
+
+<div class="bookbar">
+  <div><small>From 28 €, no account</small><b>Next: today 15:30</b></div>
+  <a href="booking-mobile.html" class="btn btn-primary">Book an appointment</a>
+</div>
+</body>
+</html>

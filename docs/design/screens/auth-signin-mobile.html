@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlowFlow, Sign in (mobile)</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  body{max-width:390px;margin:0 auto;background:var(--porcelain)}
+  .hero{position:relative;background:var(--mulberry-deep);padding:18px 16px 0;border-radius:0 0 var(--r-xl) var(--r-xl);overflow:hidden}
+  .hero::before{content:"";position:absolute;width:360px;height:360px;border-radius:50%;border:1px solid rgba(242,221,214,.14);right:-160px;top:-170px}
+  .top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+  .top img{height:26px}
+  .lang{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 14px;border-radius:var(--r-pill);border:1px solid rgba(250,246,241,.25);color:var(--porcelain);font-size:14px}
+  .photo{position:relative;z-index:1;margin:20px auto 0;width:220px;height:200px;border-radius:120px 120px 0 0;overflow:hidden;border:5px solid rgba(250,246,241,.08);border-bottom:0}
+  .photo img{width:100%;height:100%;object-fit:cover;object-position:center 45%}
+  .tag{position:absolute;z-index:2;right:22px;top:92px;display:flex;align-items:center;gap:8px;background:var(--white);border-radius:var(--r-pill);padding:7px 12px 7px 7px;font-size:12.5px;color:var(--ink-2);box-shadow:var(--shadow-md)}
+  .tag .dot{width:24px;height:24px;border-radius:50%;background:var(--sage-soft);color:var(--sage-deep);display:flex;align-items:center;justify-content:center}
+  .tag .dot .icon{width:14px;height:14px}
+  .tag b{font-weight:500;color:var(--ink)}
+  main{padding:28px 16px 32px}
+  .eyebrow{margin-bottom:10px}
+  h1.display-md{font-size:36px;margin-bottom:10px}
+  .sub{font-size:15.5px;color:var(--ink-2);margin-bottom:26px}
+  .field{margin-bottom:16px}
+  .field .label{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .field .label a{font-size:13px;color:var(--mulberry);font-weight:500;min-height:44px;display:flex;align-items:center;margin:-14px 0}
+  .input-icon{position:relative}
+  .input-icon>.icon{position:absolute;left:16px;top:14px;color:var(--muted)}
+  .input{padding-left:46px}
+  .input.is-focus{border-color:var(--mulberry);box-shadow:0 0 0 2px rgba(122,70,89,.4)}
+  .eye{position:absolute;right:2px;top:2px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:none;border:0}
+  .btn{width:100%;height:52px}
+  .or{display:flex;align-items:center;gap:14px;margin:20px 0;font-size:13px;color:var(--muted)}
+  .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+  .new{margin-top:26px;text-align:center;font-size:15px;color:var(--muted)}
+  .new a{color:var(--mulberry);font-weight:500;border-bottom:1px solid var(--rose);display:inline-block;padding:10px 0 1px}
+  .quote{margin-top:28px;padding:18px 18px;border-radius:var(--r-lg);background:var(--linen)}
+  .quote p{font-family:var(--font-display);font-size:19px;line-height:1.3;color:var(--ink)}
+  .quote span{display:block;margin-top:10px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="hero">
+    <div class="top">
+      <img src="../brand/logo/glowflow-wordmark-on-dark.svg" alt="GlowFlow">
+      <span class="lang"><svg class="icon" style="width:16px;height:16px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>EN</span>
+    </div>
+    <div class="photo"><img src="glowflow-manicure.png" alt="A nail technician at work"></div>
+    <div class="tag"><span class="dot"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span><b>14</b> today</span></div>
+  </div>
+  <main>
+    <p class="eyebrow">Salon workspace</p>
+    <h1 class="display-md">Welcome back to your <em>salon.</em></h1>
+    <p class="sub">Your calendar and today's bookings are waiting.</p>
+    <div class="field">
+      <label class="label" for="e">Email</label>
+      <div class="input-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg><input id="e" class="input is-focus" type="email" value="aicha@example.invalid"></div>
+    </div>
+    <div class="field">
+      <label class="label" for="p"><span>Password</span><a href="#">Forgot password?</a></label>
+      <div class="input-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><input id="p" class="input" type="password" value="porcelain2026"><button class="eye" aria-label="Show password"><svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:8px">Sign in</button>
+    <div class="or">or</div>
+    <button class="btn btn-ghost"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10l3.7-2.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>Continue with Google</button>
+    <p class="new">New to GlowFlow? <a href="auth-register.html">Create your workspace</a></p>
+    <div class="quote"><p>&ldquo;Now the calendar is simply full.&rdquo;</p><span>Fatou Ndiaye, Atelier Fatou, Dakar</span></div>
+  </main>
+</body>
+</html>

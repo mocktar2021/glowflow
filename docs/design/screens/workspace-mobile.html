@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GlowFlow Today mobile</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+body{background:var(--porcelain);font-variant-numeric:lining-nums}
+a:focus-visible,button:focus-visible{outline:2px solid rgba(122,70,89,.4);outline-offset:2px}
+html,body{height:100%}
+.phone{width:390px;height:100vh;min-height:640px;margin:0 auto;position:relative;background:var(--porcelain);display:flex;flex-direction:column;overflow:hidden}
+.m-main{flex:1;overflow-y:auto;padding-bottom:84px!important;scrollbar-width:none}
+.dock{position:relative;z-index:5;flex:none}
+.sbar{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px 0 30px;font-size:15px;color:var(--ink)}
+.sbar b{font-weight:600}
+.sbar span{display:flex;gap:6px;align-items:center}
+.m-top{display:flex;align-items:center;gap:8px;padding:6px 16px 10px}
+.mk{height:34px;width:auto}
+.m-salon{display:flex;align-items:center;gap:4px;border:0;background:none;font:500 15.5px var(--font-sans);color:var(--ink);margin-right:auto;min-height:44px;cursor:pointer}
+.m-salon .icon{width:16px;height:16px;color:var(--muted)}
+.icon-btn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--white);border:1px solid var(--line);color:var(--ink-2);position:relative;flex:none}
+.icon-btn .icon{width:19px;height:19px}
+.dot{position:absolute;top:10px;right:11px;width:8px;height:8px;border-radius:50%;background:var(--mulberry);border:2px solid var(--white)}
+.m-main{padding:10px 16px 0}
+.m-h{font-family:var(--font-display);font-weight:500;font-size:36px;line-height:1.05;margin-top:6px;letter-spacing:-.01em}
+.m-h em{font-style:italic;color:var(--mulberry)}
+.m-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}
+.m-stats div{background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:12px;display:flex;flex-direction:column}
+.m-stats b{font-weight:400;font-size:21px;line-height:1.2;white-space:nowrap;letter-spacing:-.01em}
+.m-stats span{font-size:12px;color:var(--muted)}
+.m-next{display:flex;align-items:center;gap:12px;margin-top:12px;padding:14px 14px 14px 18px;border-radius:var(--r-lg);background:var(--blush-soft);border:1px solid var(--blush)}
+.mn-l{flex:1;display:flex;flex-direction:column;line-height:1.3}
+.mn-l .eyebrow{font-size:11px;color:var(--mulberry)}
+.mn-l b{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.2;margin-top:2px}
+.mn-l small{font-size:13px;color:var(--ink-2)}
+.m-next .icon-btn{background:var(--mulberry);color:#fff;border-color:var(--mulberry)}
+.m-filter{display:flex;gap:6px;margin:20px -16px 6px;padding:0 16px;overflow-x:auto;scrollbar-width:none}
+.m-filter button{display:flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--white);font:500 13.5px var(--font-sans);color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.m-filter .on{background:var(--ink);color:var(--porcelain);border-color:var(--ink)}
+.sw{width:9px;height:9px;border-radius:50%}
+.sw-blush{background:var(--rose)}.sw-sage{background:var(--sage-deep)}.sw-champ{background:var(--champagne)}
+.agenda{list-style:none;margin-top:8px}
+.ag{display:flex;gap:12px;padding:6px 0}
+.ag-t{width:46px;flex:none;padding-top:12px;display:flex;flex-direction:column;line-height:1.25;font-variant-numeric:tabular-nums}
+.ag-t b{font-weight:500;font-size:14px}
+.ag-t small{font-size:12px;color:var(--muted)}
+.ag-c{flex:1;min-width:0;border-radius:var(--r-md);padding:12px 14px;border-left:3px solid;min-height:64px}
+.tint-blush .ag-c{background:var(--blush-soft);border-color:var(--rose)}
+.tint-sage .ag-c{background:var(--sage-soft);border-color:var(--sage-deep)}
+.tint-champ .ag-c{background:var(--champagne-soft);border-color:var(--champagne)}
+.ag.done{opacity:.6}
+.ag.next .ag-c{box-shadow:0 0 0 2px rgba(122,70,89,.4)}
+.ag-h{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ag-h b{font-weight:500;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag-h .status{height:22px;font-size:11.5px;padding:0 8px;background:rgba(255,255,255,.75)}
+.ag-c p{font-size:13px;color:var(--ink-2);margin-top:2px}
+.ag-c .ag-al{display:flex;align-items:center;gap:5px;color:var(--brick);font-size:12.5px;font-weight:500;margin-top:6px}
+.ag-al .icon{width:14px;height:14px}
+.status{display:inline-flex;align-items:center;gap:5px;border-radius:var(--r-pill);font-weight:500;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-confirmed{color:var(--sage-deep)}.st-pending{color:var(--champagne-deep)}.st-walkin{color:var(--mulberry-deep)}.st-done{color:var(--muted)}
+.now-row{display:flex;align-items:center;gap:8px;padding:4px 0}
+.now-row span{width:46px;font-size:12px;font-weight:500;color:var(--mulberry)}
+.now-row i{flex:1;height:2px;background:var(--mulberry);position:relative;margin-left:4px}
+.now-row i::before{content:"";position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--mulberry)}
+.more{font-size:13px;color:var(--muted);text-align:center;margin:14px 0 10px}
+.fab{position:absolute;right:16px;bottom:100px;height:56px;padding:0 22px 0 18px;border-radius:var(--r-pill);background:var(--mulberry);color:#fff;border:0;display:flex;align-items:center;gap:8px;font:500 16px var(--font-sans);box-shadow:0 14px 30px -10px rgba(94,52,69,.55);z-index:6;cursor:pointer}
+.fab .icon{width:21px;height:21px}
+.tabs{width:390px;height:84px;padding:8px 8px 24px;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(250,246,241,.97);border-top:1px solid var(--line);z-index:5}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--muted);min-height:48px}
+.tab .icon{width:22px;height:22px}
+.tab.on{color:var(--mulberry-deep);font-weight:500}
+.tab.on .icon{background:var(--blush);border-radius:var(--r-pill);width:56px;height:30px;padding:4px 17px;box-sizing:border-box;color:var(--mulberry)}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="sbar" aria-hidden="true"><b>10:40</b><span>
+    <svg viewBox="0 0 18 12" width="18" height="12"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2" width="3" height="10" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor" opacity=".35"/></svg>
+    <svg viewBox="0 0 26 12" width="26" height="12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="currentColor" opacity=".5"/><rect x="2" y="2" width="15" height="8" rx="1.5" fill="currentColor"/><rect x="24" y="4" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".5"/></svg>
+  </span></div>
+  <header class="m-top">
+    <img src="../brand/logo/glowflow-mark.svg" alt="GlowFlow" class="mk">
+    <button class="m-salon">Atelier Aïcha <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="icon-btn" aria-label="Search"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+    <button class="icon-btn" aria-label="Notifications, 3 new"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+  </header>
+  <main class="m-main">
+    <p class="eyebrow">Thursday 5 November</p>
+    <h1 class="m-h">Good morning, <em>Aïcha</em></h1>
+    <div class="m-stats">
+      <div><b>16</b><span>Bookings</span></div>
+      <div><b>1 184 €</b><span>Expected</span></div>
+      <div><b>3</b><span>Open slots</span></div>
+    </div>
+    <div class="m-next">
+      <div class="mn-l"><span class="eyebrow">Next, in 20 min</span><b>Fatou Ndiaye</b><small>Silk press at 11:00 with Aïcha</small></div>
+      <button class="icon-btn" aria-label="Message Fatou"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+    </div>
+    <div class="m-filter" role="tablist" aria-label="Filter by team member">
+      <button class="on" role="tab" aria-selected="true">Everyone</button>
+      <button role="tab" aria-selected="false"><i class="sw sw-blush"></i>Aïcha</button>
+      <button role="tab" aria-selected="false"><i class="sw sw-sage"></i>Inès</button>
+      <button role="tab" aria-selected="false"><i class="sw sw-champ"></i>Koffi</button>
+    </div>
+    <ul class="agenda"><li class="ag tint-blush done">
+  <div class="ag-t"><b>09:00</b><small>10:30</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Camille Laurent</b><span class="status st-done">Completed</span></div>
+    <p>Balayage and toner · Aïcha</p>
+
+  </div>
+</li><li class="ag tint-champ done">
+  <div class="ag-t"><b>10:00</b><small>10:30</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Kossi Amoussou</b><span class="status st-done">Completed</span></div>
+    <p>Beard trim, walk-in · Koffi</p>
+
+  </div>
+</li><li class="ag tint-sage">
+  <div class="ag-t"><b>10:45</b><small>12:15</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Awa Traoré</b><span class="status st-confirmed">In chair</span></div>
+    <p>Lash extensions, full set · Inès</p>
+
+  </div>
+</li><li class="now-row" aria-label="Current time 10:40"><span>10:40</span><i></i></li><li class="ag tint-blush next">
+  <div class="ag-t"><b>11:00</b><small>12:00</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Fatou Ndiaye</b><span class="status st-confirmed">Confirmed</span></div>
+    <p>Silk press · Aïcha</p>
+    <p class="ag-al"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Fragrance allergy</p>
+  </div>
+</li><li class="ag tint-champ">
+  <div class="ag-t"><b>11:30</b><small>12:15</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Thomas Petit</b><span class="status st-confirmed">Confirmed</span></div>
+    <p>Cut and beard · Koffi</p>
+
+  </div>
+</li><li class="ag tint-sage">
+  <div class="ag-t"><b>12:30</b><small>13:00</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Chloé Garnier</b><span class="status st-walkin">Walk-in</span></div>
+    <p>Polish change · Inès</p>
+
+  </div>
+</li><li class="ag tint-blush">
+  <div class="ag-t"><b>13:30</b><small>15:30</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Yasmine Benali</b><span class="status st-confirmed">Confirmed</span></div>
+    <p>Knotless braids, medium · Aïcha</p>
+
+  </div>
+</li><li class="ag tint-blush">
+  <div class="ag-t"><b>16:00</b><small>17:00</small></div>
+  <div class="ag-c">
+    <div class="ag-h"><b>Léa Martin</b><span class="status st-pending">Pending</span></div>
+    <p>Cut and blow-dry · Aïcha</p>
+
+  </div>
+</li></ul>
+    <p class="more">8 more until 18:30</p>
+  </main>
+  <div class="dock">
+  <button class="fab" aria-label="New appointment"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
+  <nav class="tabs" aria-label="Main">
+    <a href="#" class="tab on" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="15.5" r="1.6"/></svg><span>Today</span></a><a href="#" class="tab"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg><span>Calendar</span></a><a href="#" class="tab"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clients</span></a><a href="#" class="tab"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>More</span></a>
+  </nav>
+  </div>
+</div>
+</body>
+</html>

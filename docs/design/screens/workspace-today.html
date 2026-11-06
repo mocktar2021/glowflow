@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GlowFlow Today</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+body{background:var(--porcelain);font-variant-numeric:lining-nums}
+.display-xl,.display-lg,.display-md,.display-sm,.card-t{font-variant-numeric:lining-nums}
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.sidebar{min-height:100vh;display:flex;flex-direction:column;gap:18px;padding:24px 16px 18px;background:var(--linen);border-right:1px solid var(--line)}
+.sb-logo{padding:2px 10px 4px}
+.sb-logo img{height:28px;width:auto}
+.salon-switch{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);font:inherit;color:var(--ink);cursor:pointer;text-align:left}
+.salon-switch .icon{width:16px;height:16px;color:var(--muted);margin-left:auto}
+.salon-av{width:34px;height:34px;border-radius:10px;background:var(--mulberry);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:16px;flex:none}
+.salon-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.salon-txt b{font-weight:500;font-size:14.5px}
+.salon-txt small{font-size:12.5px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:var(--r-pill);font-size:14.5px;color:var(--ink-2);transition:background .2s var(--ease)}
+.nav-item .icon{width:18px;height:18px;color:var(--muted)}
+.nav-item:hover{background:rgba(255,255,255,.6)}
+.nav-item.active{background:var(--blush);color:var(--mulberry-deep);font-weight:500}
+.nav-item.active .icon{color:var(--mulberry)}
+.nav-badge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--champagne-soft);color:var(--champagne-deep);font-size:12px;font-weight:500;display:grid;place-items:center}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:12px;border-top:1px solid var(--line)}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 10px 0;line-height:1.2}
+.sb-user b{font-weight:500;font-size:14px;display:block}
+.sb-user small{font-size:12.5px;color:var(--muted)}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid rgba(122,70,89,.4);outline-offset:2px}
+
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:500;font-size:15px;flex:none;letter-spacing:.02em}
+.av-sm{width:34px;height:34px;font-size:13px}
+.av-blush{background:var(--blush);color:var(--mulberry-deep)}
+.av-sage{background:var(--sage-soft);color:var(--sage-deep)}
+.av-champ{background:var(--champagne-soft);color:var(--champagne-deep)}
+.av-linen{background:var(--linen);color:var(--ink-2)}
+
+.topbar{height:72px;display:flex;align-items:center;gap:16px;padding:0 32px;border-bottom:1px solid var(--line);background:var(--porcelain);position:sticky;top:0;z-index:5}
+.search{display:flex;align-items:center;gap:10px;height:42px;padding:0 16px;border-radius:var(--r-pill);background:var(--white);border:1px solid var(--line);color:var(--muted);font-size:14px;width:280px}
+.search .icon{width:17px;height:17px}
+.search kbd{margin-left:auto;font:500 11.5px var(--font-sans);color:var(--muted);background:var(--linen);border-radius:6px;padding:2px 7px}
+.icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--white);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;position:relative;flex:none}
+.icon-btn .icon{width:18px;height:18px}
+.dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--mulberry);border:2px solid var(--white)}
+.status{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--r-pill);font-size:12px;font-weight:500;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-confirmed{background:var(--sage-soft);color:var(--sage-deep)}
+.st-pending{background:var(--champagne-soft);color:var(--champagne-deep)}
+.st-walkin{background:var(--blush);color:var(--mulberry-deep)}
+.st-done{background:var(--linen);color:var(--muted)}
+.st-noshow{background:var(--brick-soft);color:var(--brick)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-t{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.15;color:var(--ink)}
+.link{font-size:13.5px;font-weight:500;color:var(--mulberry);display:inline-flex;align-items:center;gap:4px}
+.link .icon{width:15px;height:15px}
+
+.content{min-width:0;display:flex;flex-direction:column}
+.topbar{justify-content:space-between}
+.search{width:380px;white-space:nowrap}
+.tb-right{display:flex;gap:10px;align-items:center}
+.tb-right .btn .icon{width:17px;height:17px}
+.wrap{padding:36px 40px 48px;display:flex;flex-direction:column;gap:28px;max-width:1188px;width:100%}
+.hello{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
+.hello .eyebrow{margin-bottom:10px}
+.hello .lead{margin-top:10px;font-size:17px}
+.hello-act .btn .icon{width:18px;height:18px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tile{padding:20px 20px 18px;display:flex;flex-direction:column;gap:6px}
+.tile-h{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--ink-2);font-weight:500}
+.tile-ic{width:32px;height:32px;border-radius:50%;background:var(--blush-soft);color:var(--mulberry);display:grid;place-items:center}
+.tile-ic .icon{width:16px;height:16px}
+.tile-v{font-weight:400;font-size:34px;letter-spacing:-.02em;line-height:1.1;margin-top:8px;font-variant-numeric:lining-nums tabular-nums}
+.tile-s{font-size:12.5px;color:var(--muted);display:flex;gap:5px;align-items:flex-start;line-height:1.4}
+.tile-s.pos{color:var(--sage-deep)}
+.tile-s .icon{width:14px;height:14px;flex:none;margin-top:2px}
+.cols{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
+.pad{padding:22px 24px}
+.up-card{grid-row:span 1}
+.now-row{display:flex;align-items:center;gap:10px;margin:16px 0 4px;font-size:12.5px;color:var(--mulberry);font-weight:500}
+.now-dot{width:9px;height:9px;border-radius:50%;background:var(--mulberry);box-shadow:0 0 0 4px var(--blush)}
+.now-l{flex:1;height:1px;background:var(--rose)}
+.now-in{color:var(--muted);font-weight:400}
+.ups{list-style:none}
+.up{display:grid;grid-template-columns:52px 34px 1fr auto 56px 34px;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.up:first-child{border-top:0}
+.up time{font-size:14px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.up-m{min-width:0;line-height:1.3}
+.up-m b{font-weight:500;font-size:14.5px;display:block}
+.up-m small{font-size:13px;color:var(--muted)}
+.up-p{text-align:right;font-size:14px;color:var(--ink-2)}
+.icon-btn.sm{width:34px;height:34px;border-color:transparent;background:transparent}
+.up-foot{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
+.side{display:flex;flex-direction:column;gap:20px;grid-row:span 2}
+.qa{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.qa-i{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:78px;border-radius:var(--r-md);background:var(--porcelain);border:1px solid var(--line);font-size:12.5px;color:var(--ink-2);text-align:center;transition:all .2s var(--ease)}
+.qa-i:hover{background:var(--blush-soft);border-color:var(--rose)}
+.qa-i .icon{width:19px;height:19px;color:var(--mulberry)}
+.prof{overflow:hidden}
+.prof-img{height:120px;overflow:hidden}
+.prof-img img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 55%}
+.prof-img span{font-size:11.5px;color:var(--ink-2);background:rgba(250,246,241,.8);padding:3px 10px;border-radius:var(--r-pill)}
+.prof-url{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2);margin-top:10px}
+.prof-url .icon{width:15px;height:15px;color:var(--muted)}
+.prof-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 14px}
+.prof-stats div{background:var(--porcelain);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px}
+.prof-stats b{font-size:22px;font-weight:400;display:block;line-height:1.2}
+.prof-stats span{font-size:12px;color:var(--muted)}
+.prof-chk{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--sage-deep)}
+.prof-chk span{display:flex;align-items:center;gap:5px}
+.prof-chk .icon{width:14px;height:14px}
+.prof-chk .miss{color:var(--champagne-deep)}
+.prof-act{display:flex;gap:8px;margin-top:16px}
+.prof-act .btn{flex:1}
+.prof-act .icon{width:16px;height:16px}
+.chart-card .body-sm{font-size:13px;margin-top:2px}
+.seg{display:flex;padding:3px;border-radius:var(--r-pill);background:var(--linen);border:1px solid var(--line)}
+.seg button{height:30px;padding:0 14px;border-radius:var(--r-pill);border:0;background:transparent;font:500 13px var(--font-sans);color:var(--muted);cursor:pointer}
+.seg .on{background:var(--white);color:var(--ink);box-shadow:var(--shadow-sm)}
+.chart{width:100%;height:auto;margin-top:18px;display:block}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart text{font-family:var(--font-sans);font-size:12px;fill:var(--muted)}
+.chart .cv{fill:var(--ink-2);font-weight:500}
+.chart .cv-on{fill:var(--mulberry)}
+.chart .cx-on{fill:var(--mulberry);font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Workspace navigation">
+  <div class="sb-logo"><img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow" height="28"></div>
+  <button class="salon-switch" aria-label="Switch salon">
+    <span class="salon-av">AA</span>
+    <span class="salon-txt"><b>Atelier Aïcha</b><small>Cotonou, Haie Vive</small></span>
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <nav class="nav"><a href="#" class="nav-item active" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="15.5" r="1.6"/></svg><span>Today</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg><span>Calendar</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clients</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg><span>Services</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6v4H9z"/><path d="M8 6h8l1 4v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10z"/><path d="M7 13h10"/></svg><span>Products</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Availability</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4a1.5 1.5 0 1 0 0 .01"/><path d="m9 20 3-6 3 3v4M6 12l3-4 4 1 3 3 3 1"/></svg><span>Walk-ins</span><span class="nav-badge">2</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg><span>Payments</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Public profile</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Team</span></a></nav>
+  <div class="sb-bottom">
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></a>
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><span>Help centre</span></a>
+    <div class="sb-user"><span class="av av-sm av-blush">AD</span><span><b>Aïcha Diallo</b><small>Owner</small></span></div>
+  </div>
+</aside>
+<div class="content">
+  <header class="topbar">
+    <label class="search"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search clients, bookings, services</span><kbd>/</kbd></label>
+    <div class="tb-right">
+      <button class="icon-btn" aria-label="Notifications, 3 new"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+      <button class="btn btn-primary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="hello">
+      <div>
+        <p class="eyebrow">Thursday 5 November</p>
+        <h1 class="display-lg">Good morning, <em>Aïcha</em></h1>
+        <p class="lead">16 clients today across three chairs. Your next guest, Fatou, arrives at 11:00.</p>
+      </div>
+      <div class="hello-act">
+        <a href="#" class="btn btn-ghost"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>Open calendar</a>
+      </div>
+    </section>
+
+    <section class="tiles" aria-label="Key figures"><div class="tile card">
+  <div class="tile-h"><span class="tile-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg></span><span>Bookings today</span></div>
+  <b class="tile-v">16</b>
+  <p class="tile-s pos"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>+3 vs last Thursday</p>
+</div><div class="tile card">
+  <div class="tile-h"><span class="tile-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"/><path d="M21 11h-5a2 2 0 0 0 0 4h5z"/></svg></span><span>Revenue this week</span></div>
+  <b class="tile-v">4 860 €</b>
+  <p class="tile-s pos"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg>+12% vs last week</p>
+</div><div class="tile card">
+  <div class="tile-h"><span class="tile-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></span><span>Rebooking rate</span></div>
+  <b class="tile-v">64%</b>
+  <p class="tile-s">Clients who booked again within 8 weeks</p>
+</div><div class="tile card">
+  <div class="tile-h"><span class="tile-ic"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span><span>No-shows avoided</span></div>
+  <b class="tile-v">7</b>
+  <p class="tile-s">This month, thanks to reminders and deposits</p>
+</div></section>
+
+    <div class="cols">
+      <section class="card pad up-card">
+        <div class="card-h"><h2 class="card-t">Upcoming today</h2><a href="#" class="link">View calendar <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a></div>
+        <div class="now-row"><span class="now-dot"></span><span>Now, 10:40</span><span class="now-l"></span><span class="now-in">Awa Traoré is in Inès's chair until 12:15</span></div>
+        <ul class="ups"><li class="up">
+  <time>11:00</time>
+  <span class="av av-sm av-blush">FN</span>
+  <div class="up-m"><b>Fatou Ndiaye</b><small>Silk press with Aïcha</small></div>
+  <span class="status st-confirmed">Confirmed</span>
+  <span class="up-p">55 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Fatou Ndiaye"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li><li class="up">
+  <time>11:30</time>
+  <span class="av av-sm av-champ">TP</span>
+  <div class="up-m"><b>Thomas Petit</b><small>Cut and beard with Koffi</small></div>
+  <span class="status st-confirmed">Confirmed</span>
+  <span class="up-p">32 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Thomas Petit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li><li class="up">
+  <time>12:30</time>
+  <span class="av av-sm av-sage">CG</span>
+  <div class="up-m"><b>Chloé Garnier</b><small>Polish change with Inès</small></div>
+  <span class="status st-walkin">Walk-in</span>
+  <span class="up-p">15 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Chloé Garnier"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li><li class="up">
+  <time>13:30</time>
+  <span class="av av-sm av-blush">YB</span>
+  <div class="up-m"><b>Yasmine Benali</b><small>Knotless braids, medium with Aïcha</small></div>
+  <span class="status st-confirmed">Confirmed</span>
+  <span class="up-p">120 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Yasmine Benali"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li><li class="up">
+  <time>14:00</time>
+  <span class="av av-sm av-sage">CD</span>
+  <div class="up-m"><b>Clara Dubois</b><small>Spa pedicure with Inès</small></div>
+  <span class="status st-confirmed">Confirmed</span>
+  <span class="up-p">48 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Clara Dubois"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li><li class="up">
+  <time>16:00</time>
+  <span class="av av-sm av-blush">LM</span>
+  <div class="up-m"><b>Léa Martin</b><small>Cut and blow-dry with Aïcha</small></div>
+  <span class="status st-pending">Pending</span>
+  <span class="up-p">45 €</span>
+  <button class="icon-btn sm" aria-label="More actions for Léa Martin"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</li></ul>
+        <p class="up-foot">+ 4 more this afternoon, last booking ends at 18:30</p>
+      </section>
+
+      <div class="side">
+        <section class="card pad">
+          <h2 class="card-t">Quick actions</h2>
+          <div class="qa">
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New booking</span></a>
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4a1.5 1.5 0 1 0 0 .01"/><path d="m9 20 3-6 3 3v4M6 12l3-4 4 1 3 3 3 1"/></svg><span>Add walk-in</span></a>
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/></svg><span>Block time</span></a>
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg><span>New client</span></a>
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg><span>Take payment</span></a>
+            <a href="#" class="qa-i"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg><span>Gift card</span></a>
+          </div>
+        </section>
+
+        <section class="card prof">
+          <div class="prof-img"><img src="photos/nail-bar-interior.jpg" alt="Daylit salon interior with manicure table and plants"></div>
+          <div class="pad">
+            <div class="card-h"><h2 class="card-t">Your public profile</h2><span class="status st-confirmed">Published</span></div>
+            <p class="prof-url"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>glowflow.app/atelier-aicha</span></p>
+            <div class="prof-stats">
+              <div><b>312</b><span>Profile views, 7 days</span></div>
+              <div><b>41</b><span>Online bookings</span></div>
+            </div>
+            <div class="prof-chk"><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Photos</span><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Services and prices</span><span class="miss"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add team bios</span></div>
+            <div class="prof-act"><a href="#" class="btn btn-soft btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Preview</a><a href="#" class="btn btn-ghost btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy link</a></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card pad chart-card">
+        <div class="card-h">
+          <div><h2 class="card-t">Bookings, last 7 days</h2><p class="body-sm">82 bookings, 61% made online</p></div>
+          <div class="seg"><button class="on">7 days</button><button>30 days</button></div>
+        </div>
+        <svg viewBox="0 0 700 200" class="chart" role="img" aria-label="Bookings over the last 7 days: Friday 11, Saturday 18, Sunday closed, Monday 9, Tuesday 13, Wednesday 15, today 16"><line x1="34" x2="700" y1="170.0" y2="170.0" class="gl"/><text x="24" y="174.0" text-anchor="end" class="cy">0</text><line x1="34" x2="700" y1="96.0" y2="96.0" class="gl"/><text x="24" y="100.0" text-anchor="end" class="cy">10</text><line x1="34" x2="700" y1="22.0" y2="22.0" class="gl"/><text x="24" y="26.0" text-anchor="end" class="cy">20</text><rect x="55.6" y="88.6" width="52" height="81.4" rx="10" fill="var(--blush)"><title>Fri: 11 bookings</title></rect><text x="81.6" y="81.6" text-anchor="middle" class="cv">11</text><text x="81.6" y="192" text-anchor="middle" class="cx">Fri</text><rect x="150.7" y="36.8" width="52" height="133.2" rx="10" fill="var(--blush)"><title>Sat: 18 bookings</title></rect><text x="176.7" y="29.8" text-anchor="middle" class="cv">18</text><text x="176.7" y="192" text-anchor="middle" class="cx">Sat</text><rect x="245.9" y="167" width="52" height="3" rx="1.5" fill="var(--line-strong)"/><text x="271.9" y="160" text-anchor="middle" class="cv">Closed</text><text x="271.9" y="192" text-anchor="middle" class="cx">Sun</text><rect x="341.0" y="103.4" width="52" height="66.6" rx="10" fill="var(--blush)"><title>Mon: 9 bookings</title></rect><text x="367.0" y="96.4" text-anchor="middle" class="cv">9</text><text x="367.0" y="192" text-anchor="middle" class="cx">Mon</text><rect x="436.1" y="73.8" width="52" height="96.2" rx="10" fill="var(--blush)"><title>Tue: 13 bookings</title></rect><text x="462.1" y="66.8" text-anchor="middle" class="cv">13</text><text x="462.1" y="192" text-anchor="middle" class="cx">Tue</text><rect x="531.3" y="59.0" width="52" height="111.0" rx="10" fill="var(--blush)"><title>Wed: 15 bookings</title></rect><text x="557.3" y="52.0" text-anchor="middle" class="cv">15</text><text x="557.3" y="192" text-anchor="middle" class="cx">Wed</text><rect x="626.4" y="51.6" width="52" height="118.4" rx="10" fill="var(--mulberry)"><title>Thu: 16 bookings</title></rect><text x="652.4" y="44.6" text-anchor="middle" class="cv cv-on">16</text><text x="652.4" y="192" text-anchor="middle" class="cx cx-on">Today</text></svg>
+      </section>
+    </div>
+  </main>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlowFlow, States and components</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .page{width:min(1280px,100% - 96px);margin:0 auto;padding:40px 0 80px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:28px;border-bottom:1px solid var(--line);margin-bottom:36px}
+  .head img{height:28px;margin-bottom:28px}
+  .head p.lead{font-size:17px;margin-top:8px}
+  .head .ver{font-size:13px;color:var(--muted);text-align:right}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:24px}
+  .panel{background:var(--white);border:1px solid var(--line);border-radius:var(--r-lg);padding:28px;box-shadow:var(--shadow-sm)}
+  .s12{grid-column:span 12}.s8{grid-column:span 8}.s7{grid-column:span 7}.s6{grid-column:span 6}.s5{grid-column:span 5}.s4{grid-column:span 4}
+  .panel>h2{font-family:var(--font-display);font-weight:600;font-size:26px;line-height:1.1;margin-bottom:4px}
+  .panel>.sub{font-size:14px;color:var(--muted);margin-bottom:22px}
+  .row{display:flex;flex-wrap:wrap;gap:20px 18px;align-items:flex-end}
+  .spec{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+  .tagline{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--champagne-deep);font-weight:500}
+  .rule{height:1px;background:var(--line);margin:22px 0}
+
+  /* Button states */
+  .btn:focus-visible,.is-focus{outline:none;box-shadow:0 0 0 2px var(--white),0 0 0 4px rgba(122,70,89,.4)!important}
+  .btn[disabled]{background:var(--linen);color:var(--muted);box-shadow:none;cursor:not-allowed;border-color:transparent}
+  .btn-lg{height:56px;padding:0 30px;font-size:16.5px}
+  .btn-icon{width:48px;padding:0}
+  .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp 0.9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* Inputs */
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .f .label{display:block;margin-bottom:8px}
+  .f .help{font-size:13px;color:var(--muted);margin-top:6px}
+  .input.focus{border-color:var(--mulberry);box-shadow:0 0 0 2px rgba(122,70,89,.4)}
+  .input.err{border-color:var(--brick);background:var(--white)}
+  .f .errt{font-size:13px;color:var(--brick);margin-top:6px;display:flex;gap:6px;align-items:center}
+  .f .errt .icon{width:15px;height:15px}
+  .input[disabled]{background:var(--linen);color:var(--muted);border-color:var(--line)}
+  .sel{position:relative}
+  .sel .input{display:flex;align-items:center;padding-right:44px}
+  .sel .chev{position:absolute;right:14px;top:14px;color:var(--muted)}
+  .menu{margin-top:6px;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-md);padding:6px}
+  .menu div{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-radius:10px;font-size:14.5px;color:var(--ink-2)}
+  .menu .hov{background:var(--blush-soft);color:var(--mulberry-deep)}
+  .menu .icon{width:16px;height:16px;color:var(--mulberry)}
+
+  /* Controls */
+  .ctl{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--ink-2);min-height:44px}
+  .cb{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line-strong);background:var(--white);display:flex;align-items:center;justify-content:center;flex:0 0 22px}
+  .cb.on{background:var(--mulberry);border-color:var(--mulberry)}
+  .cb svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+  .cb.mixed{background:var(--mulberry);border-color:var(--mulberry)}
+  .cb.mixed::after{content:"";width:10px;height:2px;background:#fff;border-radius:2px}
+  .rd{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-strong);background:var(--white);flex:0 0 22px;display:flex;align-items:center;justify-content:center}
+  .rd.on{border-color:var(--mulberry)}
+  .rd.on::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--mulberry)}
+  .dis{opacity:.5}
+  .sw{width:44px;height:26px;border-radius:999px;background:var(--line-strong);position:relative;flex:0 0 44px}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm)}
+  .sw.on{background:var(--mulberry)}
+  .sw.on::after{left:21px}
+  .ctlcols{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 24px}
+
+  /* Status badges */
+  .badge{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px 0 10px;border-radius:999px;font-size:13px;font-weight:500}
+  .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+  .b-ok{background:var(--sage-soft);color:var(--sage-deep)}
+  .b-pend{background:var(--champagne-soft);color:var(--champagne-deep)}
+  .b-can{background:var(--brick-soft);color:var(--brick)}
+  .b-no{background:var(--linen);color:var(--muted)}
+  .b-no::before{background:transparent;border:1.5px solid currentColor;width:5px;height:5px}
+  .b-walk{background:var(--blush);color:var(--mulberry-deep)}
+  .b-done{background:var(--ink);color:var(--porcelain)}
+  .chip-x{gap:8px;padding-right:6px}
+  .chip-x .x{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(94,52,69,.1)}
+  .chip-x .x svg{width:12px;height:12px}
+  .filter{height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--line-strong);font-size:14px;color:var(--ink-2);display:inline-flex;align-items:center;gap:8px;background:var(--white)}
+  .filter.on{background:var(--ink);color:var(--porcelain);border-color:var(--ink)}
+
+  /* Toast */
+  .toasts{display:grid;gap:12px}
+  .toast{display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--porcelain);border-radius:var(--r-md);padding:14px 14px 14px 16px;box-shadow:var(--shadow-lg);max-width:440px}
+  .toast .ic{width:32px;height:32px;border-radius:50%;background:rgba(184,198,179,.22);display:flex;align-items:center;justify-content:center;color:var(--sage);flex:0 0 32px}
+  .toast .ic .icon{width:17px;height:17px}
+  .toast b{display:block;font-size:14.5px;font-weight:500}
+  .toast span{font-size:13.5px;color:rgba(250,246,241,.75)}
+  .toast a{margin-left:auto;font-size:14px;font-weight:500;color:var(--blush);padding:8px 10px;border-radius:999px}
+  .toast.light{background:var(--white);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow-md)}
+  .toast.light .ic{background:var(--brick-soft);color:var(--brick)}
+  .toast.light span{color:var(--muted)}
+  .toast.light a{color:var(--mulberry)}
+
+  /* Dialog */
+  .scrim{background:rgba(42,33,41,.38);border-radius:var(--r-md);padding:36px;display:flex;align-items:center;justify-content:center;min-height:360px}
+  .dialog{background:var(--porcelain);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);width:400px;padding:28px}
+  .dialog .ic{width:44px;height:44px;border-radius:50%;background:var(--brick-soft);color:var(--brick);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .dialog h3{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1.15;margin-bottom:8px}
+  .dialog p{font-size:14.5px;color:var(--ink-2)}
+  .dialog .ctl{margin-top:12px;font-size:14px}
+  .dialog .acts{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+  .btn-danger{background:var(--brick);color:#fff}
+
+  /* Empty + skeleton */
+  .empty{text-align:center;padding:12px 8px}
+  .empty svg.art{width:160px;height:110px;margin:0 auto 14px;display:block}
+  .empty h3{font-family:var(--font-display);font-size:24px;font-weight:600;margin-bottom:4px}
+  .empty p{font-size:14px;color:var(--muted);max-width:280px;margin:0 auto 16px}
+  .sk{background:linear-gradient(90deg,var(--linen) 0%,var(--blush-soft) 50%,var(--linen) 100%);background-size:200% 100%;animation:shim 1.6s ease-in-out infinite;border-radius:8px}
+  @keyframes shim{to{background-position:-200% 0}}
+  .skrow{display:flex;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+  .skrow:last-child{border-bottom:0}
+
+  /* Tabs, segmented */
+  .tabs{display:flex;gap:28px;border-bottom:1px solid var(--line)}
+  .tabs a{padding:12px 0;font-size:15px;color:var(--muted);position:relative;display:flex;gap:8px;align-items:center}
+  .tabs a.on{color:var(--ink);font-weight:500}
+  .tabs a.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--mulberry);border-radius:2px}
+  .tabs .n{font-size:12px;background:var(--linen);color:var(--ink-2);padding:1px 8px;border-radius:999px}
+  .tabs a.on .n{background:var(--blush);color:var(--mulberry-deep)}
+  .seg{display:inline-flex;padding:4px;background:var(--linen);border-radius:999px;gap:2px}
+  .seg a{height:38px;padding:0 18px;display:flex;align-items:center;border-radius:999px;font-size:14px;color:var(--ink-2)}
+  .seg a.on{background:var(--white);color:var(--ink);font-weight:500;box-shadow:var(--shadow-sm)}
+  .seg.ink a.on{background:var(--mulberry);color:#fff}
+
+  /* Avatars */
+  .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:500;border:2px solid var(--white)}
+  .stack{display:flex}
+  .stack .av+.av{margin-left:-10px}
+  .a1{background:var(--blush);color:var(--mulberry-deep)}
+  .a2{background:var(--sage-soft);color:var(--sage-deep)}
+  .a3{background:var(--champagne-soft);color:var(--champagne-deep)}
+  .a4{background:var(--sand);color:var(--ink-2)}
+  .a5{background:var(--mulberry-deep);color:var(--porcelain)}
+  .avsm .av{width:30px;height:30px;font-size:11.5px}
+  .avsm .av+.av{margin-left:-6px}
+  .avlg .av{width:56px;height:56px;font-size:17px}
+  .online{position:relative}
+  .online::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:var(--sage-deep);border:2px solid var(--white)}
+
+  /* Appointment blocks */
+  .cal{display:grid;grid-template-columns:56px repeat(5,1fr);gap:0 12px;position:relative}
+  .hrs{display:grid;grid-template-rows:repeat(4,64px);font-size:12px;color:var(--muted)}
+  .hrs span{border-top:1px solid var(--line);padding-top:4px}
+  .lane{position:relative;height:256px;background:repeating-linear-gradient(var(--white) 0 63px,var(--line) 63px 64px)}
+  .lane-h{grid-column:span 1;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-weight:500;padding-bottom:8px}
+  .appt{position:absolute;left:0;right:0;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.35;overflow:hidden}
+  .appt b{display:block;font-size:14px;font-weight:500}
+  .appt .t{font-size:12px;opacity:.85}
+  .appt .badge{height:22px;font-size:11.5px;margin-top:6px;padding:0 9px 0 8px}
+  .appt.cmp{padding:6px 12px;white-space:nowrap;text-overflow:ellipsis}
+  .appt.cmp b{display:inline;font-size:13.5px}
+  .appt.cmp .t{margin-right:6px}
+  .ap-ok{background:var(--sage-soft);border-left:3px solid var(--sage-deep);color:var(--ink)}
+  .ap-pend{background:var(--champagne-soft);border:1px dashed var(--champagne);border-left:3px solid var(--champagne-deep);color:var(--ink)}
+  .ap-can{background:repeating-linear-gradient(135deg,var(--brick-soft) 0 8px,var(--white) 8px 14px);border-left:3px solid var(--brick);color:var(--ink-2)}
+  .ap-can b{text-decoration:line-through;text-decoration-color:var(--brick)}
+  .ap-no{background:var(--linen);border-left:3px solid var(--muted);color:var(--muted)}
+  .ap-walk{background:var(--blush);border-left:3px solid var(--mulberry);color:var(--ink)}
+  .ap-sel{background:var(--mulberry);color:#fff;box-shadow:0 12px 24px -12px rgba(94,52,69,.6)}
+  .ap-sel .t{opacity:.85}
+  .ap-break{background:repeating-linear-gradient(135deg,var(--linen) 0 6px,var(--porcelain) 6px 12px);color:var(--muted);border:1px dashed var(--line-strong)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <div>
+      <img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow">
+      <p class="eyebrow">Porcelain and Mulberry</p>
+      <h1 class="display-lg">States and <em>components</em></h1>
+      <p class="lead">The working parts of the GlowFlow workspace, in every state.</p>
+    </div>
+    <div class="ver">Component sheet v1.0<br>Jost and Cormorant Garamond</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- Buttons -->
+    <section class="panel s12">
+      <h2>Buttons</h2>
+      <p class="sub">Pill shaped. One primary per view. Focus ring is 2px mulberry at 40%.</p>
+      <div class="row">
+        <div class="spec"><span class="tagline">Primary</span><button class="btn btn-primary">Confirm booking</button></div>
+        <div class="spec"><span class="tagline">Ink</span><button class="btn btn-ink">Check out</button></div>
+        <div class="spec"><span class="tagline">Ghost</span><button class="btn btn-ghost">Reschedule</button></div>
+        <div class="spec"><span class="tagline">Soft</span><button class="btn btn-soft">Add walk-in</button></div>
+        <div class="spec"><span class="tagline">Focus</span><button class="btn btn-primary is-focus">Confirm booking</button></div>
+        <div class="spec"><span class="tagline">Disabled</span><button class="btn btn-primary" disabled>Confirm booking</button></div>
+        <div class="spec"><span class="tagline">Loading</span><button class="btn btn-primary" aria-busy="true"><span class="spin"></span>Saving</button></div>
+      </div>
+      <div class="rule"></div>
+      <div class="row">
+        <div class="spec"><span class="tagline">Danger</span><button class="btn btn-danger">Cancel booking</button></div>
+        <div class="spec"><span class="tagline">Large 56</span><button class="btn btn-primary btn-lg">Book now</button></div>
+        <div class="spec"><span class="tagline">Default 48</span><button class="btn btn-primary">Book now</button></div>
+        <div class="spec"><span class="tagline">Small 38</span><button class="btn btn-primary btn-sm">Book now</button></div>
+        <div class="spec"><span class="tagline">With icon</span><button class="btn btn-ghost"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New appointment</button></div>
+        <div class="spec"><span class="tagline">Icon only</span><button class="btn btn-ghost btn-icon" aria-label="More"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div>
+        <div class="spec"><span class="tagline">Text link</span><a class="btn btn-sm" style="padding:0;color:var(--mulberry);border-bottom:1px solid var(--rose);border-radius:0;height:auto;padding-bottom:2px">View client history</a></div>
+      </div>
+    </section>
+
+    <!-- Inputs -->
+    <section class="panel s7">
+      <h2>Inputs</h2>
+      <p class="sub">48px tall, 14px radius. Errors use brick text with an icon, never colour alone.</p>
+      <div class="fgrid">
+        <div class="f"><span class="tagline">Default</span><label class="label" style="margin-top:10px">Client name</label><input class="input" placeholder="e.g. Fatou Ndiaye"></div>
+        <div class="f"><span class="tagline">Focus</span><label class="label" style="margin-top:10px">Client name</label><input class="input focus" value="Koffi Mens"></div>
+        <div class="f"><span class="tagline">Error</span><label class="label" style="margin-top:10px">Phone</label><input class="input err" value="06 12 34"><p class="errt"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Enter a full phone number, 10 digits.</p></div>
+        <div class="f"><span class="tagline">Helper</span><label class="label" style="margin-top:10px">Email <span style="color:var(--muted);font-weight:400">optional</span></label><input class="input" value="lea.martin@example.invalid"><p class="help">Used for booking confirmations only.</p></div>
+        <div class="f"><span class="tagline">Disabled</span><label class="label" style="margin-top:10px">Salon ID</label><input class="input" value="GF-LYON-0412" disabled></div>
+        <div class="f"><span class="tagline">Select, open</span><label class="label" style="margin-top:10px">Stylist</label>
+          <div class="sel"><div class="input focus">Camille Laurent</div><svg class="icon chev" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></div>
+          <div class="menu"><div class="hov">Camille Laurent<svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><div>Inès Moreau</div><div>Koffi Mensah</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="panel s5">
+      <h2>Selection controls</h2>
+      <p class="sub">44px touch rows. Labels are clickable.</p>
+      <span class="tagline">Checkbox</span>
+      <div style="margin:6px 0 14px">
+        <div class="ctl"><span class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>Send SMS reminder</div>
+        <div class="ctl"><span class="cb"></span>Ask for a deposit</div>
+        <div class="ctl"><span class="cb mixed"></span>All services (3 of 6)</div>
+        <div class="ctl dis"><span class="cb"></span>Loyalty points, coming soon</div>
+      </div>
+      <span class="tagline">Radio</span>
+      <div style="margin:6px 0 14px">
+        <div class="ctl"><span class="rd on"></span>Pay at the salon</div>
+        <div class="ctl"><span class="rd"></span>Pay online now</div>
+      </div>
+      <span class="tagline">Switch</span>
+      <div style="margin-top:6px">
+        <div class="ctl" style="justify-content:space-between"><span>Accept online bookings</span><span class="sw on"></span></div>
+        <div class="ctl" style="justify-content:space-between"><span>Show prices on profile</span><span class="sw"></span></div>
+      </div>
+    </section>
+
+    <!-- Badges -->
+    <section class="panel s7">
+      <h2>Status badges and chips</h2>
+      <p class="sub">Every status pairs colour with a word and a dot shape.</p>
+      <div class="row">
+        <div class="spec"><span class="tagline">Confirmed</span><span class="badge b-ok">Confirmed</span></div>
+        <div class="spec"><span class="tagline">Pending</span><span class="badge b-pend">Pending</span></div>
+        <div class="spec"><span class="tagline">Cancelled</span><span class="badge b-can">Cancelled</span></div>
+        <div class="spec"><span class="tagline">No-show</span><span class="badge b-no">No-show</span></div>
+        <div class="spec"><span class="tagline">Walk-in</span><span class="badge b-walk">Walk-in</span></div>
+        <div class="spec"><span class="tagline">Completed</span><span class="badge b-done">Completed</span></div>
+      </div>
+      <div class="rule"></div>
+      <div class="row">
+        <div class="spec"><span class="tagline">Service tags</span><div style="display:flex;gap:8px"><span class="chip chip-blush">Braids</span><span class="chip chip-sage">Vegan products</span><span class="chip chip-champ">Bestseller</span><span class="chip">45 min</span></div></div>
+        <div class="spec"><span class="tagline">Removable</span><span class="chip chip-blush chip-x">Camille<span class="x"><svg class="icon" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></span></span></div>
+        <div class="spec"><span class="tagline">Filters</span><div style="display:flex;gap:8px"><span class="filter on">All</span><span class="filter">Today</span><span class="filter">Unpaid</span></div></div>
+      </div>
+    </section>
+
+    <!-- Toast -->
+    <section class="panel s5">
+      <h2>Toast</h2>
+      <p class="sub">Bottom left, 5 seconds, always with an undo when it can be undone.</p>
+      <div class="toasts">
+        <div class="toast"><span class="ic"><svg class="icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><div><b>Booking confirmed</b><span>Aïcha Diallo, Thu 10:30</span></div><a href="#">Undo</a></div>
+        <div class="toast light"><span class="ic"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>Couldn't send SMS</b><span>Check the client's number.</span></div><a href="#">Retry</a></div>
+      </div>
+    </section>
+
+    <!-- Dialog -->
+    <section class="panel s7">
+      <h2>Dialog</h2>
+      <p class="sub">Destructive actions name the consequence. Primary sits on the right.</p>
+      <div class="scrim">
+        <div class="dialog" role="dialog" aria-modal="true">
+          <div class="ic"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4"/></svg></div>
+          <h3>Cancel this booking?</h3>
+          <p>Koffi Mensah, Fade and beard trim, Sat 16 Nov at 14:00. The 15 € deposit will be refunded.</p>
+          <div class="ctl"><span class="cb on"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>Let Koffi know by SMS</div>
+          <div class="acts"><button class="btn btn-ghost btn-sm">Keep booking</button><button class="btn btn-danger btn-sm">Cancel booking</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty + Skeleton -->
+    <section class="panel s5" style="display:flex;flex-direction:column">
+      <h2>Empty state</h2>
+      <p class="sub">Line art only. One clear next step.</p>
+      <div class="empty" style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <svg class="art" viewBox="0 0 160 110" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="26" y="18" width="92" height="76" rx="14" fill="var(--blush-soft)" stroke="var(--rose)" stroke-width="1.6"/>
+          <path d="M44 42h56M44 58h40M44 74h24" stroke="var(--line-strong)" stroke-width="1.6"/>
+          <circle cx="118" cy="78" r="20" fill="var(--porcelain)" stroke="var(--mulberry)" stroke-width="1.6"/>
+          <path d="m132 92 10 10" stroke="var(--mulberry)" stroke-width="1.6"/>
+        </svg>
+        <h3>No clients match "Yasmin"</h3>
+        <p>Check the spelling or add Yasmin as a new client.</p>
+        <button class="btn btn-soft btn-sm">Add new client</button>
+      </div>
+    </section>
+
+    <section class="panel s5">
+      <h2>Skeleton loader</h2>
+      <p class="sub">Shown after 300ms. Shapes mirror the final layout.</p>
+      <div>
+        <div class="skrow"><div class="sk" style="width:40px;height:40px;border-radius:50%"></div><div style="flex:1;display:grid;gap:8px"><div class="sk" style="height:12px;width:55%"></div><div class="sk" style="height:10px;width:35%"></div></div><div class="sk" style="width:84px;height:26px;border-radius:999px"></div></div>
+        <div class="skrow"><div class="sk" style="width:40px;height:40px;border-radius:50%"></div><div style="flex:1;display:grid;gap:8px"><div class="sk" style="height:12px;width:45%"></div><div class="sk" style="height:10px;width:28%"></div></div><div class="sk" style="width:84px;height:26px;border-radius:999px"></div></div>
+        <div class="skrow"><div class="sk" style="width:40px;height:40px;border-radius:50%"></div><div style="flex:1;display:grid;gap:8px"><div class="sk" style="height:12px;width:60%"></div><div class="sk" style="height:10px;width:40%"></div></div><div class="sk" style="width:84px;height:26px;border-radius:999px"></div></div>
+      </div>
+    </section>
+
+    <!-- Tabs + segmented -->
+    <section class="panel s7">
+      <h2>Tabs and segmented control</h2>
+      <p class="sub">Tabs switch content. Segmented controls switch the view of the same content.</p>
+      <span class="tagline">Tabs</span>
+      <div class="tabs" style="margin:8px 0 24px"><a class="on">Upcoming <span class="n">12</span></a><a>Past <span class="n">148</span></a><a>Cancelled <span class="n">3</span></a><a>Notes</a></div>
+      <div class="row">
+        <div class="spec"><span class="tagline">Segmented, calendar view</span><div class="seg"><a>Day</a><a class="on">Week</a><a>Month</a></div></div>
+        <div class="spec"><span class="tagline">Segmented, strong</span><div class="seg ink"><a class="on">FR</a><a>EN</a><a>ES</a></div></div>
+      </div>
+    </section>
+
+    <!-- Avatars -->
+    <section class="panel s12">
+      <h2>Avatars and groups</h2>
+      <p class="sub">Initials on soft tones when there is no photo. Groups overlap by 10px with a white ring.</p>
+      <div class="row" style="gap:20px 48px;align-items:flex-start">
+        <div class="spec"><span class="tagline">Small 30</span><div class="stack avsm"><span class="av a1">AD</span><span class="av a2">KM</span><span class="av a3">LM</span></div></div>
+        <div class="spec"><span class="tagline">Default 40, team on shift</span><div class="stack"><span class="av a1">CL</span><span class="av a2">IM</span><span class="av a3">KM</span><span class="av a4">FN</span><span class="av a5">+3</span></div></div>
+        <div class="spec"><span class="tagline">Large 56, online</span><div class="avlg"><span class="av a1 online">AD</span></div></div>
+        <div class="spec"><span class="tagline">With name</span><div style="display:flex;gap:12px;align-items:center"><span class="av a2">YB</span><div><b style="display:block;font-size:15px;font-weight:500">Yasmine Benali</b><span style="font-size:13px;color:var(--muted)">Lash artist, 4 bookings today</span></div></div></div>
+      </div>
+    </section>
+
+    <!-- Appointment blocks -->
+    <section class="panel s12">
+      <h2>Appointment blocks</h2>
+      <p class="sub">Calendar blocks per status. Left edge carries the status colour; cancelled blocks are hatched and struck through.</p>
+      <div class="cal">
+        <div></div>
+        <div class="lane-h">Confirmed</div><div class="lane-h">Pending</div><div class="lane-h">Cancelled and no-show</div><div class="lane-h">Walk-in and break</div><div class="lane-h">Selected</div>
+        <div class="hrs"><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span></div>
+        <div class="lane"><div class="appt ap-ok" style="top:2px;height:108px"><span class="t">10:00 to 11:45</span><b>Aïcha Diallo</b>Box braids, medium<br><span class="badge b-ok">Confirmed</span></div><div class="appt ap-ok cmp" style="top:130px;height:44px"><span class="t">12:00</span><b>Léa Martin</b><br>Gel manicure</div></div>
+        <div class="lane"><div class="appt ap-pend" style="top:34px;height:92px"><span class="t">10:30 to 12:00</span><b>Inès Moreau</b>Lash lift and tint<br><span class="badge b-pend">Awaiting deposit</span></div></div>
+        <div class="lane"><div class="appt ap-can cmp" style="top:2px;height:44px"><span class="t">10:00</span><b>Camille Laurent</b><br>Blow-dry, cancelled</div><div class="appt ap-no" style="top:114px;height:92px"><span class="t">11:45 to 13:15</span><b>Moussa Traoré</b>Fade and beard<br><span class="badge b-no">No-show</span></div></div>
+        <div class="lane"><div class="appt ap-walk" style="top:2px;height:108px"><span class="t">10:00 to 11:45</span><b>Walk-in, Awa</b>Pedicure, 12 000 XOF<br><span class="badge b-walk">Walk-in</span></div><div class="appt ap-break cmp" style="top:130px;height:44px"><span class="t">12:00</span><b>Lunch break</b><br>Until 12:45</div></div>
+        <div class="lane"><div class="appt ap-sel" style="top:66px;height:108px"><span class="t">11:00 to 12:45</span><b>Fatou Ndiaye</b>Silk press and trim<br>65 €, deposit paid</div></div>
+      </div>
+      <div class="legend"><span>Height scales with duration, 64px per hour</span><span>Minimum block 30 min</span><span>Selected block lifts with mulberry fill</span></div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

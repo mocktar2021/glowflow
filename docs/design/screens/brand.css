@@ -1,0 +1,68 @@
+/* GlowFlow "Porcelain & Mulberry" reference styles for the static mockups.
+   Production values live in tokens/globals.css (same names, same numbers). */
+@font-face{font-family:"Jost";src:url(../brand/fonts/jost-latin-wght-normal.woff2) format("woff2");font-weight:300 700;font-display:swap}
+@font-face{font-family:"Jost";src:url(../brand/fonts/jost-latin-wght-italic.woff2) format("woff2");font-weight:300 700;font-style:italic;font-display:swap}
+@font-face{font-family:"Cormorant Garamond";src:url(../brand/fonts/cormorant-garamond-latin-500-normal.woff2) format("woff2");font-weight:500}
+@font-face{font-family:"Cormorant Garamond";src:url(../brand/fonts/cormorant-garamond-latin-500-italic.woff2) format("woff2");font-weight:500;font-style:italic}
+@font-face{font-family:"Cormorant Garamond";src:url(../brand/fonts/cormorant-garamond-latin-600-normal.woff2) format("woff2");font-weight:600}
+@font-face{font-family:"Cormorant Garamond";src:url(../brand/fonts/cormorant-garamond-latin-600-italic.woff2) format("woff2");font-weight:600;font-style:italic}
+
+:root{
+  --porcelain:#FAF6F1; --linen:#F3ECE4; --sand:#EADFD3; --white:#FFFFFF;
+  --ink:#2A2129; --ink-2:#4A3D46; --muted:#6E5F68; --line:#E6DBD0; --line-strong:#D6C7B9;
+  --mulberry:#7A4659; --mulberry-deep:#5E3445; --blush:#F2DDD6; --blush-soft:#F8ECE7; --rose:#D9A7A8;
+  --champagne:#C8A27A; --champagne-deep:#8A6A44; --champagne-soft:#F1E4D2;
+  --sage:#B8C6B3; --sage-deep:#4F6B53; --sage-soft:#E7EDE3;
+  --brick:#A8443C; --brick-soft:#F6E1DD;
+
+  --background:var(--porcelain); --foreground:var(--ink);
+  --card:var(--white); --primary:var(--mulberry); --primary-foreground:#fff;
+
+  --font-sans:"Jost",ui-sans-serif,system-ui,sans-serif;
+  --font-display:"Cormorant Garamond","Cormorant",Georgia,serif;
+
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-pill:999px;
+  --shadow-sm:0 1px 2px rgba(42,33,41,.05),0 1px 1px rgba(42,33,41,.03);
+  --shadow-md:0 10px 30px -12px rgba(42,33,41,.18),0 2px 6px rgba(42,33,41,.04);
+  --shadow-lg:0 30px 60px -24px rgba(94,52,69,.28),0 8px 20px -10px rgba(42,33,41,.10);
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-family:var(--font-sans);background:var(--background);color:var(--foreground);font-size:16px;line-height:1.55;font-weight:400}
+img{display:block;max-width:100%}
+[class*="display-"],h1,h2,h3,h4{font-variant-numeric:lining-nums proportional-nums}
+a{color:inherit;text-decoration:none}
+
+/* Type scale */
+.display-xl{font-family:var(--font-display);font-weight:500;font-size:clamp(46px,6.4vw,84px);line-height:1.02;letter-spacing:-.015em}
+.display-lg{font-family:var(--font-display);font-weight:500;font-size:clamp(36px,4.4vw,58px);line-height:1.06;letter-spacing:-.01em}
+.display-md{font-family:var(--font-display);font-weight:500;font-size:clamp(28px,3vw,40px);line-height:1.1}
+.display-sm{font-family:var(--font-display);font-weight:600;font-size:26px;line-height:1.15}
+.display-xl em,.display-lg em,.display-md em,.display-sm em{font-style:italic;color:var(--mulberry)}
+.eyebrow{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;color:var(--champagne-deep)}
+.lead{font-size:19px;line-height:1.6;color:var(--ink-2);font-weight:350}
+.body-sm{font-size:14px;color:var(--muted)}
+.label{font-size:13px;font-weight:500;color:var(--ink-2)}
+
+/* Buttons: pill, calm */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 24px;border-radius:var(--r-pill);font:500 15.5px/1 var(--font-sans);letter-spacing:.01em;border:1px solid transparent;cursor:pointer;transition:all .25s var(--ease);white-space:nowrap}
+.btn-primary{background:var(--mulberry);color:#fff;box-shadow:0 8px 20px -10px rgba(122,70,89,.55)}
+.btn-primary:hover{background:var(--mulberry-deep)}
+.btn-ink{background:var(--ink);color:var(--porcelain)}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--line-strong)}
+.btn-ghost:hover{background:var(--white)}
+.btn-soft{background:var(--blush);color:var(--mulberry-deep)}
+.btn-sm{height:38px;padding:0 16px;font-size:14px}
+
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--r-pill);font-size:13px;font-weight:500;background:var(--linen);color:var(--ink-2)}
+.chip-blush{background:var(--blush);color:var(--mulberry-deep)}
+.chip-sage{background:var(--sage-soft);color:var(--sage-deep)}
+.chip-champ{background:var(--champagne-soft);color:var(--champagne-deep)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm)}
+.input{height:48px;width:100%;border-radius:var(--r-md);border:1px solid var(--line-strong);background:var(--white);padding:0 16px;font:400 15px var(--font-sans);color:var(--ink)}
+.divider{height:1px;background:var(--line)}
+.container{width:min(1200px,100% - 40px);margin-inline:auto}
+.icon{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

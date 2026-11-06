@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlowFlow, Create workspace</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  .top{display:flex;align-items:center;justify-content:space-between;padding:28px 48px}
+  .top img{height:28px}
+  .top p{font-size:14px;color:var(--muted)}
+  .top p a{color:var(--mulberry);font-weight:500;margin-left:6px}
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:56px;width:min(1120px,100% - 96px);margin:12px auto 64px;align-items:start}
+  .steps{display:flex;gap:10px;margin-bottom:36px;list-style:none}
+  .steps li{flex:1}
+  .bar{height:4px;border-radius:4px;background:var(--line);margin-bottom:12px}
+  .steps .done .bar,.steps .now .bar{background:var(--mulberry)}
+  .steps .now .bar{background:linear-gradient(90deg,var(--mulberry) 50%,var(--line) 50%)}
+  .steps .n{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+  .steps .t{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--muted);margin-top:2px}
+  .steps .now .t{color:var(--ink);font-weight:500}
+  .steps .done .t{color:var(--ink-2)}
+  .steps .ck{width:18px;height:18px;border-radius:50%;background:var(--mulberry);display:inline-flex;align-items:center;justify-content:center}
+  .steps .ck svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+  h1{margin-bottom:10px}
+  .intro{font-size:17px;color:var(--ink-2);margin-bottom:32px;max-width:560px}
+  .card{padding:36px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px 20px}
+  .full{grid-column:1/-1}
+  .label{display:block;margin-bottom:8px}
+  .help{font-size:13px;color:var(--muted);margin-top:6px}
+  .input:focus,.input.is-focus{outline:none;border-color:var(--mulberry);box-shadow:0 0 0 2px rgba(122,70,89,.4)}
+  .select{position:relative}
+  .select .input{appearance:none;padding-left:48px;padding-right:44px;display:flex;align-items:center}
+  .select .chev{position:absolute;right:16px;top:14px;color:var(--muted)}
+  .flag{position:absolute;left:16px;top:16px;width:22px;height:16px;border-radius:3px;overflow:hidden;display:flex;box-shadow:0 0 0 1px var(--line)}
+  .flag i{flex:1}
+  .phone{display:flex;gap:10px}
+  .cc{flex:0 0 132px;position:relative}
+  .cc .input{padding-left:48px;padding-right:30px}
+  .cc .chev{position:absolute;right:12px;top:14px;color:var(--muted);width:18px;height:18px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .pick{height:44px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--line-strong);background:var(--white);font:500 14.5px var(--font-sans);color:var(--ink-2);display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+  .pick .icon{width:18px;height:18px;color:var(--muted)}
+  .pick.on{background:var(--blush);border-color:var(--rose);color:var(--mulberry-deep)}
+  .pick.on .icon{color:var(--mulberry)}
+  .actions{display:flex;justify-content:space-between;align-items:center;margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}
+  .actions .body-sm{max-width:300px}
+
+  aside .preview{background:var(--linen);border-radius:var(--r-lg);padding:28px;border:1px solid var(--line)}
+  aside .eyebrow{margin-bottom:16px}
+  .ws{background:var(--white);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-md)}
+  .ws-head{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+  .mono{width:52px;height:52px;border-radius:16px;background:var(--mulberry-deep);color:var(--porcelain);font-family:var(--font-display);font-size:26px;display:flex;align-items:center;justify-content:center}
+  .ws-head b{display:block;font-family:var(--font-display);font-size:24px;font-weight:600;line-height:1.1;color:var(--ink)}
+  .ws-head span span{font-size:13.5px;color:var(--muted)}
+  .ws ul{list-style:none;display:grid;gap:12px;font-size:14px;color:var(--ink-2)}
+  .ws li{display:flex;gap:10px;align-items:center}
+  .ws li .icon{width:18px;height:18px;color:var(--mulberry)}
+  .ws .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .url{margin-top:16px;padding:12px 14px;border-radius:var(--r-md);background:var(--porcelain);font-size:13.5px;color:var(--ink-2);display:flex;gap:8px;align-items:center}
+  .url .icon{width:16px;height:16px;color:var(--muted)}
+  .reassure{list-style:none;margin-top:22px;display:grid;gap:14px}
+  .reassure li{display:flex;gap:12px;font-size:14px;color:var(--ink-2)}
+  .reassure .icon{flex:0 0 20px;color:var(--champagne-deep);margin-top:1px}
+</style>
+</head>
+<body>
+<header class="top">
+  <img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow">
+  <p>Already have a workspace?<a href="auth-signin.html">Sign in</a></p>
+</header>
+
+<div class="wrap">
+  <main>
+    <ol class="steps">
+      <li class="now"><div class="bar"></div><div class="n">Step 1</div><div class="t">Your salon</div></li>
+      <li><div class="bar"></div><div class="n">Step 2</div><div class="t">Location</div></li>
+      <li><div class="bar"></div><div class="n">Step 3</div><div class="t">Your team</div></li>
+    </ol>
+
+    <h1 class="display-md">Create your <em>workspace</em></h1>
+    <p class="intro">Tell us a little about your salon. You can change all of this later in settings.</p>
+
+    <form class="card" onsubmit="return false">
+      <div class="grid">
+        <div class="full">
+          <label class="label" for="sn">Salon name</label>
+          <input id="sn" class="input is-focus" value="Maison Aïcha">
+          <p class="help">Shown to clients on your booking page.</p>
+        </div>
+        <div>
+          <label class="label">Country</label>
+          <div class="select">
+            <span class="flag"><i style="background:#2B4C9B"></i><i style="background:#fff"></i><i style="background:#D33A3A"></i></span>
+            <div class="input" role="combobox" aria-expanded="false">France</div>
+            <svg class="icon chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div>
+          <label class="label" for="city">City</label>
+          <input id="city" class="input" value="Lyon">
+        </div>
+        <div class="full">
+          <label class="label" for="ph">Salon phone</label>
+          <div class="phone">
+            <div class="cc">
+              <span class="flag"><i style="background:#2B4C9B"></i><i style="background:#fff"></i><i style="background:#D33A3A"></i></span>
+              <div class="input" style="display:flex;align-items:center">+33</div>
+              <svg class="icon chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+            <input id="ph" class="input" value="4 78 92 31 06">
+          </div>
+          <p class="help">Clients get SMS reminders from this number's country code.</p>
+        </div>
+        <div class="full">
+          <span class="label">What kind of salon is it? <span style="color:var(--muted);font-weight:400">Pick all that apply</span></span>
+          <div class="chips">
+            <button type="button" class="pick on"><svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>Hair</button>
+            <button type="button" class="pick on"><svg class="icon" viewBox="0 0 24 24"><rect x="7" y="10" width="10" height="12" rx="2"/><path d="M10 10V6h4v4M11 6V2h2v4"/></svg>Nails</button>
+            <button type="button" class="pick"><svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6"/><path d="M5 10 3.5 7.5M9 7.5 8.5 5M15 7.5l.5-2.5M19 10l1.5-2.5"/><circle cx="12" cy="13" r="2.5"/></svg>Lashes and brows</button>
+            <button type="button" class="pick"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22c4.4 0 8-3.6 8-8 0-5-8-12-8-12S4 9 4 14c0 4.4 3.6 8 8 8z"/></svg>Skin and facials</button>
+            <button type="button" class="pick"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21 14 10"/><path d="M14 10l2-2a3 3 0 0 1 4.2 4.2L13 19.4"/><path d="M8 16l2 2"/></svg>Barbering</button>
+            <button type="button" class="pick"><svg class="icon" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10z"/><path d="M2 21c0-3 1.9-5.4 5.1-6"/></svg>Spa and massage</button>
+            <button type="button" class="pick"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Other</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <p class="body-sm">Free for 30 days. No card needed to start.</p>
+        <button class="btn btn-primary">Continue to location<svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+    </form>
+  </main>
+
+  <aside>
+    <div class="preview">
+      <p class="eyebrow">Your booking page preview</p>
+      <div class="ws">
+        <div class="ws-head"><span class="mono">A</span><span><b>Maison Aïcha</b><span>Lyon, France</span></span></div>
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>Address added in step 2</li>
+          <li><svg class="icon" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>+33 4 78 92 31 06</li>
+        </ul>
+        <div class="tags"><span class="chip chip-blush">Hair</span><span class="chip chip-blush">Nails</span></div>
+        <div class="url"><svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>glowflow.app/maison-aicha</div>
+      </div>
+      <ul class="reassure">
+        <li><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Client data stays in the EU and is never sold.</li>
+        <li><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Most salons are taking bookings within 15 minutes.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+</body>
+</html>

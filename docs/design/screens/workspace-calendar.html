@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GlowFlow Calendar</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+body{background:var(--porcelain);font-variant-numeric:lining-nums}
+.display-xl,.display-lg,.display-md,.display-sm,.card-t{font-variant-numeric:lining-nums}
+.app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
+.sidebar{min-height:100vh;display:flex;flex-direction:column;gap:18px;padding:24px 16px 18px;background:var(--linen);border-right:1px solid var(--line)}
+.sb-logo{padding:2px 10px 4px}
+.sb-logo img{height:28px;width:auto}
+.salon-switch{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);font:inherit;color:var(--ink);cursor:pointer;text-align:left}
+.salon-switch .icon{width:16px;height:16px;color:var(--muted);margin-left:auto}
+.salon-av{width:34px;height:34px;border-radius:10px;background:var(--mulberry);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:16px;flex:none}
+.salon-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.salon-txt b{font-weight:500;font-size:14.5px}
+.salon-txt small{font-size:12.5px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:var(--r-pill);font-size:14.5px;color:var(--ink-2);transition:background .2s var(--ease)}
+.nav-item .icon{width:18px;height:18px;color:var(--muted)}
+.nav-item:hover{background:rgba(255,255,255,.6)}
+.nav-item.active{background:var(--blush);color:var(--mulberry-deep);font-weight:500}
+.nav-item.active .icon{color:var(--mulberry)}
+.nav-badge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--champagne-soft);color:var(--champagne-deep);font-size:12px;font-weight:500;display:grid;place-items:center}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:12px;border-top:1px solid var(--line)}
+.sb-user{display:flex;align-items:center;gap:10px;padding:12px 10px 0;line-height:1.2}
+.sb-user b{font-weight:500;font-size:14px;display:block}
+.sb-user small{font-size:12.5px;color:var(--muted)}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid rgba(122,70,89,.4);outline-offset:2px}
+
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:500;font-size:15px;flex:none;letter-spacing:.02em}
+.av-sm{width:34px;height:34px;font-size:13px}
+.av-blush{background:var(--blush);color:var(--mulberry-deep)}
+.av-sage{background:var(--sage-soft);color:var(--sage-deep)}
+.av-champ{background:var(--champagne-soft);color:var(--champagne-deep)}
+.av-linen{background:var(--linen);color:var(--ink-2)}
+
+.topbar{height:72px;display:flex;align-items:center;gap:16px;padding:0 32px;border-bottom:1px solid var(--line);background:var(--porcelain);position:sticky;top:0;z-index:5}
+.search{display:flex;align-items:center;gap:10px;height:42px;padding:0 16px;border-radius:var(--r-pill);background:var(--white);border:1px solid var(--line);color:var(--muted);font-size:14px;width:280px}
+.search .icon{width:17px;height:17px}
+.search kbd{margin-left:auto;font:500 11.5px var(--font-sans);color:var(--muted);background:var(--linen);border-radius:6px;padding:2px 7px}
+.icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--white);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;position:relative;flex:none}
+.icon-btn .icon{width:18px;height:18px}
+.dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--mulberry);border:2px solid var(--white)}
+.status{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--r-pill);font-size:12px;font-weight:500;white-space:nowrap}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-confirmed{background:var(--sage-soft);color:var(--sage-deep)}
+.st-pending{background:var(--champagne-soft);color:var(--champagne-deep)}
+.st-walkin{background:var(--blush);color:var(--mulberry-deep)}
+.st-done{background:var(--linen);color:var(--muted)}
+.st-noshow{background:var(--brick-soft);color:var(--brick)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-t{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.15;color:var(--ink)}
+.link{font-size:13.5px;font-weight:500;color:var(--mulberry);display:inline-flex;align-items:center;gap:4px}
+.link .icon{width:15px;height:15px}
+
+.split{display:grid;grid-template-columns:1fr 340px;flex:1}
+.content{min-width:0;display:flex;flex-direction:column}
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{padding:0 24px;gap:14px}
+.datenav{display:flex;align-items:center;gap:8px}
+.datenav .icon-btn{width:38px;height:38px}
+.today-btn{height:38px}
+.date-h{font-family:var(--font-display);font-weight:500;font-size:28px;margin-left:10px;white-space:nowrap;letter-spacing:-.005em}
+.date-h em{font-style:italic;color:var(--mulberry)}
+.seg{display:flex;padding:4px;border-radius:var(--r-pill);background:var(--linen);border:1px solid var(--line);margin-left:6px}
+.seg button{height:32px;padding:0 16px;border-radius:var(--r-pill);border:0;background:transparent;font:500 13.5px var(--font-sans);color:var(--muted);cursor:pointer}
+.seg .on{background:var(--white);color:var(--ink);box-shadow:var(--shadow-sm)}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.search{width:260px;white-space:nowrap}
+.new-btn .icon{width:17px;height:17px}
+.cal-wrap{padding:18px 24px 28px}
+.cal-sub{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.legend{display:flex;gap:18px;font-size:13.5px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:12px;height:12px;border-radius:4px}
+.sw-blush{background:var(--blush);border:1px solid var(--rose)}
+.sw-sage{background:var(--sage-soft);border:1px solid var(--sage)}
+.sw-champ{background:var(--champagne-soft);border:1px solid var(--champagne)}
+.legend-st{display:flex;gap:6px}
+.cal{overflow:hidden;border-radius:var(--r-lg)}
+.cal-head{display:grid;grid-template-columns:58px repeat(3,1fr);border-bottom:1px solid var(--line);background:var(--white)}
+.gutter-h{font-size:11px;color:var(--muted);display:grid;place-items:end center;padding-bottom:10px}
+.col-head{display:flex;align-items:center;gap:10px;padding:14px 14px;border-left:1px solid var(--line)}
+.ch-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.ch-txt b{font-weight:500;font-size:14.5px}
+.ch-txt small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-count{margin-left:auto;font-size:12px;color:var(--muted);background:var(--linen);border-radius:var(--r-pill);padding:2px 9px}
+.cal-body{display:grid;grid-template-columns:58px 1fr;position:relative;padding-top:8px;background:var(--white)}
+.gutter{position:relative}
+.hr{position:absolute;right:10px;transform:translateY(-50%);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.grid{position:relative}
+.gl{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+.gl.half{background:transparent;border-top:1px dashed var(--linen)}
+.cols{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr)}
+.col{position:relative;border-left:1px solid var(--line)}
+.appt{position:absolute;left:6px;right:6px;border-radius:12px;padding:8px 10px;overflow:hidden;border-left:3px solid;display:flex;flex-direction:column;gap:2px;font-size:12.5px;line-height:1.3}
+.appt-row{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.appt b{font-weight:500;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appt time{font-size:11.5px;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.appt-svc{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appt .status{margin-top:auto;align-self:flex-start;height:20px;font-size:11px;padding:0 8px;background:rgba(255,255,255,.7)}
+.appt.short{flex-direction:row;align-items:center;gap:8px;padding:4px 10px}
+.appt.short .appt-row{flex:1;min-width:0}
+.appt.short .appt-svc{display:none}
+.tint-blush{background:var(--blush-soft);border-color:var(--rose)}
+.tint-sage{background:var(--sage-soft);border-color:var(--sage-deep)}
+.tint-champ{background:var(--champagne-soft);border-color:var(--champagne)}
+.appt.is-done{opacity:.62}
+.appt.is-pending{background:repeating-linear-gradient(135deg,var(--blush-soft) 0 8px,var(--white) 8px 16px);border:1px dashed var(--rose);border-left:3px dashed var(--rose)}
+.appt.is-walkin{border-left-style:solid;box-shadow:inset 0 0 0 1px rgba(122,70,89,.18)}
+.appt.is-walkin::after{content:"";position:absolute;top:8px;right:8px}
+.appt.is-next{box-shadow:0 0 0 2px rgba(122,70,89,.4),var(--shadow-md)}
+.open-slot{position:absolute;left:6px;right:6px;border:1.5px dashed var(--line-strong);border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12.5px}
+.open-slot .icon{width:15px;height:15px}
+.break{position:absolute;left:6px;right:6px;border-radius:12px;background:repeating-linear-gradient(45deg,var(--linen) 0 6px,var(--porcelain) 6px 12px);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+.break span{background:var(--porcelain);padding:1px 8px;border-radius:var(--r-pill)}
+.now{position:absolute;left:0;right:0;height:2px;background:var(--mulberry);z-index:3}
+.now::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--mulberry)}
+.now span{position:absolute;left:-58px;top:-10px;width:50px;text-align:right;font-size:11.5px;font-weight:500;color:var(--mulberry);background:var(--white)}
+
+.rail{border-left:1px solid var(--line);padding:18px 20px 28px;display:flex;flex-direction:column;gap:16px;background:var(--porcelain)}
+.pad{padding:20px}
+.glance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 16px}
+.glance div{background:var(--porcelain);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.glance b{font-weight:400;font-size:21px;letter-spacing:-.01em;line-height:1;white-space:nowrap}
+.glance span{font-size:12px;color:var(--muted);white-space:nowrap}
+.bar{height:8px;border-radius:var(--r-pill);background:var(--linen);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--mulberry);border-radius:inherit}
+.bar-l{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:8px}
+.next .in{font-size:12.5px;color:var(--mulberry);font-weight:500}
+.nc-top{display:flex;align-items:center;gap:12px;margin:14px 0}
+.nc-top h3{font-family:var(--font-display);font-weight:600;font-size:22px;line-height:1.1}
+.nc-top .body-sm{font-size:13px}
+.price{margin-left:auto;font-weight:500;font-size:15px;white-space:nowrap;align-self:flex-start;margin-top:6px}
+.allergy{display:flex;gap:10px;background:var(--brick-soft);color:var(--brick);border-radius:var(--r-md);padding:10px 12px;font-size:13px;line-height:1.4}
+.allergy .icon{width:18px;height:18px;flex:none;margin-top:1px}
+.allergy b{display:block;font-weight:500}
+.allergy span{color:var(--ink-2)}
+.nc-note{display:flex;gap:10px;margin-top:10px;padding:10px 12px;border-radius:var(--r-md);background:var(--porcelain);font-size:13px;line-height:1.45;color:var(--ink-2)}
+.nc-note .icon{width:17px;height:17px;flex:none;color:var(--muted);margin-top:1px}
+.nc-act{display:flex;gap:8px;margin-top:14px}
+.nc-act .btn{flex:1}
+.nc-act .icon{width:16px;height:16px}
+.wl{list-style:none;margin-top:10px}
+.wl li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.wl li:first-child{border-top:0}
+.wl div{min-width:0;flex:1;line-height:1.25}
+.wl b{font-weight:500;font-size:13.5px;display:block}
+.wl small{font-size:12px;color:var(--muted)}
+.wl .btn{height:32px;padding:0 12px;font-size:12.5px;flex:none}
+.wl small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" aria-label="Workspace navigation">
+  <div class="sb-logo"><img src="../brand/logo/glowflow-wordmark.svg" alt="GlowFlow" height="28"></div>
+  <button class="salon-switch" aria-label="Switch salon">
+    <span class="salon-av">AA</span>
+    <span class="salon-txt"><b>Atelier Aïcha</b><small>Cotonou, Haie Vive</small></span>
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <nav class="nav"><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="15.5" r="1.6"/></svg><span>Today</span></a><a href="#" class="nav-item active" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg><span>Calendar</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clients</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg><span>Services</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6v4H9z"/><path d="M8 6h8l1 4v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V10z"/><path d="M7 13h10"/></svg><span>Products</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Availability</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4a1.5 1.5 0 1 0 0 .01"/><path d="m9 20 3-6 3 3v4M6 12l3-4 4 1 3 3 3 1"/></svg><span>Walk-ins</span><span class="nav-badge">2</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg><span>Payments</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Public profile</span></a><a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Team</span></a></nav>
+  <div class="sb-bottom">
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></a>
+    <a href="#" class="nav-item"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><span>Help centre</span></a>
+    <div class="sb-user"><span class="av av-sm av-blush">AD</span><span><b>Aïcha Diallo</b><small>Owner</small></span></div>
+  </div>
+</aside>
+<div class="content">
+  <header class="topbar">
+    <div class="datenav">
+      <button class="icon-btn" aria-label="Previous day"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <button class="btn btn-ghost btn-sm today-btn">Today</button>
+      <button class="icon-btn" aria-label="Next day"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+      <h1 class="date-h">Thursday <em>5</em> November</h1>
+    </div>
+    <div class="seg" role="tablist" aria-label="Calendar range">
+      <button role="tab" aria-selected="true" class="on">Day</button>
+      <button role="tab" aria-selected="false">Week</button>
+    </div>
+    <div class="tb-right">
+      <label class="search"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search clients, bookings</span><kbd>/</kbd></label>
+      <button class="icon-btn" aria-label="Notifications, 3 new"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></button>
+      <button class="btn btn-primary btn-sm new-btn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New appointment</button>
+    </div>
+  </header>
+  <div class="split">
+  <div class="main">
+  <div class="cal-wrap">
+    <div class="cal-sub">
+      <div class="legend">
+        <span><i class="sw sw-blush"></i>Aïcha</span><span><i class="sw sw-sage"></i>Inès</span><span><i class="sw sw-champ"></i>Koffi</span>
+      </div>
+      <div class="legend-st"><span class="status st-confirmed">Confirmed</span><span class="status st-pending">Pending</span><span class="status st-walkin">Walk-in</span><span class="status st-done">Completed</span></div>
+    </div>
+    <section class="cal card" aria-label="Day view, 5 November">
+      <div class="cal-head"><div class="gutter-h">GMT+1</div><div class="col-head"><span class="av av-sm av-blush">AD</span><span class="ch-txt"><b>Aïcha</b><small>Owner, colour and styling</small></span><span class="ch-count">5</span></div><div class="col-head"><span class="av av-sm av-sage">IM</span><span class="ch-txt"><b>Inès</b><small>Nails and lashes</small></span><span class="ch-count">5</span></div><div class="col-head"><span class="av av-sm av-champ">KM</span><span class="ch-txt"><b>Koffi</b><small>Barbering</small></span><span class="ch-count">6</span></div></div>
+      <div class="cal-body" style="height:736px">
+        <div class="gutter"><div class="hr" style="top:0px"><span>9:00</span></div><div class="hr" style="top:72px"><span>10:00</span></div><div class="hr" style="top:144px"><span>11:00</span></div><div class="hr" style="top:216px"><span>12:00</span></div><div class="hr" style="top:288px"><span>13:00</span></div><div class="hr" style="top:360px"><span>14:00</span></div><div class="hr" style="top:432px"><span>15:00</span></div><div class="hr" style="top:504px"><span>16:00</span></div><div class="hr" style="top:576px"><span>17:00</span></div><div class="hr" style="top:648px"><span>18:00</span></div><div class="hr" style="top:720px"><span>19:00</span></div></div>
+        <div class="grid"><div class="gl" style="top:0px"></div><div class="gl half" style="top:36px"></div><div class="gl" style="top:72px"></div><div class="gl half" style="top:108px"></div><div class="gl" style="top:144px"></div><div class="gl half" style="top:180px"></div><div class="gl" style="top:216px"></div><div class="gl half" style="top:252px"></div><div class="gl" style="top:288px"></div><div class="gl half" style="top:324px"></div><div class="gl" style="top:360px"></div><div class="gl half" style="top:396px"></div><div class="gl" style="top:432px"></div><div class="gl half" style="top:468px"></div><div class="gl" style="top:504px"></div><div class="gl half" style="top:540px"></div><div class="gl" style="top:576px"></div><div class="gl half" style="top:612px"></div><div class="gl" style="top:648px"></div><div class="gl half" style="top:684px"></div>
+          <div class="cols"><div class="col"><article class="appt tint-blush is-done" style="top:2px;height:104px">
+  <div class="appt-row"><b>Camille Laurent</b><time>09:00 to 10:30</time></div>
+  <div class="appt-svc">Balayage and toner</div><span class="status st-done">Completed</span>
+</article><article class="appt tint-blush is-next" style="top:146px;height:68px">
+  <div class="appt-row"><b>Fatou Ndiaye</b><time>11:00 to 12:00</time></div>
+  <div class="appt-svc">Silk press</div><span class="status st-confirmed">Confirmed</span>
+</article><article class="appt tint-blush" style="top:326px;height:140px">
+  <div class="appt-row"><b>Yasmine Benali</b><time>13:30 to 15:30</time></div>
+  <div class="appt-svc">Knotless braids, medium</div><span class="status st-confirmed">Confirmed</span>
+</article><article class="appt tint-blush is-pending" style="top:506px;height:68px">
+  <div class="appt-row"><b>Léa Martin</b><time>16:00 to 17:00</time></div>
+  <div class="appt-svc">Cut and blow-dry</div><span class="status st-pending">Pending</span>
+</article><article class="appt tint-blush" style="top:614px;height:68px">
+  <div class="appt-row"><b>Mireille Agbo</b><time>17:30 to 18:30</time></div>
+  <div class="appt-svc">Colour gloss</div><span class="status st-confirmed">Confirmed</span>
+</article><div class="break" style="top:236px;height:86px"><span>Lunch break</span></div></div><div class="col"><article class="appt tint-sage is-done" style="top:38px;height:68px">
+  <div class="appt-row"><b>Sophie Bernard</b><time>09:30 to 10:30</time></div>
+  <div class="appt-svc">Gel manicure</div><span class="status st-done">Completed</span>
+</article><article class="appt tint-sage" style="top:128px;height:104px">
+  <div class="appt-row"><b>Awa Traoré</b><time>10:45 to 12:15</time></div>
+  <div class="appt-svc">Lash extensions, full set</div><span class="status st-confirmed">In chair</span>
+</article><article class="appt tint-sage is-walkin short" style="top:254px;height:32px">
+  <div class="appt-row"><b>Walk-in, Chloé</b><time>12:30</time></div>
+  <div class="appt-svc">Polish change</div>
+</article><article class="appt tint-sage" style="top:362px;height:68px">
+  <div class="appt-row"><b>Clara Dubois</b><time>14:00 to 15:00</time></div>
+  <div class="appt-svc">Spa pedicure</div><span class="status st-confirmed">Confirmed</span>
+</article><article class="appt tint-sage" style="top:470px;height:68px">
+  <div class="appt-row"><b>Mariam Sow</b><time>15:30 to 16:30</time></div>
+  <div class="appt-svc">Lash refill</div><span class="status st-confirmed">Confirmed</span>
+</article><div class="open-slot" style="top:578px;height:140px"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Open, 17:00 to 19:00</span></div></div><div class="col"><article class="appt tint-champ is-done" style="top:2px;height:50px">
+  <div class="appt-row"><b>Jean-Marc Adjovi</b><time>09:00</time></div>
+  <div class="appt-svc">Skin fade</div>
+</article><article class="appt tint-champ is-walkin short" style="top:74px;height:32px">
+  <div class="appt-row"><b>Walk-in, Kossi A.</b><time>10:00</time></div>
+  <div class="appt-svc">Beard trim and line-up</div>
+</article><article class="appt tint-champ" style="top:182px;height:50px">
+  <div class="appt-row"><b>Thomas Petit</b><time>11:30</time></div>
+  <div class="appt-svc">Cut and beard</div>
+</article><article class="appt tint-champ" style="top:362px;height:50px">
+  <div class="appt-row"><b>Ibrahim Diop</b><time>14:00</time></div>
+  <div class="appt-svc">Taper cut</div>
+</article><article class="appt tint-champ" style="top:434px;height:50px">
+  <div class="appt-row"><b>Marc Hounsou</b><time>15:00</time></div>
+  <div class="appt-svc">Cut and hot towel</div>
+</article><article class="appt tint-champ" style="top:578px;height:68px">
+  <div class="appt-row"><b>Samuel Ahouandjinou</b><time>17:00 to 18:00</time></div>
+  <div class="appt-svc">Locs retwist</div><span class="status st-confirmed">Confirmed</span>
+</article><div class="break" style="top:254px;height:104px"><span>Lunch break</span></div></div></div>
+          <div class="now" style="top:120px" aria-label="Current time 10:40"><span>10:40</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  </div>
+<aside class="rail" aria-label="Today summary">
+  <section class="card pad">
+    <h2 class="card-t">Today at a glance</h2>
+    <div class="glance">
+      <div><b>16</b><span>Bookings</span></div>
+      <div><b>1 184 €</b><span>Expected</span></div>
+      <div><b>3</b><span>Open slots</span></div>
+    </div>
+    <div class="bar" aria-label="Day 68 percent booked"><i style="width:68%"></i></div>
+    <p class="bar-l"><span>68% of chair time booked</span><span>2 walk-ins</span></p>
+  </section>
+
+  <section class="card pad next">
+    <div class="card-h"><span class="eyebrow">Next client, 11:00</span><span class="in">in 20 min</span></div>
+    <div class="nc-top">
+      <span class="av av-blush">FN</span>
+      <div><h3>Fatou Ndiaye</h3><p class="body-sm">Silk press, Aïcha, 60 min</p></div>
+      <b class="price">55 €</b>
+    </div>
+    <div class="allergy" role="note"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg><div><b>Allergy</b><span>Fragrance sensitivity. Use the unscented heat protectant.</span></div></div>
+    <div class="nc-note"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg><p>Sensitive scalp, keep the flat iron under 185°C. Likes her ends trimmed by 1 cm. 7th visit.</p></div>
+    <div class="nc-act"><button class="btn btn-soft btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Message</button><button class="btn btn-ghost btn-sm">Open profile</button></div>
+  </section>
+
+  <section class="card pad">
+    <div class="card-h"><h2 class="card-t">Waitlist</h2><span class="chip chip-champ">3 waiting</span></div>
+    <ul class="wl">
+      <li><span class="av av-sm av-linen">CM</span><div><b>Camille Moreau</b><small>Lash lift, after 15:00</small></div><button class="btn btn-ghost btn-sm">Offer 17:00</button></li>
+      <li><span class="av av-sm av-linen">AK</span><div><b>Adjoa Kouassi</b><small>Gel manicure, Inès</small></div><button class="btn btn-ghost btn-sm">Offer 17:00</button></li>
+      <li><span class="av av-sm av-linen">YB</span><div><b>Youssef Benali</b><small>Skin fade, before 12:00</small></div><button class="btn btn-ghost btn-sm">Notify</button></li>
+    </ul>
+  </section>
+</aside>
+</div>
+</div>
+</div>
+</body>
+</html>
