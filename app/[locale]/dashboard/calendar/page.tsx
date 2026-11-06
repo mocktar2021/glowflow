@@ -57,6 +57,7 @@ const copy = {
     noClients: "Ajoutez un client avant de créer un rendez-vous.", noServices: "Ajoutez une prestation active avant de créer un rendez-vous.",
     empty: "Aucun rendez-vous pour cette période.", confirmed: "Confirmé", completed: "Terminé", canceled: "Annulé", no_show: "Absent",
     paid: "Acompte payé", unpaid: "Acompte non payé", reschedule: "Reprogrammer", cancel: "Annuler",
+    cancelPaidNotice: "Cette action ne rembourse pas l’acompte. Consultez la politique du salon et traitez tout remboursement séparément.",
     saved: "Modification enregistrée.", conflict: "Ce créneau n’est pas disponible. Vérifiez les horaires, les pauses et les conflits.",
     error: "La modification a échoué. Vérifiez les informations.", member: "Accès réservé à l’équipe du salon.",
   },
@@ -68,6 +69,7 @@ const copy = {
     noClients: "Add a client before creating an appointment.", noServices: "Add an active service before creating an appointment.",
     empty: "No appointments in this period.", confirmed: "Confirmed", completed: "Completed", canceled: "Canceled", no_show: "No-show",
     paid: "Deposit paid", unpaid: "Deposit unpaid", reschedule: "Reschedule", cancel: "Cancel",
+    cancelPaidNotice: "This action does not refund the deposit. Review the salon policy and handle any refund separately.",
     saved: "Change saved.", conflict: "This time is unavailable. Review working hours, breaks, and conflicts.",
     error: "The change failed. Review the information.", member: "Salon team access is required.",
   },
@@ -79,6 +81,7 @@ const copy = {
     noClients: "Añade un cliente antes de crear una cita.", noServices: "Añade un servicio activo antes de crear una cita.",
     empty: "No hay citas en este período.", confirmed: "Confirmada", completed: "Completada", canceled: "Cancelada", no_show: "Ausente",
     paid: "Depósito pagado", unpaid: "Depósito pendiente", reschedule: "Reprogramar", cancel: "Cancelar",
+    cancelPaidNotice: "Esta acción no reembolsa el depósito. Consulta la política del salón y gestiona cualquier reembolso por separado.",
     saved: "Cambio guardado.", conflict: "Este horario no está disponible. Revisa horarios, descansos y conflictos.",
     error: "El cambio falló. Revisa la información.", member: "Se requiere acceso del equipo del salón.",
   },
@@ -253,6 +256,7 @@ export default async function CalendarPage({
                         </form>
                         <form action={cancelAppointment.bind(null, locale)}>
                           <input type="hidden" name="appointment_id" value={appointment.id} /><input type="hidden" name="calendar_date" value={selected} /><input type="hidden" name="calendar_view" value={view} />
+                          {appointment.deposit_paid ? <p role="note" className="mb-2 max-w-sm text-xs text-amber-800 dark:text-amber-200">{labels.cancelPaidNotice}</p> : null}
                           <button type="submit" className="inline-flex h-11 items-center gap-2 rounded-full border border-rose-200 px-4 text-sm font-semibold text-rose-700"><XCircle className="size-4" />{labels.cancel}</button>
                         </form>
                       </div> : null}
