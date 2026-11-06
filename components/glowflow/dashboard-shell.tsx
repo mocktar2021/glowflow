@@ -56,6 +56,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import type { Locale } from "@/lib/i18n";
+import { bookingSharePath } from "@/lib/booking-share-path";
 import { formatMoney } from "@/lib/markets";
 
 type DashboardOwner = {
@@ -496,6 +497,7 @@ function ClientProfileDrawer({
   owner: DashboardOwner;
 }) {
   const t = useTranslations();
+  const ownerBookingPath = bookingSharePath(locale, owner.salonSlug);
 
   return (
     <Sheet open={Boolean(appointment)} onOpenChange={onOpenChange}>
@@ -570,8 +572,8 @@ function ClientProfileDrawer({
                 <CalendarDays className="size-4" />
                 {t("dashboard.bookAgain")}
               </Button>
-              <Link href={`/${locale}/book/${owner.salonSlug}`} className="text-center text-xs text-slate-500 underline-offset-4 hover:underline dark:text-stone-400">
-                glowflow.mocktar.com/{locale}/book/{owner.salonSlug}
+              <Link href={ownerBookingPath} className="text-center text-xs text-slate-500 underline-offset-4 hover:underline dark:text-stone-400">
+                {ownerBookingPath}
               </Link>
             </SheetFooter>
           </>
