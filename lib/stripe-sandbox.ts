@@ -8,7 +8,7 @@ export async function sandboxOwner() {
   const { data: auth, error } = await supabase.auth.getUser();
   if (error || !auth.user) return null;
   const { data: tenant } = await supabase.from("tenants")
-    .select("id,name,country_code,currency")
+    .select("id,name,country_code,currency,time_zone")
     .eq("owner_id", auth.user.id).single();
   if (!tenant) return null;
   return { tenant, supabase };
