@@ -38,7 +38,7 @@ incident tickets. Limit log access to authorized operators.
 | Signal | Candidate source | Operator action | Guard against false or unsafe alerts |
 | --- | --- | --- | --- |
 | Public booking unexpected failure | Count `glowflow_application_failure` by route, stage and code; correlate a specific report using its request ID | Check the affected deployment and database boundary; confirm whether a booking committed before any retry | Exclude expected validation and slot conflicts; never include client or request details in the alert |
-| Sandbox signed-webhook processing failure | Count `glowflow_payment_failure` at `webhook_client` or `webhook_persist`, paired with 503 response monitoring | Check provider retry status, exact deployment and trusted payment records under authorized access; preserve retry semantics | Do not alert on invalid signatures, unrelated events or intentionally disabled sandbox configuration; do not expose signed payloads or provider IDs |
+| Sandbox signed-webhook processing failure | Count `glowflow_payment_failure` at `webhook_client`, `webhook_event`, or `webhook_persist`, paired with 503 response monitoring | Check provider retry status, exact deployment and trusted payment records under authorized access; preserve retry semantics | Do not alert on invalid signatures, unrelated events or intentionally disabled sandbox configuration; do not expose signed payloads or provider IDs |
 | Reminder delivery failure or overdue work | Future worker's allowlisted failure events and aggregate counts of eligible current-generation outbox entries or terminal failed attempts | Inspect worker availability, consent gate, retry state and provider status before taking action | Do not count stale generations, canceled appointments, opt-outs, unknown consent or not-yet-due reminders; no worker exists today |
 | Availability and latency | Read-only synthetic GET checks plus server-side request metrics | Triage an unreachable route or a sustained p95 regression by deployment and region | Never create a booking or payment as a health probe; require a real denominator before computing error rates |
 
@@ -87,9 +87,11 @@ unpaid completions, are acknowledged with 200. Valid paid settlement still
 uses the atomic database RPC. No signed payload, provider error, or customer
 detail is logged.
 
-Mocktar Tairou is the named primary Stripe webhook alert operator. A distinct
-backup operator and an alert destination are still unassigned, so the fixed
-diagnostic is **not an active alert** and paid flows remain off. Before
+Mocktar Tairou is the named primary Stripe webhook alert operator and Admin is
+the backup role. Their monitored addresses are recorded in GLOW-34 rather than
+in source control. Recipients are identified, but coverage hours,
+acknowledgement, escalation, and a no-cost delivery path are not verified. The
+fixed diagnostic is **not an active alert** and paid flows remain off. Before
 activation, route repeated 503/`webhook_event` and `webhook_persist` failures
 to both operators, test delivery and acknowledgement, and confirm that the
 alert contains only the fixed code and environment. The operator should inspect
