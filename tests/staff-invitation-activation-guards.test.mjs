@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ts = createRequire(import.meta.url)("typescript");
 const deliveryModule = /(?:^|\/)staff-invitation-(?:worker|runner|sender|resend)(?:\.[cm]?[jt]sx?)?$/;
+const deliveryBoundary = /(?:^|\/)lib\/staff-invitation-(?:worker|runner|sender|resend)\.[cm]?[jt]sx?$/;
 const deliveryCall = new Set([
   "runStaffInvitationWorkerOnce",
   "runNextStaffInvitationDelivery",
@@ -32,7 +33,14 @@ function sourceActivatesDelivery(source) {
   let activates = false;
   function visit(node) {
     if (activates) return;
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
+    if (ts.isImportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)
+        && deliveryModule.test(node.moduleSpecifier.text)) {
+      // Inline `import { type T }` can retain `import {}` with
+      // verbatimModuleSyntax and execute the imported module. Only the whole
+      // declaration `import type` is guaranteed to be inert.
+      if (!node.importClause?.isTypeOnly) activates = true;
+    }
+    if (ts.isExportDeclaration(node) && !node.isTypeOnly
         && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)
         && deliveryModule.test(node.moduleSpecifier.text)) activates = true;
     if (ts.isCallExpression(node)) {
@@ -68,13 +76,19 @@ function workflowActivatesDelivery(source) {
 
 test("activation detectors ignore comments and documentation but catch executable wiring", () => {
   assert.equal(sourceActivatesDelivery(`// import "@/lib/staff-invitation-worker";\nconst note = "runStaffInvitationWorkerOnce";`), false);
+  assert.equal(sourceActivatesDelivery(`import type { StaffInvitationDeliveryStatus } from "@/lib/staff-invitation-sender";`), false);
+  assert.equal(sourceActivatesDelivery(`export type { StaffInvitationDeliveryStatus } from "@/lib/staff-invitation-sender";`), false);
+  assert.equal(sourceActivatesDelivery(`import { type StaffInvitationDeliveryStatus } from "@/lib/staff-invitation-sender";`), true);
+  assert.equal(sourceActivatesDelivery(`export { type StaffInvitationDeliveryStatus } from "@/lib/staff-invitation-sender";`), true);
   assert.equal(sourceActivatesDelivery(`import { runStaffInvitationWorkerOnce } from "@/lib/staff-invitation-worker";\nrunStaffInvitationWorkerOnce(alert);`), true);
+  assert.equal(sourceActivatesDelivery(`export { runStaffInvitationWorkerOnce } from "@/lib/staff-invitation-worker";`), true);
+  assert.equal(sourceActivatesDelivery(`import "@/lib/staff-invitation-worker";`), true);
   assert.equal(sourceActivatesDelivery(`await import("../lib/staff-invitation-runner");`), true);
   assert.equal(workflowActivatesDelivery(`name: Invitation notes\n# run: node ops/staff-invitation-worker.mjs\nsteps:\n  - run: echo safe`), false);
   assert.equal(workflowActivatesDelivery(`steps:\n  - run: |\n      node ops/staff-invitation-worker.mjs`), true);
 });
 
-test("new invitation delivery code is not wired to an application route or enabled by default", async () => {
+test("new invitation delivery code is not wired through application modules or enabled by default", async () => {
   const example = await readFile(path.join(root, ".env.example"), "utf8");
   for (const name of [
     "GLOWFLOW_STAFF_INVITES_ENABLED",
@@ -83,8 +97,12 @@ test("new invitation delivery code is not wired to an application route or enabl
   ]) {
     assert.match(example, new RegExp(`^${name}=false$`, "m"));
   }
-  for (const folder of ["app", "ops"]) {
+  // A route can import a harmless-looking facade, which in turn imports the
+  // inactive sender. Guard shared modules too, excluding only the sender's
+  // own library boundary. Whole-declaration `import type` is inert.
+  for (const folder of ["app", "ops", "components", "hooks", "lib"]) {
     for (const { file, source } of await appSources(path.join(root, folder))) {
+      if (deliveryBoundary.test(file)) continue;
       assert.equal(sourceActivatesDelivery(source), false, `${path.relative(root, file)} activates invitation delivery`);
     }
   }
