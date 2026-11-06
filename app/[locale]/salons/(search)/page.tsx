@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
@@ -348,11 +349,8 @@ export default async function SalonSearchPage({
       <header className="border-b border-[#e7ddd0] bg-[#faf9f6]/95 dark:border-white/10 dark:bg-[#101216]/95">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <Link href={`/${locale}/salons`} className="flex items-center gap-3" aria-label="GlowFlow">
-            <span className="grid size-10 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950">
-              <Sparkles className="size-5" aria-hidden="true" />
-            </span>
             <span>
-              <strong className="block text-lg tracking-[-0.04em]">GlowFlow</strong>
+              <BrandLogo className="h-8 w-28 text-foreground" />
               <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.marketplace}</span>
             </span>
           </Link>

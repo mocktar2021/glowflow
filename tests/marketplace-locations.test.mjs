@@ -14,7 +14,7 @@ async function load(relativePath, dependencies = {}, env = process.env) {
   const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", "process", js)(name => dependencies[name] ?? require(name), loaded.exports, { env });
+  new Function("require", "exports", "process", js)(name => dependencies[name] ?? (name === "@/components/glowflow/brand-logo" ? { BrandLogo: () => null } : require(name)), loaded.exports, { env });
   return loaded.exports;
 }
 

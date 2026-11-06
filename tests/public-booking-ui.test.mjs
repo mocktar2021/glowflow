@@ -28,8 +28,9 @@ async function harness(initial = {}) {
   };
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react,
-    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg", Sparkles: "svg" },
+    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg" },
     "next/link": ({ children }) => children,
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": payment,
   });
