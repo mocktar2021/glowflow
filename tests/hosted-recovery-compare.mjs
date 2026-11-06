@@ -25,6 +25,9 @@ const tables = [
 
 export function parseComparisonTargets(env) {
   const recovery = parseRecoveryTarget(env);
+  if (env.GLOWFLOW_RECOVERY_COMPARISON_SCOPE !== 'current-state-clone-only') {
+    throw new Error('Set GLOWFLOW_RECOVERY_COMPARISON_SCOPE=current-state-clone-only; this comparison cannot validate a historical restore.');
+  }
   if (!env.GLOWFLOW_PRODUCTION_SUPABASE_URL || !env.GLOWFLOW_PRODUCTION_SERVICE_ROLE_KEY || !env.GLOWFLOW_RECOVERY_ANON_KEY) {
     throw new Error('Production read credentials and the recovery anonymous key are required.');
   }
@@ -54,6 +57,38 @@ async function tableCount(supabase, table) {
   return count;
 }
 
+export async function countAuthUsers(supabase, perPage = 1000) {
+  if (!Number.isInteger(perPage) || perPage < 1 || perPage > 1000) throw new Error('Invalid Auth page size.');
+  let count = 0;
+  for (let page = 1; page <= 1000; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    if (!Array.isArray(data?.users)) throw new Error('Auth user list response is incomplete.');
+    count += data.users.length;
+    if (data.users.length < perPage) return count;
+  }
+  throw new Error('Auth user pagination exceeded the safety limit.');
+}
+
+export function bucketDefinitions(buckets) {
+  if (!Array.isArray(buckets)) throw new Error('Storage bucket list response is incomplete.');
+  return buckets.map(bucket => {
+    if (typeof bucket?.id !== 'string' || typeof bucket.name !== 'string' || typeof bucket.public !== 'boolean') {
+      throw new Error('Storage bucket definition is incomplete.');
+    }
+    if (bucket.allowed_mime_types != null && !Array.isArray(bucket.allowed_mime_types)) {
+      throw new Error('Storage bucket MIME types are invalid.');
+    }
+    return {
+      id: bucket.id,
+      name: bucket.name,
+      public: bucket.public,
+      file_size_limit: bucket.file_size_limit ?? null,
+      allowed_mime_types: bucket.allowed_mime_types?.slice().sort() ?? null,
+    };
+  }).sort((left, right) => left.id.localeCompare(right.id));
+}
+
 async function main() {
   const target = parseComparisonTargets(process.env);
   const production = client(target.productionUrl, target.productionServiceRoleKey);
@@ -67,19 +102,19 @@ async function main() {
   const mismatches = comparisons.filter(item => item.source !== item.restored);
   assert.deepEqual(mismatches, [], `Restored table counts differ: ${mismatches.map(item => item.table).join(', ')}`);
 
-  const [sourceUsers, restoredUsers, sourceBuckets, restoredBuckets] = await Promise.all([
-    production.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    recovery.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  const [sourceUserCount, restoredUserCount, sourceBuckets, restoredBuckets] = await Promise.all([
+    countAuthUsers(production),
+    countAuthUsers(recovery),
     production.storage.listBuckets(),
     recovery.storage.listBuckets(),
   ]);
-  for (const result of [sourceUsers, restoredUsers, sourceBuckets, restoredBuckets]) {
+  for (const result of [sourceBuckets, restoredBuckets]) {
     if (result.error) throw result.error;
   }
-  assert.equal(restoredUsers.data.users.length, sourceUsers.data.users.length, 'Restored Auth user count differs from production.');
+  assert.equal(restoredUserCount, sourceUserCount, 'Restored Auth user count differs from production.');
   assert.deepEqual(
-    restoredBuckets.data.map(item => item.id).sort(),
-    sourceBuckets.data.map(item => item.id).sort(),
+    bucketDefinitions(restoredBuckets.data),
+    bucketDefinitions(sourceBuckets.data),
     'Restored Storage bucket definitions differ from production.',
   );
 
