@@ -14,7 +14,7 @@ new Function("require", "module", "exports", compiled)(require, loaded, loaded.e
 const { validateSalonSubscriptionCatalog, selectSalonSubscriptionPlan } = loaded.exports;
 
 const us = Object.freeze({
-  planKey: "fixture_small", countryCode: "US", currency: "USD",
+  planKey: "fixture_starter", countryCode: "US", currency: "USD",
   maxTeamMembers: 3, includedSms: 0, includedWhatsApp: 0,
   stripePriceId: "price_testFixtureUs",
 });
@@ -33,6 +33,9 @@ test("no default plan or incomplete catalog can select a subscription", () => {
 test("trusted plans are selected only by exact tenant market and seat count", () => {
   const catalog = [us, fr];
   assert.deepEqual(selectSalonSubscriptionPlan(catalog, { planKey: us.planKey }, context), us);
+  assert.deepEqual(selectSalonSubscriptionPlan(catalog, { planKey: us.planKey }, {
+    ...context, activeTeamMembers: 3,
+  }), us);
   assert.deepEqual(selectSalonSubscriptionPlan(catalog, { planKey: fr.planKey }, {
     countryCode: "FR", currency: "EUR", activeTeamMembers: 3,
   }), fr);

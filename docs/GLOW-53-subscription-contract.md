@@ -12,18 +12,33 @@ browser request. A future server route must load the salon country, currency,
 and active team count from trusted tenant records and select a reviewed Price
 ID from its own nonempty catalog. Unknown fields, duplicate price mappings,
 market mismatches, and seat counts above the selected limit fail closed. The
-catalog contains no amounts: Stripe Prices, country-specific amounts, team
+catalog contains no amounts: Stripe Prices, country-specific amounts, larger-team
 thresholds, message allowances, and any overage policy still need product-owner
 approval. No code currently calls the contract, so it cannot activate billing.
 
+## Owner-approved Starter offer
+
+- One month free, with a payment method collected at signup and automatic
+  monthly billing after the trial. The trial ends on the same calendar date in
+  the following month, not after a fixed 30 days.
+- Starter costs USD 19.99 per month for US salons, or EUR 14.99 per month for
+  salons in supported euro-area countries. Both displayed prices are before
+  applicable tax. Larger-team prices are not approved.
+- Starter permits one owner plus two active staff, three active people total.
+  The owner counts toward the limit. Pending invitation treatment still needs
+  a rule before the team-size read model is implemented.
+- This document records product decisions only. It does not define Stripe
+  Prices, create a catalog, calculate trial timestamps, or enable billing.
+
 ## Required decisions before a billing implementation
 
-1. Approve launch markets, monthly tier names and prices by currency, and how
-   accepted staff, pending invitations, and owners count toward team size.
+1. Confirm exact supported euro-area launch countries, larger-team tiers and
+   prices, and how pending invitations reserve or do not reserve Starter seats.
 2. Define included SMS/WhatsApp quantities and whether excess usage is blocked,
    prepaid, or billed. Do not assume metered billing or new paid tooling.
-3. Define trial, failed-payment grace period, downgrade/cancellation timing,
-   service access during nonpayment, refunds, and support ownership.
+3. Define calendar-month end-of-month and time-zone behavior, trial-ending
+   notice, failed-payment grace period, downgrade/cancellation timing, service
+   access during nonpayment, refunds, and support ownership.
 4. Determine the platform subscription seller, tax registrations, tax treatment,
    invoice requirements, and applicable country-specific policy. Do not enable
    Stripe Tax merely by adding `automatic_tax`: it collects only where an active
