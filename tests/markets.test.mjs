@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney } from "../lib/markets.ts";
+import { formatLocalDateTime, formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney } from "../lib/markets.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -79,4 +79,20 @@ test("formats profile service amounts with booking currency precision", () => {
   assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "es"), "45,00 US$");
   assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "es"), "25,00 US$");
   assert.equal(formatMinorMoneyWithCurrencyPrecision(4599, "EUR", "fr"), "45,99 €");
+});
+
+test("formats salon appointment time across daylight saving for all supported languages", () => {
+  for (const locale of ["fr", "en", "es"]) {
+    for (const [instant, expectedHour] of [
+      ["2030-01-15T12:00:00Z", "07"],
+      ["2030-06-15T12:00:00Z", "08"],
+    ]) {
+      const actual = formatLocalDateTime(instant, locale, "America/New_York");
+      const expected = new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York",
+      }).format(new Date(instant));
+      assert.equal(actual, expected);
+      assert.match(actual, new RegExp(`(?:0?${Number(expectedHour)}):00|(?:0?${Number(expectedHour)})\\s?AM`, "i"));
+    }
+  }
 });
