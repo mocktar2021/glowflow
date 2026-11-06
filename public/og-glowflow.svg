@@ -1,8 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="GlowFlow">
-  <rect width="1200" height="630" fill="#faf9f6"/>
-  <rect width="474" height="630" fill="#0f172a"/>
-  <path fill="#e7b779" transform="translate(-24 79) scale(.95)" d="M256 64c10 0 18 8 22 22l29 119 119 29c14 4 22 12 22 22s-8 18-22 22l-119 29-29 119c-4 14-12 22-22 22s-18-8-22-22l-29-119-119-29c-14-4-22-12-22-22s8-18 22-22l119-29 29-119c4-14 12-22 22-22Z"/>
-  <text x="548" y="310" fill="#0f172a" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="700" letter-spacing="-6">GlowFlow</text>
-  <path d="M553 364h487" fill="none" stroke="#e7b779" stroke-linecap="round" stroke-width="16"/>
-  <circle cx="1067" cy="364" r="8" fill="#0f172a"/>
+  <rect width="1200" height="630" fill="#FAF6F1"/>
+  <circle cx="1160" cy="34" r="260" fill="#F2DDD6"/>
+  <circle cx="35" cy="650" r="270" fill="#F3ECE4"/>
+  <rect x="80" y="80" width="1040" height="470" rx="44" fill="#FFFFFF" stroke="#E6DBD0" stroke-width="2"/>
+  <g transform="translate(260 180) scale(.92)" fill="none" stroke="#2A2129" stroke-width="14" stroke-linecap="butt">
+    <circle cx="50" cy="150" r="43"/>
+    <path d="M93 100V218a34 34 0 0 1-34 34H14M127 36v164"/>
+    <circle cx="204" cy="150" r="43"/>
+    <clipPath id="og-w"><rect x="262" y="100" width="124" height="100"/></clipPath>
+    <path clip-path="url(#og-w)" stroke-linejoin="miter" d="m274 70 24 160 26-160 26 160 24-160"/>
+    <path d="M407 200V72a30 30 0 0 1 30-30h14M390 107h57M487 36v164"/>
+    <circle cx="564" cy="150" r="43"/>
+    <clipPath id="og-w2"><rect x="622" y="100" width="124" height="100"/></clipPath>
+    <path clip-path="url(#og-w2)" stroke-linejoin="miter" d="m634 70 24 160 26-160 26 160 24-160"/>
+  </g>
+  <path d="M405.3 279.8a57 57 0 0 1 84.8 0" fill="none" stroke="#C8A27A" stroke-width="6.5" stroke-linecap="round"/>
+  <path d="M490 456h220" fill="none" stroke="#C8A27A" stroke-width="3" stroke-linecap="round"/>
 </svg>
