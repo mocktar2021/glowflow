@@ -78,11 +78,11 @@ test("aborted earlier availability cannot clear loading or replace newer slots",
   } finally { globalThis.fetch = originalFetch; }
 });
 test("availability error offers retry and stale selection is cleared when service changes", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: true });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 9: true });
   let tree = h.render();
   const retry = find(tree, (node) => node.type === "button" && node.props.children === "Réessayer");
   assert.ok(retry); retry.props.onClick();
-  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[8], false);
+  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[9], false);
   tree = h.render();
   assert.equal(find(tree, (node) => node.type === "button" && node.props.type === "submit").props.disabled, true);
   find(tree, (node) => node.type === "select").props.onChange({ target: { value: "other-service" } });
@@ -98,7 +98,7 @@ test("named staff choice filters slots without losing the no-preference option",
   assert.ok(staffSelect);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   staffSelect.props.onChange({ target: { value: "other-staff" } });
-  assert.equal(h.values[10], "other-staff");
+  assert.equal(h.values[11], "other-staff");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   assert.ok(renderToStaticMarkup(tree).includes("Ari"));
@@ -106,15 +106,15 @@ test("named staff choice filters slots without losing the no-preference option",
   tree = h.render(extra);
   assert.ok(renderToStaticMarkup(tree).includes("Aucun créneau pour ce professionnel"));
   find(tree, (node) => node.type === "button" && node.props.children === "Voir tous les professionnels").props.onClick();
-  assert.equal(h.values[10], "");
+  assert.equal(h.values[11], "");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 1);
 });
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
   const tree = h.render();
   find(tree, (node) => node.type === "button").props.onClick();
-  assert.equal(h.values[7], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
+  assert.equal(h.values[8], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
 });
 test("offline unknown salon slugs fail closed while explicit atelier demo remains", async () => {
   const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -127,6 +127,7 @@ test("offline unknown salon slugs fail closed while explicit atelier demo remain
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: (locale) => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => "off" },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -148,6 +149,7 @@ test("localized booking resolves only published tenant services and passes an ex
   const primary = "11111111-1111-4111-8111-111111111111";
   const foreign = "22222222-2222-4222-8222-222222222222";
   const tables = {
+    markets: [{ country_code: "FR", default_locale: "fr" }],
     tenants: [
       { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", country_code: "FR", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
       { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", country_code: "ES", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
@@ -161,6 +163,7 @@ test("localized booking resolves only published tenant services and passes an ex
     ],
   };
   const selections = [];
+  let bookingV2Mode = "off";
   const createAdminClient = () => ({ from(table) {
     const filters = [], included = [];
     let columns = [];
@@ -183,6 +186,7 @@ test("localized booking resolves only published tenant services and passes an ex
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => bookingV2Mode },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -194,12 +198,17 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal(result.type, "live");
       assert.equal(result.props.locale, locale);
       assert.equal(result.props.initialServiceId, primary);
-      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" });
+      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", defaultLocale: "fr", currency: "EUR", timeZone: "Europe/Paris" });
       assert.deepEqual(result.props.services.map(service => service.id), [primary]);
       assert.deepEqual(result.props.bookingStaffByService[primary], [{ id: "33333333-3333-4333-8333-333333333333", name: "Ari" }]);
       assert.equal("private_note" in result.props.salon, false);
       assert.equal("internal_cost" in result.props.services[0], false);
     }
+    bookingV2Mode = "recovery_only";
+    const recoveryPage = await render("fr", "published", primary);
+    assert.equal(recoveryPage.props.v2, true);
+    assert.equal(recoveryPage.props.recoveryOnly, true);
+    bookingV2Mode = "off";
     for (const [locale, slug, service] of [["fr", "hidden", null], ["en", "unknown", null], ["es", "published", foreign], ["de", "published", null]]) {
       await assert.rejects(render(locale, slug, service), /not-found/);
     }

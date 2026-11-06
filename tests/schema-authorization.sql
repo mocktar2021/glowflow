@@ -192,7 +192,7 @@ select public.test_assert(
 -- One salon per login for MVP: even an owner of the target salon cannot
 -- attach an Auth identity that already has a membership elsewhere.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000003';
-select public.test_rejected('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000002'',''10000000-0000-0000-0000-000000000002'',''Staff A again'',''staff-a@example.invalid'',''staff'')','23505');
+select public.test_rejected('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000002'',''10000000-0000-0000-0000-000000000002'',''Staff A again'',''staff-a@example.invalid'',''staff'')','42501');
 select public.test_assert(
   (select count(*) from public.users where id='20000000-0000-0000-0000-000000000002')=0,
   'second salon has no membership for an already-linked login'
@@ -222,6 +222,55 @@ select public.test_assert(
   'forged owner onboarding creates no second salon'
 );
 set role authenticated;
+
+-- No owner may attach an existing but unattached Auth identity without an
+-- invitation acceptance path. Current owner onboarding must still work.
+reset role;
+insert into auth.users(id,email) values
+  ('20000000-0000-0000-0000-000000000097','unaffiliated-guard@example.invalid');
+set role authenticated;
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Unconsented Staff'',''unaffiliated-guard@example.invalid'',''staff'')');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000097')=0,
+  'owner cannot attach an unattached Auth identity'
+);
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Staff Attachment'',''unaffiliated-guard@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000003';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000002'',''Other Owner Attachment'',''unaffiliated-guard@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000097';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Self Assignment'',''unaffiliated-guard@example.invalid'',''owner'')');
+
+reset role;
+begin;
+insert into auth.users(id,email) values
+  ('20000000-0000-0000-0000-000000000098','new-owner@example.invalid');
+insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone) values
+  ('10000000-0000-0000-0000-000000000098','New Owner Fixture','new-owner-fixture',
+   '20000000-0000-0000-0000-000000000098','US','USD','America/New_York');
+set role authenticated;
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000098';
+insert into public.users(id,tenant_id,full_name,email,role) values
+  ('20000000-0000-0000-0000-000000000098','10000000-0000-0000-0000-000000000098',
+   'New Owner','new-owner@example.invalid','owner');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000098' and role='owner')=1,
+  'owner self-insert remains permitted for onboarding'
+);
+rollback;
+set role authenticated;
+
+-- Column grants must keep the broad self-update row policy from changing identity or role.
+select public.test_assert(
+  (select array_agg(a.attname::text order by a.attname::text)
+   from pg_attribute a
+   where a.attrelid = 'public.users'::regclass
+     and a.attnum > 0 and not a.attisdropped
+     and has_column_privilege('authenticated', 'public.users', a.attname::text, 'UPDATE'))
+  = array['full_name', 'locale']::text[],
+  'authenticated users may update only safe profile columns'
+);
 
 -- Staff can read catalog but only the owner can manage it.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';

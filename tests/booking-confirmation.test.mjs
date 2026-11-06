@@ -43,6 +43,7 @@ function database({ published = true, wrongTenant = false, fail = false, wrongKe
 }
 async function post(db) {
   const { POST } = await load("../app/api/public-booking/route.ts", {
+    "@/lib/public-booking-v2-config": { publicBookingV2Enabled: () => false },
     "@/lib/supabase/admin": { createAdminClient: () => db },
     "@/lib/application-diagnostics": { reportApplicationFailure: () => null },
   });
@@ -82,7 +83,7 @@ async function markup(locale, details, salonName = base.salon_name) {
   const confirmation = { ...base, salon_name: salonName, details };
   let stateIndex = 0;
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
-    react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 7 ? confirmation : initial, () => {}]; } },
+    react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 8 ? confirmation : initial, () => {}]; } },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
   });
@@ -117,6 +118,12 @@ test("missing policy and address are explicit, and published text is escaped", a
   const html = await markup("en", { time_zone: "UTC", address: "<script>bad</script>", policies: { en: "<img src=x onerror=bad>" }, catalog_price: null, currency: null, service_title: null });
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>|<img src=x/);
+});
+
+test("confirmation falls back from an empty visitor-language service title", async () => {
+  const html = await markup("fr", { time_zone: "UTC", address: null, policies: null, catalog_price: null, currency: null, service_title: { fr: "", en: "English service", es: " " } });
+  assert.match(html, /English service/);
+  assert.doesNotMatch(html, /Détails de la prestation indisponibles/);
 });
 
 test("malformed public JSON, currency and time zone degrade without breaking a committed booking", async () => {

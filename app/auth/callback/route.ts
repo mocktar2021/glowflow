@@ -50,6 +50,16 @@ export async function GET(request: Request) {
     return loginError(url.origin, locale, notices.expiredLink);
   }
 
+  // Invited staff have no owner workspace. This exact, inert completion page
+  // must never create an owner salon, even if the feature flag changes while
+  // the recipient is confirming email.
+  if (
+    /^\/(?:fr|en|es)\/join\/complete\/?$/.test(next.pathname) &&
+    !next.search && !next.hash
+  ) {
+    return NextResponse.redirect(next);
+  }
+
   const workspace = await ensureOwnerWorkspace();
   if (workspace.error) {
     return loginError(url.origin, locale, notices.workspaceNotReady);

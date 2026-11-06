@@ -6,8 +6,9 @@ server output, and runtime metadata even on failure.
 
 These isolated browser checks import the production booking and sandbox payment
 status components into a small Next.js fixture. They cover FR/EN/ES booking payloads,
-sandbox query and hash preservation when switching language, authoritative pending to
-paid/failed/expired transitions, and unavailable checkout/status behavior. Each test
+sandbox query and hash preservation when switching language, authoritative
+FR/EN/ES pending to paid/failed/expired transitions, and unavailable
+checkout/status behavior. Each test
 uses a fresh browser context; external network requests are blocked, booking and
 checkout APIs are controlled fixtures, and sandbox POSTs to the real booking API fail.
 No Supabase or Stripe application credentials are inherited by the fixture server.

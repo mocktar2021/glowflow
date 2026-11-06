@@ -8,7 +8,15 @@ const payloadSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const parsed = payloadSchema.safeParse(await request.json());
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    // A malformed body is an invalid request, not an application failure.
+    // Never let a JSON parser error reach server logs with request content.
+    return NextResponse.json({ stored: false }, { status: 400 });
+  }
+  const parsed = payloadSchema.safeParse(payload);
 
   if (!parsed.success) {
     return NextResponse.json({ stored: false }, { status: 400 });

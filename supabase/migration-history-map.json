@@ -254,6 +254,62 @@
       "sourceVersion": "20261018000135",
       "marker": false,
       "normalizedSha256": "3781a6771051c5131ad4ceb3592a00dbb2e36a10ae27efe30ef72470aa63692f"
+    },
+    {
+      "version": "20261019035718",
+      "name": "guard_direct_staff_membership_insert",
+      "sourceVersion": "20261019035718",
+      "marker": false,
+      "normalizedSha256": "f25018bb824414f8c40d7c9633e2f0f8b31dd9fc27bb35ebb1a7d26d162bcc4e"
+    },
+    {
+      "version": "20261101172437",
+      "name": "fail_closed_future_notification_consent",
+      "sourceVersion": "20261101172437",
+      "marker": false,
+      "normalizedSha256": "07412122236baeb9fed8bf54285d1ed17ac445cfdcbec123f00b4103d1118904"
+    },
+    {
+      "version": "20261103172555",
+      "name": "verified_staff_invitation_contract",
+      "sourceVersion": "20261103172555",
+      "marker": false,
+      "normalizedSha256": "c2e737d310cb34ad9e06ea4face4afd600f9a18d7e33d1bd54f8833527dbd35a"
+    },
+    {
+      "version": "20261103214314",
+      "name": "prepare_staff_invitation_resend",
+      "sourceVersion": "20261103214314",
+      "marker": false,
+      "normalizedSha256": "b0b8a818a96c8813dbd599495e49d4d0265883159687b7a2417127a88a2a3051"
+    },
+    {
+      "version": "20261104004728",
+      "name": "queue_staff_invitation_delivery",
+      "sourceVersion": "20261104004728",
+      "marker": false,
+      "normalizedSha256": "75a3342728da6da276d6f1253e04e9933abb3f8f016c8dea6a7870b4f3b30ac6"
+    },
+    {
+      "version": "20261104184112",
+      "name": "glow56_private_public_booking_intents",
+      "sourceVersion": "20261104184112",
+      "marker": false,
+      "normalizedSha256": "fee46be8b4677f4bccc7ce74a762a7fbcd341e333be77666d4f8f19534050c03"
+    },
+    {
+      "version": "20261104234445",
+      "name": "glow56_public_booking_quota",
+      "sourceVersion": "20261104234445",
+      "marker": false,
+      "normalizedSha256": "0941c81a76ae4b2ad4cb7b48f04121fef13fe2e5873861ddd68f66b1bd893518"
+    },
+    {
+      "version": "20261105124804",
+      "name": "glow56_public_booking_contract_gate",
+      "sourceVersion": "20261105124804",
+      "marker": false,
+      "normalizedSha256": "dd3ae969ddb7fe39931aa53813045c95fd85650ab1b0764899913b8967aa3a73"
     }
   ]
 }

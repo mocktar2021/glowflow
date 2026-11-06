@@ -92,6 +92,19 @@ for (const locale of ["fr", "en", "es"]) {
     await page.getByRole("heading", { name: "Fixture login destination" }).waitFor();
     assert.equal(await page.locator("#notification-kind").count(), 0);
   });
+  test(`${locale} notification history hides identifiers after a client-name lookup failure`, async t => {
+    const { page } = await contextFor(t, locale, "history-name-error");
+    const response = await page.goto(`${origin}/${locale}/dashboard/notifications`);
+    assert.equal(response.status(), 200);
+    await page.locator("#notification-kind").waitFor();
+    assert.equal(await page.getByText("client-a").count(), 0);
+    assert.equal(await page.getByText("consent-fixture").count(), 0);
+    assert.equal(await page.getByText("attempt-fixture").count(), 0);
+    assert.equal(await page.getByText("Fictional client lookup diagnostic").count(), 0);
+    assert.equal(await page.getByRole("status").filter({ hasText: {
+      fr: "momentanément indisponible", en: "temporarily unavailable", es: "temporalmente",
+    }[locale] }).count(), 2);
+  });
   for (const identity of [null, "cross-tenant", "query-error"]) {
     test(`${locale} production notification route denies fixture ${identity || "anonymous"}`, async t => {
       const { page } = await contextFor(t, locale, identity);

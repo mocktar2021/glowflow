@@ -394,7 +394,7 @@ export default async function SalonSearchPage({
             </div>
 
             <details open={hasAdvancedFilters} className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
                 {labels.category}, {labels.postal}, {labels.maximumPrice}, {labels.availableBefore}
               </summary>
@@ -440,8 +440,8 @@ export default async function SalonSearchPage({
                   <option value="availability">{labels.sortAvailability}</option>
                 </select>
               </label>
-              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950" type="submit">{labels.submit}</button>
-              <Link className="px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
+              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-[#efc992]" type="submit">{labels.submit}</button>
+              <Link className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:text-[#efc992] dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
             </div>
           </form>
           <nav className="mt-6" aria-label={labels.exploreCountries}>
@@ -457,7 +457,7 @@ export default async function SalonSearchPage({
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {invalidCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidCountry}</p> : null}
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
         {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
@@ -465,9 +465,13 @@ export default async function SalonSearchPage({
         {invalidDate ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidDate}</p> : null}
         {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
-        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}>
+        {/* A new URL must not retain nearby cards fetched for the previous filters. */}
+        <DistanceSearch key={pageHref(locale, paginationFilters, page)} locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}
+          fallbackAnnouncement={results.length === 0
+            ? `${hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}. ${hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}`
+            : `${total} ${total === 1 ? labels.oneResult : labels.results}.`}>
         {loadError ? (
-          <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
+          <div role="status" className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.errorText}</p>
           </div>
@@ -476,7 +480,7 @@ export default async function SalonSearchPage({
             <Search className="mx-auto size-8 text-[#b77a42]" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">{hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-stone-300">{hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}</p>
-            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] dark:border-white/15 dark:hover:bg-white/10" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
+            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
           </div>
         ) : (
           <>
@@ -488,6 +492,7 @@ export default async function SalonSearchPage({
                 key={salon.slug}
                 salon={salon}
                 locale={locale}
+                countryDefaultLocale={countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale}
                 href={`/${salonProfileLocale(countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
                 timeZone={salonTimeZones[salon.slug]}
@@ -497,9 +502,9 @@ export default async function SalonSearchPage({
 
             {totalPages > 1 ? (
               <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${labels.page} ${page}`}>
-                {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
+                {page > 1 ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
                 <span className="text-sm text-slate-600 dark:text-stone-300">{labels.page} {page} / {totalPages}</span>
-                {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
+                {page < totalPages ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
               </nav>
             ) : null}
           </>
