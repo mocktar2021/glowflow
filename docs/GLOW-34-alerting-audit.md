@@ -72,22 +72,31 @@ are actually verified.
 No hosted SQL, Auth, Storage, Stripe configuration, deployment setting or
 customer record is changed by this audit.
 
-## Draft candidate: signed-event parser failure
+## Owner-approved retry contract for signed deposit events
 
-A synthetic, correctly signed webhook body can still contain malformed JSON
-shape. In the current route, an exception from the sandbox event-shape parser
-escapes before the persistence catch, yielding an unclassified function error.
-The GLOW-34 draft guard catches only that parser boundary, emits a fixed
-`webhook_event`/`event_parse_failed` diagnostic without event or customer
-details, and returns a generic 503. A 503 preserves Stripe retry behavior and
-does not acknowledge a potentially actionable event. Missing or invalid
-signatures remain 400; verified unrelated or non-actionable events remain 200;
-successful settlement still requires the atomic database RPC.
+A correctly signed webhook can contain valid JSON but omit required booking
+fields. The owner chose retryable 503 plus alerting for recognizable GlowFlow
+deposit events in that state. The route first verifies the raw Stripe signature.
+Only expected sandbox Checkout events carrying `metadata.product=glowflow`
+are attributable to this product. If one lacks a required account, booking
+identifier, amount, currency, or payment identifier, the handler emits a fixed
+`webhook_event`/`event_parse_failed` diagnostic and returns a generic 503.
+It never passes malformed arguments to the settlement RPC. Invalid signatures
+remain 400; signed unrelated or unattributable events, and otherwise valid
+unpaid completions, are acknowledged with 200. Valid paid settlement still
+uses the atomic database RPC. No signed payload, provider error, or customer
+detail is logged.
 
-This is a proposed failure contract, not an active alert. A permanently
-malformed signed event or a parser regression could cause repeated retries and
-logs. There is no durable quarantine, alert destination, owner acknowledgement,
-or tested provider redelivery in this slice. Before merging or enabling any
-alert rule, an operator must review the 503-versus-acknowledgement policy and
-the Stripe retry/triage path. Tests use only synthetic local signatures; no
-provider event, checkout, payment or customer message is sent.
+Mocktar Tairou is the named primary Stripe webhook alert operator. A distinct
+backup operator and an alert destination are still unassigned, so the fixed
+diagnostic is **not an active alert** and paid flows remain off. Before
+activation, route repeated 503/`webhook_event` and `webhook_persist` failures
+to both operators, test delivery and acknowledgement, and confirm that the
+alert contains only the fixed code and environment. The operator should inspect
+the failed delivery in Stripe's webhook dashboard, reconcile the related
+reservation in an approved read-only admin view, fix the parser or correlation
+fault, then redeliver the same event and confirm idempotent settlement. Do not
+copy payloads into logs or manually mark a booking paid. A permanent malformed
+event can cause repeated Stripe retries, so unresolved failures must be
+escalated while payment activation stays blocked. Tests use synthetic local
+signatures only; no provider event, checkout, payment, or message is sent.

@@ -31,8 +31,8 @@ export async function POST(request: Request) {
   try {
     args = sandboxDepositEventArguments(event);
   } catch {
-    // A signed payload can still have an invalid JSON shape. Do not acknowledge
-    // a potentially actionable event or log its raw body; allow Stripe to retry.
+    // A signed, recognizable GlowFlow event can still be missing required
+    // booking fields. Never acknowledge it or log its raw body; Stripe retries.
     reportPaymentFailure("webhook_event", "event_parse_failed");
     return Response.json({ error: "event_processing_failed" }, { status: 503 });
   }

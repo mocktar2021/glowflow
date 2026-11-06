@@ -38,17 +38,35 @@ test("expiry and async failure retain exact identifiers and allow no payment int
     assert.equal(args.target_account_id, "acct_connected");
   }
 });
-test("wrong mode, malformed metadata, money and missing account never reach RPC", () => {
-  const changes = [
-    v => v.livemode = true, v => delete v.account,
+test("unrelated signed events are ignored while recognizable malformed GlowFlow events retry", () => {
+  const unrelated = [
+    v => v.livemode = true,
+    v => v.type = "payment_intent.succeeded",
+    v => v.data.object.metadata.product = "other",
+    v => delete v.data.object.metadata.product,
+    v => delete v.data,
+  ];
+  for (const change of unrelated) {
+    const value = event(); change(value);
+    assert.equal(sandboxDepositEventArguments(value), null);
+  }
+  const malformed = [
+    v => delete v.account, v => v.id = "wrong",
     v => v.data.object.livemode = true, v => v.data.object.mode = "subscription",
-    v => v.type = "payment_intent.succeeded", v => v.data.object.id = "cs_live_fixture",
-    v => v.data.object.metadata.environment = "production", v => v.data.object.metadata.product = "other",
+    v => v.data.object.id = "cs_live_fixture",
+    v => v.data.object.metadata.environment = "production",
     ...["tenant_id", "appointment_id", "client_id", "reservation_id"].map(key => v => delete v.data.object.metadata[key]),
     v => v.data.object.amount_total = 0, v => v.data.object.amount_total = 1.5,
     v => v.data.object.currency = "EUR", v => v.data.object.payment_intent = null,
   ];
-  for (const change of changes) { const value = event(); change(value); assert.equal(sandboxDepositEventArguments(value), null); }
+  for (const change of malformed) {
+    const value = event(); change(value);
+    assert.throws(() => sandboxDepositEventArguments(value), /malformed_sandbox_deposit_event/);
+  }
+  const unpaidMissingBooking = event();
+  unpaidMissingBooking.data.object.payment_status = "unpaid";
+  delete unpaidMissingBooking.data.object.metadata.reservation_id;
+  assert.throws(() => sandboxDepositEventArguments(unpaidMissingBooking), /malformed_sandbox_deposit_event/);
 });
 
 const stripe = new Stripe("rk_test_fixture");
@@ -124,19 +142,17 @@ test("disabled preview configuration rejects processing and ignores unrelated si
   assert.equal((await POST(request(event("payment_intent.succeeded")))).status, 200);
   assert.equal(calls.length, 0);
 });
-test("signed malformed sandbox events fail safely and remain retryable without settlement or payload logs", async () => {
+test("signed recognizable malformed events retry with redacted diagnostics and no settlement", async () => {
   process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
   const logs = []; const original = console.error;
   console.error = (...values) => logs.push(values);
   calls = [];
   try {
     const malformed = [
-      null,
-      (() => { const value = event(); delete value.data; return value; })(),
-      (() => { const value = event(); value.data.object = null; return value; })(),
       (() => { const value = event(); value.id = { toString: null }; return value; })(),
       (() => { const value = event(); value.data.object.id = { toString: null }; return value; })(),
       (() => { const value = event(); value.data.object.metadata.tenant_id = { toString: null }; return value; })(),
+      (() => { const value = event(); delete value.data.object.metadata.reservation_id; return value; })(),
       (() => { const value = event(); value.data.object.currency = { toString: null }; return value; })(),
       (() => { const value = event(); value.data.object.payment_intent = { id: { toString: null } }; return value; })(),
     ];
@@ -150,6 +166,22 @@ test("signed malformed sandbox events fail safely and remain retryable without s
       event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_event", code: "event_parse_failed",
     }));
     assert.ok(logs.every(([line]) => !line.includes("evt_fixture") && !line.includes("cs_test_fixture")));
+  } finally { console.error = original; }
+});
+test("signed unrelated or unattributable events are acknowledged without alerts or settlement", async () => {
+  process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  calls = [];
+  try {
+    for (const value of [
+      event("payment_intent.succeeded"),
+      (() => { const value = event(); value.data.object.metadata.product = "other"; return value; })(),
+      (() => { const value = event(); delete value.data.object.metadata.product; return value; })(),
+      (() => { const value = event(); delete value.data; return value; })(),
+    ]) assert.equal((await POST(request(value))).status, 200);
+    assert.equal(calls.length, 0);
+    assert.deepEqual(logs, []);
   } finally { console.error = original; }
 });
 test("database failure and correlation rejection are retryable and never acknowledged", async () => {
