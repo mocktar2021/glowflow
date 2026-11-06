@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import type { Locale } from "@/lib/i18n";
 import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 
@@ -1080,8 +1081,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
       <header className="flex items-center justify-between bg-slate-950 px-5 py-4 text-white sm:px-8">
-        {locked ? <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</span>
-          : <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</Link>}
+        {locked ? <span className="flex items-center" aria-label="GlowFlow"><BrandLogo className="h-8 w-28" /></span>
+          : <Link href={`/${locale}`} className="flex items-center" aria-label="GlowFlow"><BrandLogo className="h-8 w-28" /></Link>}
         {locked ? <span className="text-sm font-semibold">{locale.toUpperCase()}</span> : <LanguageSwitcher locale={locale} />}
       </header>
       <div className="grid lg:grid-cols-[0.75fr_1.25fr]">

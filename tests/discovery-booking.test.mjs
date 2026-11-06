@@ -12,7 +12,7 @@ async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", js)((name) => dependencies[name] ?? require(name), loaded.exports);
+  new Function("require", "exports", js)((name) => dependencies[name] ?? (name === "@/components/glowflow/brand-logo" ? { BrandLogo: () => null } : require(name)), loaded.exports);
   return loaded.exports;
 }
 const marketConfig = await load("../lib/markets.ts");
