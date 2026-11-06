@@ -34,6 +34,9 @@ test("landing route stays localized and sends users to existing product flows", 
   assert.match(page, /canonical: `\/\$\{locale\}`/);
   assert.match(page, /languages: \{ fr: "\/fr", en: "\/en", es: "\/es" \}/);
   assert.match(page, /motion-safe:animate-/);
+  assert.match(page, /BrandLogo/);
+  assert.match(page, /illustrative-manicure\.jpg/);
+  assert.doesNotMatch(page, /Sparkles/);
   assert.doesNotMatch(page, /—/);
 });
 

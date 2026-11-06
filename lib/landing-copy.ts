@@ -11,7 +11,7 @@ export const landingCopy = {
       title: "Moins d’administratif. Plus de place pour votre talent.",
       body: "Réunissez rendez-vous, fiches clients et prestations dans un espace conçu pour votre quotidien. Faites découvrir votre salon dans une vitrine publique que vous contrôlez.",
       imageAlt: "Une professionnelle réalise une manucure dans un salon",
-      imageCaption: "Votre métier au premier plan",
+      imageCaption: "Image illustrative, créée pour GlowFlow",
       points: ["Un agenda plus clair", "Vos clients à portée de main", "Une vitrine à votre image"],
     },
     product: {
@@ -71,7 +71,7 @@ export const landingCopy = {
       title: "Less admin. More room for your craft.",
       body: "Bring appointments, client profiles, and services together in a workspace made for your day. Let people discover your salon through a public profile you control.",
       imageAlt: "A beauty professional giving a manicure in a salon",
-      imageCaption: "Your craft comes first",
+      imageCaption: "Illustrative image created for GlowFlow",
       points: ["A clearer calendar", "Clients close at hand", "A profile that feels like you"],
     },
     product: {
@@ -131,7 +131,7 @@ export const landingCopy = {
       title: "Menos administración. Más espacio para tu talento.",
       body: "Reúne citas, fichas de clientes y servicios en un espacio pensado para tu día a día. Da a conocer tu salón con un perfil público que tú controlas.",
       imageAlt: "Una profesional realiza una manicura en un salón",
-      imageCaption: "Tu oficio es lo primero",
+      imageCaption: "Imagen ilustrativa creada para GlowFlow",
       points: ["Una agenda más clara", "Tus clientes a mano", "Un perfil a tu manera"],
     },
     product: {

@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="GlowFlow">
-  <rect width="512" height="512" fill="#0f172a"/>
-  <path fill="#e7b779" d="M256 64c10 0 18 8 22 22l29 119 119 29c14 4 22 12 22 22s-8 18-22 22l-119 29-29 119c-4 14-12 22-22 22s-18-8-22-22l-29-119-119-29c-14-4-22-12-22-22s8-18 22-22l119-29 29-119c4-14 12-22 22-22Z"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GlowFlow"><rect width="512" height="512" rx="118" fill="#F2DDD6"/><g transform="translate(256.0 256.0) scale(1.7066666666666668) translate(-50 -164)"><g fill="none" stroke="#2A2129" stroke-width="20"><circle cx="50" cy="150.0" r="43.0"/><path d="M93.0 100 V218 A34 34 0 0 1 59.0 252 H14"/></g><g fill="none" stroke="#C8A27A"><path d="M3.93 108.51 A62.0 62.0 0 0 1 96.07 108.51" stroke-width="7" stroke-linecap="round"/></g></g></svg>
