@@ -5,9 +5,9 @@ import ts from "typescript";
 
 const source = await readFile(new URL("../lib/next-available-booking-date.ts", import.meta.url), "utf8");
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-const module = { exports: {} };
-new Function("exports", js)(module.exports);
-const { nextCalendarDate, findNextAvailableBookingDate } = module.exports;
+const loaded = { exports: {} };
+new Function("exports", js)(loaded.exports);
+const { nextCalendarDate, findNextAvailableBookingDate } = loaded.exports;
 
 test("salon-local dates advance across month, year and DST boundaries", () => {
   assert.equal(nextCalendarDate("2026-03-07"), "2026-03-08");
