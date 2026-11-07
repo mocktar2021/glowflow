@@ -91,10 +91,13 @@ test("renders localized authentication, booking, and legal routes in production"
 
   const frenchRegistration = await fetch(`${origin}/fr/register`);
   const frenchRegistrationHtml = await frenchRegistration.text();
+  const frenchRegistrationForm = frenchRegistrationHtml.match(/<form\b[\s\S]*?<\/form>/)?.[0];
+  assert.ok(frenchRegistrationForm, "registration form is rendered");
   assert.match(frenchRegistrationHtml, /Créez votre salon/);
-  assert.match(frenchRegistrationHtml, /Votre nom/);
-  assert.match(frenchRegistrationHtml, /Choisir un pays/);
-  assert.doesNotMatch(frenchRegistrationHtml, /Fuseau horaire|Europe\/Madrid|Código postal/);
+  assert.match(frenchRegistrationForm, /Votre nom/);
+  assert.match(frenchRegistrationForm, /Choisir un pays/);
+  // Next.js serializes all market props in script tags outside the visible form.
+  assert.doesNotMatch(frenchRegistrationForm, /Fuseau horaire|Europe\/Madrid|Código postal/);
   assert.doesNotMatch(frenchRegistrationHtml, /Create your salon|Salon address|>Country</);
 
   const spanishReset = await fetch(`${origin}/es/forgot-password`);
