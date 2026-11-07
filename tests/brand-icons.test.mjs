@@ -55,6 +55,9 @@ test("owner-approved vector artwork uses the Porcelain and Mulberry palette with
     assert.match(source, /#c8a27a/i);
     assert.doesNotMatch(source, /<image\b|<use\b|(?:href|src)\s*=\s*["']https?:/i);
   }
+  const favicon = await readFile(publicFile("favicon.svg"), "utf8");
+  assert.match(favicon, /icon-w2/);
+  assert.match(favicon, /M407 200V72/);
 });
 
 test("metadata and manifest advertise all icon and social previews", async () => {

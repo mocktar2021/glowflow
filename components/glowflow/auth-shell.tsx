@@ -12,21 +12,21 @@ const copy = {
     browse: "Explorer les salons",
     secure: "Votre espace salon",
     asideTitle: "Plus de place pour votre métier.",
-    illustration: "Image illustrative, créée pour GlowFlow",
+    illustration: "Photo de stock : RDNE Stock project / Pexels",
   },
   en: {
     home: "Back to home",
     browse: "Explore salons",
     secure: "Your salon workspace",
     asideTitle: "More room for your craft.",
-    illustration: "Illustrative image created for GlowFlow",
+    illustration: "Stock photo: RDNE Stock project / Pexels",
   },
   es: {
     home: "Volver al inicio",
     browse: "Explorar salones",
     secure: "Tu espacio de salón",
     asideTitle: "Más espacio para tu talento.",
-    illustration: "Imagen ilustrativa creada para GlowFlow",
+    illustration: "Foto de archivo: RDNE Stock project / Pexels",
   },
 } satisfies Record<Locale, { home: string; browse: string; secure: string; asideTitle: string; illustration: string }>;
 
@@ -71,7 +71,7 @@ export function AuthShell({
       </section>
 
       <aside className="relative hidden min-h-screen overflow-hidden bg-[#2a2129] text-[#f6efea] lg:block" aria-label={labels.illustration}>
-        <Image src="/brand/illustrative-manicure.jpg" alt="" fill priority sizes="40vw" className="object-cover" />
+        <Image src="/brand/pexels-nail-colors.webp" alt="" fill priority sizes="40vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#2a2129]/95 via-[#2a2129]/10 to-[#2a2129]/10" />
         <div className="absolute inset-x-0 bottom-0 p-10 xl:p-14">
           <p className="max-w-md font-display text-5xl font-medium leading-tight">{labels.asideTitle}</p>

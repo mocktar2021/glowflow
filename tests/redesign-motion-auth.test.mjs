@@ -39,3 +39,21 @@ test("auth pages link to localized home and active app code has no sparkle symbo
     }
   }
 });
+
+test("stock photo and full wordmark replace the synthetic photo and isolated letter", async () => {
+  const photo = await readFile(new URL("public/brand/pexels-nail-colors.webp", root));
+  assert.equal(photo.subarray(0, 4).toString(), "RIFF");
+  assert.equal(photo.subarray(8, 12).toString(), "WEBP");
+  assert.ok(photo.length > 20_000 && photo.length < 200_000);
+  const source = await readFile(new URL("docs/GLOW-58-stock-photo-wordmark.md", root), "utf8");
+  assert.match(source, /pexels\.com\/photo\/finger-pointing-at-nail-color-palette-7755241/);
+  assert.match(source, /pexels\.com\/license/);
+  const logo = await readFile(new URL("components/glowflow/brand-logo.tsx", root), "utf8");
+  assert.doesNotMatch(logo, /compact/);
+  for (const locale of ["fr", "en", "es"]) assert.match(landingCopy[locale].hero.stockCaption, /Pexels/);
+  for (const path of ["app/[locale]/page.tsx", "components/glowflow/auth-shell.tsx"]) {
+    const content = await readFile(new URL(path, root), "utf8");
+    assert.match(content, /pexels-nail-colors\.webp/);
+    assert.doesNotMatch(content, /illustrative-manicure\.jpg|BrandLogo compact/);
+  }
+});
