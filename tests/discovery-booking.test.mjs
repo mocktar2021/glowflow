@@ -12,9 +12,12 @@ async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", js)((name) => dependencies[name] ?? (name === "@/components/glowflow/brand-logo" ? { BrandLogo: () => null } : require(name)), loaded.exports);
+  new Function("require", "exports", js)((name) => dependencies[name] ??
+    (name === "@/components/glowflow/brand-logo" ? { BrandLogo: () => null } :
+      name === "@/lib/next-available-booking-date" ? nextAvailableDate : require(name)), loaded.exports);
   return loaded.exports;
 }
+const nextAvailableDate = await load("../lib/next-available-booking-date.ts");
 const marketConfig = await load("../lib/markets.ts");
 const first = "11111111-1111-4111-8111-111111111111";
 const chosen = "22222222-2222-4222-8222-222222222222";
