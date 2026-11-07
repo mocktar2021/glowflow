@@ -76,6 +76,20 @@ for (const locale of ["fr", "en", "es"]) {
       assert.equal(await page.locator('input[name="email"]').inputValue(), "owner@example.invalid");
       await page.getByRole("button", { name: copy.continue }).click();
       assert.equal(await page.locator('input[name="salon_name"]').inputValue(), "Example Salon");
+      await page.locator('select[name="country_code"]').selectOption("FR");
+      await page.locator('input[name="address_line1"]').fill("10 Rue Exemple");
+      await page.locator('input[name="city"]').fill("Paris");
+      await page.locator('input[name="postal_code"]').fill("75001");
+      await page.evaluate(() => {
+        window.__registrationSubmitted = false;
+        document.querySelector("form").addEventListener("submit", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          window.__registrationSubmitted = true;
+        }, { capture: true });
+      });
+      await page.getByRole("button", { name: copy.submit }).click();
+      await page.waitForFunction(() => window.__registrationSubmitted);
       assert.deepEqual(mutations, []);
     } finally {
       await context.close();
