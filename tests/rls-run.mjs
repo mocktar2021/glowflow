@@ -22,12 +22,22 @@ function command(query) {
     throw new Error('Local PostgreSQL setup or cleanup failed; check the local server and client configuration.');
   }
 }
-for (const suite of [
-  'schema-database.test.mjs',
-  'sandbox-database.test.mjs',
-  'notification-persistence-database.test.mjs',
+for (const [suite, databasePrefix, databaseUrlEnv, raceOrder] of [
+  ['schema-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-intent-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-quota-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-cleanup-cadence.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['public-booking-v2-postgis.test.mjs', 'glowflow_route_postgis_test_', 'GLOWFLOW_ROUTE_POSTGIS_TEST_DATABASE_URL'],
+  // Versioned gate migration, exercised in isolated disposable databases.
+  ['public-booking-gate-migration.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'prepare_first'],
+  ['public-booking-gate-migration.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL', 'transition_first'],
+  ['public-booking-gate-rollback.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['sandbox-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['notification-persistence-database.test.mjs', 'glowflow_sandbox_test_', 'GLOWFLOW_SANDBOX_TEST_DATABASE_URL'],
+  ['reminder-scheduling-database.test.mjs', 'glowflow_reminder_test_', 'GLOWFLOW_REMINDER_SCHEDULING_TEST_DATABASE_URL'],
+  ['payment-recording-database.test.mjs', 'glowflow_payment_recording_test_', 'GLOWFLOW_PAYMENT_RECORDING_TEST_DATABASE_URL'],
 ]) {
-  const database = `glowflow_sandbox_test_${Date.now()}_${randomInt(1_000_000)}`;
+  const database = `${databasePrefix}${Date.now()}_${randomInt(1_000_000)}`;
   const testUrl = new URL(admin);
   testUrl.pathname = `/${database}`;
   let created = false;
@@ -36,7 +46,8 @@ for (const suite of [
     created = true;
     const result = spawnSync(process.execPath, ['--test', `tests/${suite}`], {
       cwd: new URL('../', import.meta.url),
-      env: { ...process.env, GLOWFLOW_SANDBOX_TEST_DATABASE_URL: testUrl.href },
+      env: { ...process.env, [databaseUrlEnv]: testUrl.href,
+        ...(raceOrder ? { GLOWFLOW_GATE_RACE_ORDER: raceOrder } : {}) },
       stdio: 'inherit', timeout: 240_000,
     });
     if (result.error) throw result.error;

@@ -26,7 +26,8 @@ end $$;
 insert into auth.users(id,email) values
 ('20000000-0000-0000-0000-000000000001','owner-a@example.invalid'),
 ('20000000-0000-0000-0000-000000000002','staff-a@example.invalid'),
-('20000000-0000-0000-0000-000000000003','owner-b@example.invalid');
+('20000000-0000-0000-0000-000000000003','owner-b@example.invalid'),
+('20000000-0000-0000-0000-000000000099','unaffiliated@example.invalid');
 insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone,stripe_account_id) values
 ('10000000-0000-0000-0000-000000000001','Fixture A','fixture-a','20000000-0000-0000-0000-000000000001','US','USD','America/New_York','acct_fixture_a'),
 ('10000000-0000-0000-0000-000000000002','Fixture B','fixture-b','20000000-0000-0000-0000-000000000003','US','USD','America/New_York','acct_fixture_b');
@@ -91,12 +92,13 @@ select public.test_assert(
 reset role;
 
 -- Public availability and appointment creation require an owner-published profile.
+-- Use next Monday, never today, so the booking fixture remains in the future during Monday CI runs.
 set role service_role;
 select public.test_assert(
   (select count(*) from public.get_public_booking_slots(
     'fixture-a',
     '40000000-0000-0000-0000-000000000001',
-    (current_date + ((8 - extract(dow from current_date)::integer) % 7))::date
+    (current_date + (8 - extract(dow from current_date)::integer))::date
   )) > 0,
   'published salon exposes public availability'
 );
@@ -104,7 +106,7 @@ select public.test_assert(
   (select count(*) from public.get_public_booking_slots(
     'fixture-b',
     '40000000-0000-0000-0000-000000000002',
-    (current_date + ((8 - extract(dow from current_date)::integer) % 7))::date
+    (current_date + (8 - extract(dow from current_date)::integer))::date
   )) = 0,
   'unpublished salon hides public availability'
 );
@@ -114,7 +116,7 @@ begin
     'fixture-b',
     '40000000-0000-0000-0000-000000000002',
     '20000000-0000-0000-0000-000000000003',
-    (current_date + ((8 - extract(dow from current_date)::integer) % 7) + time '10:00') at time zone 'America/New_York',
+    (current_date + (8 - extract(dow from current_date)::integer) + time '10:00') at time zone 'America/New_York',
     'Blocked Client',
     null,
     'blocked@example.invalid',
@@ -171,6 +173,104 @@ begin
     perform public.test_denied(format('update public.users set tenant_id=%L where id=auth.uid()',other_tenant));
   end loop;
 end $$;
+
+-- Existing membership policy must not let staff, foreign owners, or an
+-- unaffiliated identity attach a user to a tenant without its owner's authority.
+-- These checks do not model invitation consent or verified-email binding.
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Uninvited Staff'',''unaffiliated@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000002'',''Foreign Staff'',''unaffiliated@example.invalid'',''staff'')');
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Unapproved Owner'',''unaffiliated@example.invalid'',''owner'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000099';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000099'',''10000000-0000-0000-0000-000000000001'',''Self Assigned'',''unaffiliated@example.invalid'',''staff'')');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000099')=0,
+  'denied membership inserts leave the unaffiliated identity unassigned'
+);
+
+-- One salon per login for MVP: even an owner of the target salon cannot
+-- attach an Auth identity that already has a membership elsewhere.
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000003';
+select public.test_rejected('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000002'',''10000000-0000-0000-0000-000000000002'',''Staff A again'',''staff-a@example.invalid'',''staff'')','42501');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000002')=0,
+  'second salon has no membership for an already-linked login'
+);
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000002' and tenant_id='10000000-0000-0000-0000-000000000001')=1,
+  'rejected second-salon insert preserves the original membership'
+);
+
+-- A staff login already belongs to one salon. Forged, editable signup metadata
+-- passed through onboarding must not turn that login into another salon owner.
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_assert(
+  public.create_owner_workspace('Forged Salon', 'forged-salon', 'Forged Owner') =
+    '10000000-0000-0000-0000-000000000001'::uuid,
+  'existing staff login remains in its original salon during owner onboarding'
+);
+select public.test_assert(
+  (select role from public.users where id=auth.uid()) = 'staff',
+  'owner onboarding cannot promote an existing staff login'
+);
+reset role;
+select public.test_assert(
+  (select count(*) from public.tenants) = 2
+    and (select count(*) from public.tenants where slug='forged-salon') = 0,
+  'forged owner onboarding creates no second salon'
+);
+set role authenticated;
+
+-- No owner may attach an existing but unattached Auth identity without an
+-- invitation acceptance path. Current owner onboarding must still work.
+reset role;
+insert into auth.users(id,email) values
+  ('20000000-0000-0000-0000-000000000097','unaffiliated-guard@example.invalid');
+set role authenticated;
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Unconsented Staff'',''unaffiliated-guard@example.invalid'',''staff'')');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000097')=0,
+  'owner cannot attach an unattached Auth identity'
+);
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Staff Attachment'',''unaffiliated-guard@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000003';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000002'',''Other Owner Attachment'',''unaffiliated-guard@example.invalid'',''staff'')');
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000097';
+select public.test_denied('insert into public.users(id,tenant_id,full_name,email,role) values(''20000000-0000-0000-0000-000000000097'',''10000000-0000-0000-0000-000000000001'',''Self Assignment'',''unaffiliated-guard@example.invalid'',''owner'')');
+
+reset role;
+begin;
+insert into auth.users(id,email) values
+  ('20000000-0000-0000-0000-000000000098','new-owner@example.invalid');
+insert into public.tenants(id,name,slug,owner_id,country_code,currency,time_zone) values
+  ('10000000-0000-0000-0000-000000000098','New Owner Fixture','new-owner-fixture',
+   '20000000-0000-0000-0000-000000000098','US','USD','America/New_York');
+set role authenticated;
+set request.jwt.claim.sub='20000000-0000-0000-0000-000000000098';
+insert into public.users(id,tenant_id,full_name,email,role) values
+  ('20000000-0000-0000-0000-000000000098','10000000-0000-0000-0000-000000000098',
+   'New Owner','new-owner@example.invalid','owner');
+select public.test_assert(
+  (select count(*) from public.users where id='20000000-0000-0000-0000-000000000098' and role='owner')=1,
+  'owner self-insert remains permitted for onboarding'
+);
+rollback;
+set role authenticated;
+
+-- Column grants must keep the broad self-update row policy from changing identity or role.
+select public.test_assert(
+  (select array_agg(a.attname::text order by a.attname::text)
+   from pg_attribute a
+   where a.attrelid = 'public.users'::regclass
+     and a.attnum > 0 and not a.attisdropped
+     and has_column_privilege('authenticated', 'public.users', a.attname::text, 'UPDATE'))
+  = array['full_name', 'locale']::text[],
+  'authenticated users may update only safe profile columns'
+);
 
 -- Staff can read catalog but only the owner can manage it.
 set request.jwt.claim.sub='20000000-0000-0000-0000-000000000002';

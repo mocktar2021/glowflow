@@ -1,0 +1,7 @@
+# GLOW-58 stock photo and wordmark follow-up
+
+The landing marketplace panel and desktop auth panel use a real photograph, not a generated image. Source: [RDNE Stock project, Pexels photo 7755241](https://www.pexels.com/photo/finger-pointing-at-nail-color-palette-7755241/), under the [Pexels license](https://www.pexels.com/license/). The local WebP is a resized copy of that photo. The photo shows a color-selection moment; it is stock photography, not a named GlowFlow salon, its staff, or its work. The owner requested no visible photo-source overlay. Landing keeps a screen-reader-only source caption, auth retains an accessible source label, and provenance remains documented here.
+
+The source image was obtained from the documented Pexels-derived asset in [nail-art-studio's image-source register](https://github.com/htalhakeskin-lgtm/nail-art-studio/blob/main/docs/gorsel-kaynaklari.md), because this execution environment cannot contact Pexels directly. No image generation was used in this follow-up. The old synthetic manicure image is removed from the app and repository.
+
+The owner requested the complete approved GlowFlow wordmark instead of the isolated `g`. All in-app brand marks, the salon no-photo fallback, and the browser/PWA icon family use the complete wordmark. The social card already used it. The two unused standalone-mark SVG files are removed. At 16-pixel favicon size, the full lettering will necessarily be less readable than a monogram; confirm the tradeoff in visual review.

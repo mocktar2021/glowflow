@@ -14,6 +14,7 @@ async function load(path, dependencies = {}) {
 }
 const payment = await load("../lib/sandbox-payment-copy.ts");
 const bookingStaff = await load("../lib/public-booking-staff.ts");
+const nextAvailableDate = await load("../lib/next-available-booking-date.ts");
 const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
 const slot = { slot_start: "2026-09-12T10:00:00Z", staff_id: "public-staff-id" };
 async function harness(initial = {}) {
@@ -24,13 +25,16 @@ async function harness(initial = {}) {
     useRef(value) { const index = refIndex++; return refs[index] ??= { current: value }; },
     useMemo(fn) { return fn(); },
     useEffect(fn, deps) { const index = effectIndex++; const last = effects[index]; if (!last || deps.some((value, i) => value !== last.deps[i])) { last?.cleanup?.(); effects[index] = { fn, deps, pending: true }; } },
+    useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); },
   };
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react,
-    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg", Sparkles: "svg" },
+    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg" },
     "next/link": ({ children }) => children,
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": payment,
+    "@/lib/next-available-booking-date": nextAvailableDate,
   });
   return { values, refs, render(extra = {}) { stateIndex = refIndex = effectIndex = 0; return LiveBookingFlow({ ...props, ...extra }); }, runEffects() { for (const effect of effects) if (effect.pending) { effect.pending = false; effect.cleanup = effect.fn(); } }, cleanup() { effects.forEach((effect) => effect.cleanup?.()); } };
 }
@@ -77,11 +81,11 @@ test("aborted earlier availability cannot clear loading or replace newer slots",
   } finally { globalThis.fetch = originalFetch; }
 });
 test("availability error offers retry and stale selection is cleared when service changes", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: true });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 9: true });
   let tree = h.render();
   const retry = find(tree, (node) => node.type === "button" && node.props.children === "Réessayer");
   assert.ok(retry); retry.props.onClick();
-  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[8], false);
+  assert.equal(h.values[3], null); assert.equal(h.values[4], true); assert.equal(h.values[9], false);
   tree = h.render();
   assert.equal(find(tree, (node) => node.type === "button" && node.props.type === "submit").props.disabled, true);
   find(tree, (node) => node.type === "select").props.onChange({ target: { value: "other-service" } });
@@ -97,7 +101,7 @@ test("named staff choice filters slots without losing the no-preference option",
   assert.ok(staffSelect);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   staffSelect.props.onChange({ target: { value: "other-staff" } });
-  assert.equal(h.values[10], "other-staff");
+  assert.equal(h.values[11], "other-staff");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 2);
   assert.ok(renderToStaticMarkup(tree).includes("Ari"));
@@ -105,15 +109,75 @@ test("named staff choice filters slots without losing the no-preference option",
   tree = h.render(extra);
   assert.ok(renderToStaticMarkup(tree).includes("Aucun créneau pour ce professionnel"));
   find(tree, (node) => node.type === "button" && node.props.children === "Voir tous les professionnels").props.onClick();
-  assert.equal(h.values[10], "");
+  assert.equal(h.values[11], "");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 1);
 });
+test("empty date offers a localized, explicit next-date search and rechecks the chosen date", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedDates = [];
+  const h = await harness({ 4: false });
+  h.render();
+  const target = nextAvailableDate.nextCalendarDate(nextAvailableDate.nextCalendarDate(h.values[1]));
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.cache, "no-store");
+    const candidate = new URL(url, "https://fixture.invalid").searchParams.get("date");
+    requestedDates.push(candidate);
+    return { ok: true, json: async () => ({ slots: candidate === target ? [{ ...slot, slot_start: `${target}T14:00:00Z` }] : [] }) };
+  };
+  try {
+    for (const [locale, label] of [["fr", "Chercher la prochaine date disponible"], ["en", "Find the next available date"], ["es", "Buscar la próxima fecha disponible"]]) {
+      const tree = h.render({ locale });
+      assert.ok(find(tree, (node) => node.type === "button" && node.props.children === label));
+    }
+    await find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    assert.deepEqual(requestedDates, [nextAvailableDate.nextCalendarDate(h.values[1]), target]);
+    const tree = h.render();
+    const suggestion = find(tree, (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du"));
+    assert.ok(suggestion);
+    suggestion.props.onClick();
+    assert.equal(h.values[1], target);
+    assert.equal(h.values[4], true);
+    assert.equal(find(h.render(), (node) => node.type === "button" && node.props.type === "submit").props.disabled, true);
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
+});
+test("changing the selected date cancels an in-flight next-date search", async () => {
+  const originalFetch = globalThis.fetch;
+  let release;
+  let signal;
+  globalThis.fetch = (_url, options) => { signal = options.signal; return new Promise((resolve) => { release = resolve; }); };
+  const h = await harness({ 4: false });
+  try {
+    const search = find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    assert.equal(signal.aborted, false);
+    const newer = nextAvailableDate.nextCalendarDate(h.values[1]);
+    find(h.render(), (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: newer } });
+    assert.equal(signal.aborted, true);
+    release({ ok: true, json: async () => ({ slots: [{ ...slot, slot_start: `${newer}T14:00:00Z` }] }) });
+    await search;
+    assert.equal(h.values[1], newer);
+    assert.equal(find(h.render(), (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du")), undefined);
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
+});
+test("failed next-date lookup does not invent availability and allows an explicit retry", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return { ok: false }; };
+  const h = await harness({ 4: false });
+  try {
+    await find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    const tree = h.render();
+    assert.equal(calls, 1);
+    assert.ok(renderToStaticMarkup(tree).includes("Impossible de chercher une autre date"));
+    assert.equal(find(tree, (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du")), undefined);
+    assert.ok(find(tree, (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible"));
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
+});
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
-  const h = await harness({ 2: [slot], 3: slot, 4: false, 7: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
+  const h = await harness({ 2: [slot], 3: slot, 4: false, 8: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });
   const tree = h.render();
   find(tree, (node) => node.type === "button").props.onClick();
-  assert.equal(h.values[7], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
+  assert.equal(h.values[8], null); assert.equal(h.values[3], null); assert.equal(h.values[4], true);
 });
 test("offline unknown salon slugs fail closed while explicit atelier demo remains", async () => {
   const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -126,6 +190,7 @@ test("offline unknown salon slugs fail closed while explicit atelier demo remain
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: (locale) => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => "off" },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -147,6 +212,7 @@ test("localized booking resolves only published tenant services and passes an ex
   const primary = "11111111-1111-4111-8111-111111111111";
   const foreign = "22222222-2222-4222-8222-222222222222";
   const tables = {
+    markets: [{ country_code: "FR", default_locale: "fr" }],
     tenants: [
       { id: "tenant-a", name: "Published Salon", slug: "published", city: "Paris", country_code: "FR", currency: "EUR", time_zone: "Europe/Paris", is_booking_enabled: true, private_note: "never send" },
       { id: "tenant-b", name: "Hidden Salon", slug: "hidden", city: "Madrid", country_code: "ES", currency: "EUR", time_zone: "Europe/Madrid", is_booking_enabled: true },
@@ -160,6 +226,7 @@ test("localized booking resolves only published tenant services and passes an ex
     ],
   };
   const selections = [];
+  let bookingV2Mode = "off";
   const createAdminClient = () => ({ from(table) {
     const filters = [], included = [];
     let columns = [];
@@ -182,6 +249,7 @@ test("localized booking resolves only published tenant services and passes an ex
       "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
       "@/components/glowflow/sandbox-payment-status": { SandboxPaymentStatusPanel: "sandbox" },
       "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+      "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => bookingV2Mode },
       "@/lib/public-booking-staff": bookingStaff,
       "@/lib/stripe-sandbox": { sandboxOwner: () => { throw new Error("unexpected-owner"); } },
       "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => null },
@@ -193,12 +261,17 @@ test("localized booking resolves only published tenant services and passes an ex
       assert.equal(result.type, "live");
       assert.equal(result.props.locale, locale);
       assert.equal(result.props.initialServiceId, primary);
-      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" });
+      assert.deepEqual(result.props.salon, { name: "Public Brand", slug: "published", city: "Paris", countryCode: "FR", defaultLocale: "fr", currency: "EUR", timeZone: "Europe/Paris" });
       assert.deepEqual(result.props.services.map(service => service.id), [primary]);
       assert.deepEqual(result.props.bookingStaffByService[primary], [{ id: "33333333-3333-4333-8333-333333333333", name: "Ari" }]);
       assert.equal("private_note" in result.props.salon, false);
       assert.equal("internal_cost" in result.props.services[0], false);
     }
+    bookingV2Mode = "recovery_only";
+    const recoveryPage = await render("fr", "published", primary);
+    assert.equal(recoveryPage.props.v2, true);
+    assert.equal(recoveryPage.props.recoveryOnly, true);
+    bookingV2Mode = "off";
     for (const [locale, slug, service] of [["fr", "hidden", null], ["en", "unknown", null], ["es", "published", foreign], ["de", "published", null]]) {
       await assert.rejects(render(locale, slug, service), /not-found/);
     }

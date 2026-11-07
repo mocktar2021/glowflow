@@ -6,14 +6,19 @@ import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { localizedProductText, productDefaultLocale } from "../lib/product-localization.ts";
+import { selectPublishedPolicy } from "../lib/published-policy.ts";
 const require = createRequire(import.meta.url);
 async function load(file, dependencies = {}) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", js)((name) => dependencies[name] ?? require(name), loaded.exports);
+  new Function("require", "exports", js)((name) => dependencies[name] ??
+    (name === "@/components/glowflow/brand-logo" ? { BrandLogo: () => null } :
+      name === "@/lib/next-available-booking-date" ? nextAvailableDate : require(name)), loaded.exports);
   return loaded.exports;
 }
+const nextAvailableDate = await load("../lib/next-available-booking-date.ts");
+const marketConfig = await load("../lib/markets.ts");
 const first = "11111111-1111-4111-8111-111111111111";
 const chosen = "22222222-2222-4222-8222-222222222222";
 const foreign = "33333333-3333-4333-8333-333333333333";
@@ -22,15 +27,15 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, products = [] } = {}) {
+function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, marketDefaultLocale = "es", products = [], policies = {}, services = catalog, publicPhone = null, nextAvailableAt = null } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
     const query = { select() { return query; }, eq(key, value) { filters.push([key, value]); return query; }, order() { return result(false); }, single() { return result(true); }, maybeSingle() { return result(true); } };
     function result(single) {
       queries.push({ table, filters });
-      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished }];
-      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? catalog : table === "markets" ? [{ country_code: "ES", default_locale: "es" }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
+      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished, policies_json: policies, public_phone: publicPhone, next_available_at: nextAvailableAt }];
+      const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? services : table === "markets" ? [{ country_code: "ES", default_locale: marketDefaultLocale }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
     return query;
@@ -47,6 +52,7 @@ async function booking(db, { sandbox = false, owner = true } = {}) {
   return (await load("../app/[locale]/book/[slug]/page.tsx", {
     "next/navigation": { notFound() { throw new Error("not-found"); } },
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/public-booking-v2-config": { publicBookingV2Mode: () => "off" },
     "@/lib/public-booking-staff": bookingStaff,
     "@/components/glowflow/booking-flow": { BookingFlow: "demo" },
     "@/components/glowflow/live-booking-flow": { LiveBookingFlow: "live" },
@@ -71,16 +77,57 @@ test("localized profile service links carry only active services for this salon"
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
     "@/lib/markets": markets,
     "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
   });
   for (const [locale, label] of [["fr", "Réserver cette prestation"], ["en", "Book this service"], ["es", "Reservar este servicio"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
     const links = nodes(tree).filter(node => node.props?.href?.includes("?service="));
     assert.deepEqual(links.map(link => link.props.href), [first, chosen].map(id => `/${locale}/book/${tenant.slug}?service=${id}`));
+    assert.ok(nodes(tree).some(node => node.props?.href === `/${locale}/book/${tenant.slug}`), "salons with active services keep their main booking link");
     assert.equal(links[1].props.children, label);
     assert.ok(links[1].props["aria-label"].includes(catalog[1].title_json[locale]));
     assert.ok(nodes(tree).some(node => node.type === "strong" && node.props.children === markets.formatMinorMoneyWithCurrencyPrecision(4200, "EUR", locale)));
     assert.ok(nodes(tree).some(node => node.type === "span" && Array.isArray(node.props.children) && node.props.children.includes(markets.formatMinorMoneyWithCurrencyPrecision(500, "EUR", locale))));
   }
+}));
+test("a published salon without active services offers contact instead of a broken booking link", async () => withConfiguration(async () => {
+  const db = database({ services: [], publicPhone: "+33600000000", nextAvailableAt: "2030-06-15T14:00:00Z" });
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  for (const [locale, message, action] of [
+    ["fr", "Réservation en ligne indisponible pour le moment.", "Appeler le salon"],
+    ["en", "Online booking is unavailable for now.", "Call the salon"],
+    ["es", "Las reservas en línea no están disponibles por ahora.", "Llamar al salón"],
+  ]) {
+    const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
+    const all = nodes(tree);
+    assert.ok(!all.some(node => node.props?.href?.includes(`/book/${tenant.slug}`)), "no booking CTA when its route would 404");
+    assert.ok(all.some(node => node.type === "p" && node.props.children === message));
+    assert.ok(all.some(node => node.type === "a" && node.props.href === "tel:+33600000000" && node.props.children === action));
+    assert.ok(!all.some(node => node.type === "strong"), "stale next opening is hidden");
+  }
+  const Booking = await booking(db);
+  await assert.rejects(Booking(request("fr")), /not-found/, "the original empty-catalog route stays closed");
+
+  const withoutPhone = database({ services: [], publicPhone: null });
+  const { default: PageWithoutPhone } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => withoutPhone },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  const withoutPhoneNodes = nodes(await PageWithoutPhone({ params: Promise.resolve({ locale: "fr", slug: tenant.slug }) }));
+  assert.ok(withoutPhoneNodes.some(node => node.type === "p" && node.props.children === "Réservation en ligne indisponible pour le moment."));
+  assert.ok(!withoutPhoneNodes.some(node => node.props?.href?.startsWith("tel:") || node.props?.href?.includes(`/book/${tenant.slug}`)));
 }));
 test("published product text follows selection and falls back to the salon country language", async () => withConfiguration(async () => {
   const db = database({ products: [{ id: "product-1", tenant_id: tenant.id, is_published: true, category: "hair", name_json: { fr: "", en: "English product", es: "Producto español" }, description_json: { fr: "", en: "", es: "Descripción española" }, image_alt_json: { fr: "", en: "", es: "Imagen española" }, image_url: "https://example.invalid/product.jpg", price: 1500, currency: "EUR", stock_visibility: "not_shown" }] });
@@ -91,12 +138,47 @@ test("published product text follows selection and falls back to the salon count
     "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
     "@/lib/markets": markets,
     "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
   });
   for (const [locale, expectedName] of [["fr", "Producto español"], ["en", "English product"], ["es", "Producto español"]]) {
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
     assert.ok(nodes(tree).some(node => node.type === "h4" && node.props.children === expectedName));
     assert.ok(nodes(tree).some(node => node.props?.alt === "Imagen española"));
   }
+}));
+test("published salon profile explains missing policies in every visitor language", async () => withConfiguration(async () => {
+  const db = database();
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  for (const [locale, message] of [
+    ["fr", "Conditions d’annulation non publiées. Contactez le salon pour les connaître."],
+    ["en", "Cancellation policies are not published. Contact the salon for details."],
+    ["es", "Las condiciones de cancelación no están publicadas. Contacta con el salón para conocerlas."],
+  ]) {
+    const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
+    assert.ok(nodes(tree).some(node => node.type === "p" && node.props.children === message && node.props.lang === locale));
+  }
+}));
+test("fallback salon policy keeps the published language for accessibility", async () => withConfiguration(async () => {
+  const db = database({ policies: { fr: "Conditions du salon." } });
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  const tree = await Page({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
+  assert.ok(nodes(tree).some(node => node.type === "p" && node.props.children === "Conditions du salon." && node.props.lang === "fr"));
 }));
 test("booking route preserves selected service, locale and trusted salon currency/time zone", async () => withConfiguration(async () => {
   const Page = await booking(database());
@@ -107,6 +189,7 @@ test("booking route preserves selected service, locale and trusted salon currenc
     assert.deepEqual(tree.props.services.map(s => s.id), [first, chosen]);
     assert.equal(tree.props.salon.currency, "EUR");
     assert.equal(tree.props.salon.countryCode, "ES");
+    assert.equal(tree.props.salon.defaultLocale, "es");
     assert.equal(tree.props.salon.timeZone, "Europe/Madrid");
     assert.notEqual(tree.key, (await Page(request(locale, first))).key, "new selected-service navigation resets old form state");
   }
@@ -130,6 +213,21 @@ test("public booking fails closed when the discovered profile country differs fr
   const Page = await booking(database({ profileCountry: "FR" }));
   await assert.rejects(Page(request("es", chosen)), /not-found/);
 }));
+test("booking uses the configured market language even when it differs from the static country fallback", async () => withConfiguration(async () => {
+  const sparse = { ...catalog[1], title_json: { fr: "", en: "English market title", es: "Spanish country title" } };
+  const Page = await booking(database({ marketDefaultLocale: "en", services: [sparse] }));
+  const tree = await Page(request("fr", chosen));
+  assert.equal(tree.props.salon.countryCode, "ES");
+  assert.equal(tree.props.salon.defaultLocale, "en");
+  const payment = await load("../lib/sandbox-payment-copy.ts");
+  const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
+    "@/lib/sandbox-payment-copy": payment,
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+  });
+  const html = renderToStaticMarkup(createElement(LiveBookingFlow, tree.props));
+  assert.match(html, /English market title/);
+  assert.doesNotMatch(html, /Spanish country title/);
+}));
 test("selected service preserves sandbox owner/configuration gates and reservation status", async () => withConfiguration(async () => {
   const Page = await booking(database(), { sandbox: true });
   assert.equal((await Page(request("en", chosen, { sandbox: "1" }))).props.sandbox, true);
@@ -151,11 +249,49 @@ test("live form selects requested catalog service and rejects foreign component 
   assert.throws(() => renderToStaticMarkup(createElement(LiveBookingFlow, { ...props, initialServiceId: foreign })), /this salon's catalog/);
 });
 
+test("booking keeps a sparse published service title visible across locale handoff", async () => {
+  await withConfiguration(async () => {
+    const sparse = { ...catalog[0], title_json: { fr: "French service", en: "", es: "Spanish service" } };
+    const { default: ProfilePage } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+      "@/lib/supabase/server": { createClient: async () => database({ services: [sparse] }) },
+      "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+      "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+      "@/lib/markets": marketConfig,
+      "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+      "@/lib/published-policy": { selectPublishedPolicy },
+    });
+    const profileTree = await ProfilePage({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
+    assert.ok(nodes(profileTree).some(node => node.type === "h3" && node.props.children === "Spanish service"));
+    assert.ok(nodes(profileTree).some(node => node.props?.href === `/en/book/${tenant.slug}?service=${first}` && node.props["aria-label"].includes("Spanish service")));
+    sparse.title_json = { fr: "", en: "", es: "" };
+    const blankProfile = await ProfilePage({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
+    assert.ok(nodes(blankProfile).some(node => node.type === "h3" && node.props.children === "Service name unavailable"));
+  });
+  const payment = await load("../lib/sandbox-payment-copy.ts");
+  const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
+    "@/lib/sandbox-payment-copy": payment,
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+  });
+  for (const [locale, title_json, expected] of [
+    ["en", { fr: "French service", en: "", es: "Spanish service" }, "Spanish service"],
+    ["en", { fr: "French service", es: "Spanish service" }, "Spanish service"],
+    ["fr", { fr: "", en: "English service", es: " " }, "English service"],
+    ["en", { fr: "", en: "", es: "" }, "Service details unavailable"],
+  ]) {
+    const sparse = { ...catalog[0], title_json };
+    const html = renderToStaticMarkup(createElement(LiveBookingFlow, {
+      locale, salon: { ...tenant, countryCode: tenant.country_code, defaultLocale: "es", timeZone: tenant.time_zone }, services: [sparse], initialServiceId: first,
+    }));
+    assert.equal(localizedProductText(title_json, locale, "es") || "Service details unavailable", expected);
+    assert.equal(html.split(expected).length - 1, 2, "summary and selector use the same non-empty title as the profile");
+  }
+});
+
 test("changing service preserves sandbox query, hash and history state for locale navigation", async () => {
   const values = [];
   const payment = await load("../lib/sandbox-payment-copy.ts");
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
-    react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn() },
+    react: { ...require("react"), useState(value) { const index = values.length; values.push(value); return [value, next => { values[index] = next; }]; }, useEffect() {}, useRef: value => ({ current: value }), useMemo: fn => fn(), useSyncExternalStore(_subscribe, getSnapshot) { return getSnapshot(); } },
     "@/lib/sandbox-payment-copy": payment,
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
   });

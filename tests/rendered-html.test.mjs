@@ -54,7 +54,7 @@ async function waitForServer() {
   throw new Error(`Next.js did not start in time:\n${serverOutput}`);
 }
 
-test("renders localized authentication and booking routes in production", { timeout: 30000 }, async () => {
+test("renders localized authentication, booking, and legal routes in production", { timeout: 60000 }, async () => {
   await waitForServer();
 
   for (const route of [
@@ -65,9 +65,9 @@ test("renders localized authentication and booking routes in production", { time
     "/fr/salons",
     "/en/salons?q=braids&country=US",
     "/es/salons?category=nails",
-    "/fr/privacy",
-    "/en/terms",
-    "/es/support",
+    ...["fr", "en", "es"].flatMap((locale) =>
+      ["privacy", "terms", "support"].map((page) => `/${locale}/${page}`),
+    ),
   ]) {
     const response = await fetch(`${origin}${route}`, {
       headers: { accept: "text/html" },
@@ -91,9 +91,13 @@ test("renders localized authentication and booking routes in production", { time
 
   const frenchRegistration = await fetch(`${origin}/fr/register`);
   const frenchRegistrationHtml = await frenchRegistration.text();
+  const frenchRegistrationForm = frenchRegistrationHtml.match(/<form\b[\s\S]*?<\/form>/)?.[0];
+  assert.ok(frenchRegistrationForm, "registration form is rendered");
   assert.match(frenchRegistrationHtml, /Créez votre salon/);
-  assert.match(frenchRegistrationHtml, /Votre nom/);
-  assert.match(frenchRegistrationHtml, /Fuseau horaire/);
+  assert.match(frenchRegistrationForm, /Votre nom/);
+  assert.match(frenchRegistrationForm, /Choisir un pays/);
+  // Next.js serializes all market props in script tags outside the visible form.
+  assert.doesNotMatch(frenchRegistrationForm, /Fuseau horaire|Europe\/Madrid|Código postal/);
   assert.doesNotMatch(frenchRegistrationHtml, /Create your salon|Salon address|>Country</);
 
   const spanishReset = await fetch(`${origin}/es/forgot-password`);

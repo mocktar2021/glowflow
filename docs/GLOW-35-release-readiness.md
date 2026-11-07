@@ -58,7 +58,7 @@ Read-only comparison found identical counts across all 16 application tables, ma
 
 A separate hosted Storage drill uploaded a 4,164-byte synthetic PNG to `salon-public-media`, downloaded and checksummed it, deleted its authoritative object metadata, restored the file, and verified the restored SHA-256 checksum. Cleanup removed the synthetic object. The temporary recovery branch `kxntrimhollnsvbldexy` was then deleted; the production project was not written to.
 
-This proves a hosted current-state clone and a separate file-object recovery procedure. At this stage, selection of a historical daily/PITR recovery point and a complete signed-in application journey against recovered infrastructure remained; the following exercise closes the application-journey gap. Working operational targets are a 24-hour RPO while daily backups are used and a 4-hour RTO, with the GlowFlow product owner as incident lead, Mocktar Technologies as database owner, and `support@mocktar.com` as the support contact.
+This proves a hosted current-state clone and a separate file-object recovery procedure. At this stage, selection of a historical daily/PITR recovery point and a complete signed-in application journey against recovered infrastructure remained; the following exercise closes the application-journey gap. Working operational targets are a 24-hour RPO while daily backups are used and a 4-hour RTO, with the GlowFlow product owner as incident lead, Mocktar Technologies as database owner, and `glowflow@mocktar.com` as the support contact.
 
 ### Recovered application journey
 

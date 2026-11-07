@@ -5,6 +5,7 @@ import { LiveBookingFlow } from "@/components/glowflow/live-booking-flow";
 import { SandboxPaymentStatusPanel } from "@/components/glowflow/sandbox-payment-status";
 import { isLocale } from "@/lib/i18n";
 import { bookingMembersByService, publishedBookingMembers } from "@/lib/public-booking-staff";
+import { publicBookingV2Mode } from "@/lib/public-booking-v2-config";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -76,12 +77,19 @@ export default async function BookingPage({
     return <SandboxPaymentStatusPanel locale={locale} salonSlug={slug} reservationId={query.sandboxReservation} />;
   }
 
-  const { data: rawServices } = await supabase
-    .from("services")
-    .select("id,title_json,duration_minutes,price,deposit_amount,currency")
-    .eq("tenant_id", tenant.id)
-    .eq("is_active", true)
-    .order("created_at");
+  const [{ data: rawServices }, { data: market }] = await Promise.all([
+    supabase.from("services")
+      .select("id,title_json,duration_minutes,price,deposit_amount,currency")
+      .eq("tenant_id", tenant.id)
+      .eq("is_active", true)
+      .order("created_at"),
+    supabase.from("markets")
+      .select("default_locale")
+      .eq("country_code", tenant.country_code)
+      .maybeSingle(),
+  ]);
+  const marketLanguage = market?.default_locale;
+  const defaultLocale = marketLanguage && isLocale(marketLanguage) ? marketLanguage : "fr";
 
   const services = (rawServices ?? []) as Service[];
   if (!services.length) notFound();
@@ -96,17 +104,22 @@ export default async function BookingPage({
     if (!staffError && !assignmentError) bookingStaffByService = bookingMembersByService(publishedMembers, (tenantStaff ?? []).map((member) => member.id), services, assignments ?? []);
   }
 
+  const bookingV2Mode = publicBookingV2Mode();
+
   return (
     <LiveBookingFlow
       key={`${tenant.id}:${initialServiceId ?? "default"}:${sandbox}`}
       initialServiceId={initialServiceId}
       locale={locale}
       sandbox={sandbox}
+      v2={!sandbox && bookingV2Mode !== "off"}
+      recoveryOnly={!sandbox && bookingV2Mode === "recovery_only"}
       salon={{
         name: publicSalonName,
         slug: tenant.slug,
         city: tenant.city,
         countryCode: tenant.country_code,
+        defaultLocale,
         currency: tenant.currency,
         timeZone: tenant.time_zone,
       }}

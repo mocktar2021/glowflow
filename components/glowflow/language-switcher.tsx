@@ -14,10 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Locale } from "@/lib/i18n";
 
-const languageOptions: Array<{ locale: Locale; short: string; flag: string }> = [
-  { locale: "fr", short: "FR", flag: "🇫🇷" },
-  { locale: "en", short: "EN", flag: "🇬🇧" },
-  { locale: "es", short: "ES", flag: "🇪🇸" },
+const languageOptions: Array<{ locale: Locale; short: string; name: string }> = [
+  { locale: "fr", short: "FR", name: "Français" },
+  { locale: "en", short: "EN", name: "English" },
+  { locale: "es", short: "ES", name: "Español" },
 ];
 
 const accessibleLabel: Record<Locale, string> = {
@@ -56,14 +56,13 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
         <Button
           variant="outline"
           size="sm"
-          className="h-10 rounded-full border-[#decaa6] bg-white/75 px-3 text-slate-800 shadow-none backdrop-blur hover:bg-white dark:border-white/15 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10"
+          className="h-10 rounded-full border-input bg-card/90 px-3 text-foreground shadow-none backdrop-blur hover:bg-accent"
           disabled={isPending}
-          aria-label={accessibleLabel[locale]}
         >
-          <Languages className="size-4 sm:hidden" />
-          <span className="hidden sm:inline">{current.flag}</span>
+          <span className="sr-only">{accessibleLabel[locale]} </span>
+          <Languages className="size-4 sm:hidden" aria-hidden="true" />
           <span>{current.short}</span>
-          <ChevronDown className="size-3.5 opacity-60" />
+          <ChevronDown className="size-3.5 opacity-60" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40 rounded-2xl p-1.5">
@@ -74,8 +73,7 @@ export function LanguageSwitcher({ locale }: { locale: Locale }) {
               value={option.locale}
               className="rounded-xl py-2.5"
             >
-              <span>{option.flag}</span>
-              <span>{option.short}</span>
+              <span>{option.name}</span>
               {locale === option.locale ? <Check className="ml-auto size-4" /> : null}
             </DropdownMenuRadioItem>
           ))}

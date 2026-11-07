@@ -23,6 +23,9 @@ $$;
 create schema auth;
 create schema storage;
 create schema extensions;
+-- Hosted GlowFlow has pgcrypto in extensions; mirror that location so
+-- migration functions can use a fixed, empty search_path safely.
+create extension if not exists pgcrypto with schema extensions;
 grant usage on schema public, auth, storage to anon, authenticated, service_role;
 grant usage on schema extensions to anon, authenticated, service_role;
 
@@ -33,7 +36,8 @@ alter default privileges in schema public grant all on sequences to service_role
 
 create table auth.users (
   id uuid primary key,
-  email text
+  email text,
+  email_confirmed_at timestamptz
 );
 create function auth.uid() returns uuid
 language sql stable set search_path = ''

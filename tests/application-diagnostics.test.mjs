@@ -51,6 +51,7 @@ routeSource = routeSource
   .replace('import { NextResponse } from "next/server";', 'const NextResponse = { json: Response.json };')
   .replace('import { z } from "zod";', 'const z = globalThis.__glowflowObservabilityTest.z;')
   .replace('import { reportApplicationFailure, type ApplicationCode, type ApplicationStage } from "@/lib/application-diagnostics";', `import { reportApplicationFailure } from "${compile(diagnosticSource)}";`)
+  .replace('import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";', 'const publicBookingV2Enabled = () => false;')
   .replace('import { createAdminClient } from "@/lib/supabase/admin";',
     'const createAdminClient = () => ({ rpc: async () => { const state = globalThis.__glowflowObservabilityTest.mock; if (state.throws) throw state.throws; return state.result; } });');
 const { GET, POST } = await import(compile(routeSource));

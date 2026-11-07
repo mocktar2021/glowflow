@@ -19,6 +19,15 @@ test("status read model blocks missing consent, opt-out, and inactive appointmen
   assert.equal(deriveNotificationStatus({ ...base, scheduledFor: "2030-01-02T12:00:00Z" }), "scheduled");
 });
 
+test("changed or missing appointment start fails closed even when generation is unchanged", () => {
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentStartTime: "2030-01-03T12:00:00Z" }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentStartTime: null }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentStartTime: "not-a-date" }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, appointmentStartTime: "not-a-date" }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentStartTime: "2030-01-02T07:00:00-05:00" }), "ready");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentStartTime: "2030-01-03T12:00:00Z", latestAttempt: { event_type: "delivered", retry_after: null, lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z" } }), "delivered");
+});
+
 test("status read model distinguishes active, expired, retryable, and terminal attempts", () => {
   const attempt = (event_type, extra = {}) => ({ event_type, retry_after: null, lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z", ...extra });
   assert.equal(deriveNotificationStatus({ ...base, latestAttempt: attempt("claimed", { lease_expires_at: "2030-01-01T12:05:00Z" }) }), "processing");
@@ -27,5 +36,27 @@ test("status read model distinguishes active, expired, retryable, and terminal a
   assert.equal(deriveNotificationStatus({ ...base, latestAttempt: attempt("retryable", { retry_after: "2030-01-01T12:00:00Z" }) }), "ready_to_retry");
   for (const terminal of ["delivered", "failed", "canceled"]) {
     assert.equal(deriveNotificationStatus({ ...base, consentStatus: "opted_out", appointmentStatus: "canceled", latestAttempt: attempt(terminal) }), terminal);
+  }
+});
+
+test("missing consent and opt-out take precedence over every nonterminal delivery state", () => {
+  const attempts = [
+    null,
+    { event_type: "claimed", retry_after: null, lease_expires_at: "2030-01-01T12:05:00Z", occurred_at: "2030-01-01T11:00:00Z" },
+    { event_type: "claimed", retry_after: null, lease_expires_at: "2030-01-01T11:55:00Z", occurred_at: "2030-01-01T11:00:00Z" },
+    { event_type: "retryable", retry_after: "2030-01-01T13:00:00Z", lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z" },
+    { event_type: "retryable", retry_after: "2030-01-01T11:55:00Z", lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z" },
+  ];
+
+  for (const latestAttempt of attempts) {
+    for (const consentStatus of [null, "opted_out"]) {
+      for (const scheduledFor of ["2030-01-01T11:00:00Z", "2030-01-01T13:00:00Z"]) {
+        assert.equal(
+          deriveNotificationStatus({ ...base, consentStatus, latestAttempt, scheduledFor }),
+          consentStatus === null ? "awaiting_consent" : "opted_out",
+          `${consentStatus ?? "missing consent"} must override ${latestAttempt?.event_type ?? "no attempt"} at ${scheduledFor}`,
+        );
+      }
+    }
   }
 });

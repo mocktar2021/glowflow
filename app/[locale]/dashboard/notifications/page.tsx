@@ -70,10 +70,13 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
     ...(statusRows ?? []).map((row) => row.client_id),
     ...(consentRows ?? []).map((row) => row.client_id),
   ])];
-  const { data: clients } = clientIds.length
+  const { data: clients, error: clientError } = clientIds.length
     ? await supabase.from("clients").select("id,full_name").eq("tenant_id", member.tenant_id).in("id", clientIds)
-    : { data: [] };
+    : { data: [], error: null };
   const clientNames = new Map((clients ?? []).map((client) => [client.id, client.full_name]));
+  if (clientError || !clients || clientIds.some((id) => !clientNames.has(id))) {
+    return <NotificationTemplatePreview locale={locale} statusUnavailable historyUnavailable />;
+  }
   const consents: NotificationConsentRecord[] = (consentRows ?? []).map((row) => ({
     id: row.id,
     clientName: clientNames.get(row.client_id) ?? row.client_id,

@@ -1,0 +1,148 @@
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowRight, CalendarDays, Check, Globe2, Package2, UsersRound } from "lucide-react";
+
+import { BrandLogo } from "@/components/glowflow/brand-logo";
+import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { MotionPreview } from "@/components/glowflow/motion-preview";
+import { isLocale } from "@/lib/i18n";
+import { landingCopy } from "@/lib/landing-copy";
+import { supportEmail } from "@/lib/legal-content";
+
+const primaryAction = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-primary px-7 py-3 text-center text-sm font-semibold text-primary-foreground shadow-[0_12px_28px_-12px_rgba(94,52,69,0.5)] transition-colors hover:bg-[#5e3445] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary dark:hover:bg-[#f2d6de]";
+const secondaryAction = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-input bg-card px-7 py-3 text-center text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary";
+const eyebrow = "text-xs font-semibold uppercase tracking-[0.18em] text-champagne-deep dark:text-[#d9b48f]";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isLocale(locale)) return {};
+  const copy = landingCopy[locale];
+  return {
+    title: copy.hero.title,
+    description: copy.hero.body,
+    alternates: {
+      canonical: `/${locale}`,
+      languages: { fr: "/fr", en: "/en", es: "/es" },
+    },
+  };
+}
+
+export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const copy = landingCopy[locale];
+  const featureIcons = [CalendarDays, UsersRound, Package2] as const;
+
+  return (
+    <div className="overflow-x-clip bg-background text-foreground">
+      <a href="#main" className="sr-only rounded-md bg-card p-3 text-foreground focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:outline-2 focus:outline-primary">{copy.skip}</a>
+      <header className="sticky top-0 z-50 border-b border-border/70 bg-background">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <Link href={`/${locale}`} className="inline-flex min-h-11 items-center rounded-md text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+            <BrandLogo className="h-9 w-28 sm:w-36" />
+          </Link>
+          <nav aria-label="GlowFlow" className="order-3 flex w-full items-center gap-5 overflow-x-auto whitespace-nowrap text-sm font-medium text-muted-foreground sm:order-none sm:w-auto lg:gap-7">
+            <a className="min-h-11 py-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" href="#product">{copy.nav.product}</a>
+            <a className="min-h-11 py-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" href="#marketplace">{copy.nav.marketplace}</a>
+            <a className="min-h-11 py-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" href="#pricing">{copy.nav.pricing}</a>
+            <a className="min-h-11 py-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary" href="#faq">{copy.nav.faq}</a>
+          </nav>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link href={`/${locale}/login`} className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2 text-sm font-semibold text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">{copy.nav.signIn}</Link>
+            <LanguageSwitcher locale={locale} />
+            <Link href={`/${locale}/register`} className={`${primaryAction} hidden lg:inline-flex`}>{copy.start}</Link>
+          </div>
+        </div>
+      </header>
+
+      <main id="main">
+        <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-24 pt-14 sm:px-8 sm:pt-20 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:py-16" aria-labelledby="hero-title">
+          <div>
+            <p className={eyebrow}>{copy.hero.eyebrow}</p>
+            <h1 id="hero-title" className="motion-safe:animate-[landing-rise_600ms_100ms_ease-out_both] mt-6 max-w-3xl text-balance font-display text-6xl font-medium leading-[0.98] tracking-[-0.025em] sm:text-7xl lg:mt-4 lg:text-[clamp(3.5rem,4.7vw,4.5rem)]">{copy.hero.title}</h1>
+            <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground lg:mt-5">{copy.hero.body}</p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row lg:mt-6">
+              <Link className={primaryAction} href={`/${locale}/register`}>{copy.start}<ArrowRight className="size-4" aria-hidden="true" /></Link>
+              <Link className={secondaryAction} href={`/${locale}/salons`}>{copy.browse}</Link>
+            </div>
+            <ul className="mt-10 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
+              {copy.hero.points.map((point) => <li key={point} className="flex items-start gap-2"><Check className="mt-0.5 size-4 shrink-0 text-[#4f6b53]" aria-hidden="true" />{point}</li>)}
+            </ul>
+          </div>
+          <figure className="rounded-[2rem] border border-border bg-card p-3 shadow-[0_28px_60px_-28px_rgba(94,52,69,0.26)] sm:p-5" aria-label={copy.product.demoLabel}>
+            <MotionPreview kind="hero" description={copy.hero.motionAlt} priority className="aspect-[4/3] w-full rounded-[1.4rem] sm:aspect-[8/5]" />
+            <figcaption className="px-3 pb-2 pt-4 text-sm leading-relaxed text-muted-foreground">{copy.hero.motionNotice}</figcaption>
+          </figure>
+        </section>
+
+        <section id="product" className="scroll-mt-32 bg-muted/60 px-5 py-20 sm:px-8 lg:py-28" aria-labelledby="product-title">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl">
+              <p className={eyebrow}>{copy.product.eyebrow}</p>
+              <h2 id="product-title" className="mt-4 text-balance font-display text-4xl font-medium leading-tight sm:text-6xl">{copy.product.title}</h2>
+              <p className="mt-5 text-lg leading-relaxed text-muted-foreground">{copy.product.body}</p>
+            </div>
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              {copy.product.features.map((feature, index) => {
+                const Icon = featureIcons[index];
+                return <article key={feature.title} className="rounded-[1.5rem] border border-border bg-card p-7 shadow-sm motion-safe:transition-transform motion-safe:duration-200 motion-safe:hover:-translate-y-1">
+                  <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground"><Icon className="size-6" strokeWidth={1.6} aria-hidden="true" /></span>
+                  <h3 className="mt-6 font-display text-3xl font-medium">{feature.title}</h3>
+                  <p className="mt-3 leading-relaxed text-muted-foreground">{feature.body}</p>
+                </article>;
+              })}
+            </div>
+            <div className="mt-12 grid items-center gap-8 rounded-[2rem] border border-border bg-card p-6 sm:p-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] lg:gap-14">
+              <div>
+                <p className={eyebrow}>{copy.motion.eyebrow}</p>
+                <h3 className="mt-4 max-w-lg font-display text-4xl font-medium leading-tight sm:text-5xl">{copy.motion.title}</h3>
+                <p className="mt-5 max-w-lg leading-relaxed text-muted-foreground">{copy.motion.body}</p>
+                <Link className={`${secondaryAction} mt-7`} href={`/${locale}/salons`}>{copy.browse}<ArrowRight className="size-4" aria-hidden="true" /></Link>
+              </div>
+              <figure className="mx-auto w-full max-w-[360px] rounded-[1.75rem] border border-border bg-background p-3 shadow-sm">
+                <MotionPreview kind="booking" description={copy.motion.videoAlt} className="aspect-[4/5] w-full rounded-[1.25rem]" />
+                <figcaption className="px-2 pb-1 pt-3 text-xs leading-relaxed text-muted-foreground">{copy.motion.notice}</figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+
+        <section id="marketplace" className="scroll-mt-32 px-5 py-20 sm:px-8 lg:py-28" aria-labelledby="marketplace-title">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2 lg:gap-20">
+            <figure className="relative min-h-[380px] overflow-hidden rounded-[2rem] bg-blush sm:min-h-[540px]">
+              <Image src="/brand/pexels-nail-colors.webp" alt={copy.hero.imageAlt} fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
+              <figcaption className="sr-only">{copy.hero.stockCaption}</figcaption>
+            </figure>
+            <div>
+              <p className={eyebrow}>{copy.marketplace.eyebrow}</p>
+              <h2 id="marketplace-title" className="mt-4 max-w-xl text-balance font-display text-4xl font-medium leading-tight sm:text-6xl">{copy.marketplace.title}</h2>
+              <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">{copy.marketplace.body}</p>
+              <p className="mt-5 flex items-start gap-2 font-medium text-foreground"><Check className="mt-1 size-5 shrink-0 text-primary" aria-hidden="true" />{copy.marketplace.detail}</p>
+              <Link className={`${secondaryAction} mt-8`} href={`/${locale}/salons`}>{copy.browse}<ArrowRight className="size-4" aria-hidden="true" /></Link>
+              <div className="mt-9 rounded-2xl border border-border bg-card p-5 sm:p-6">
+                <div className="flex items-center gap-2 text-primary"><Globe2 className="size-5" aria-hidden="true" /><span className={eyebrow}>{copy.proof.eyebrow}</span></div>
+                <h3 className="mt-3 font-display text-3xl">{copy.proof.title}</h3>
+                <p className="mt-2 leading-relaxed text-muted-foreground">{copy.proof.body}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="scroll-mt-32 bg-muted/60 px-5 py-20 sm:px-8 lg:py-24" aria-labelledby="pricing-title">
+          <div className="mx-auto grid max-w-7xl gap-8 overflow-hidden rounded-[2rem] border border-border bg-card lg:grid-cols-2">
+            <div className="p-8 sm:p-12"><p className={eyebrow}>{copy.pricing.eyebrow}</p><h2 id="pricing-title" className="mt-4 text-balance font-display text-4xl font-medium leading-tight sm:text-6xl">{copy.pricing.title}</h2><p className="mt-5 text-lg leading-relaxed text-muted-foreground">{copy.pricing.body}</p><div className="mt-8 flex flex-wrap gap-3"><Link className={primaryAction} href={`/${locale}/register`}>{copy.start}<ArrowRight className="size-4" aria-hidden="true" /></Link><a className={secondaryAction} href={`mailto:${supportEmail}?subject=${encodeURIComponent(copy.pricing.emailSubject)}`}>{copy.pricing.ask}</a></div></div>
+            <div className="relative min-h-64 overflow-hidden bg-blush lg:min-h-full"><Image src="/brand/illustrative-salon.jpg" alt="" fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" /><span className="absolute bottom-4 left-4 rounded-full bg-card/95 px-4 py-2 text-xs text-foreground shadow-sm">{copy.hero.imageCaption}</span></div>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-32 px-5 py-20 sm:px-8 lg:py-28" aria-labelledby="faq-title">
+          <div className="mx-auto max-w-4xl"><p className={eyebrow}>{copy.faq.eyebrow}</p><h2 id="faq-title" className="mt-4 font-display text-4xl font-medium sm:text-6xl">{copy.faq.title}</h2><div className="mt-10 divide-y divide-border border-y border-border">{copy.faq.items.map((item) => <details key={item.question} className="group py-5"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-5 rounded-md text-lg font-medium marker:hidden focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">{item.question}<span className="shrink-0 text-2xl font-normal text-primary group-open:rotate-45" aria-hidden="true">+</span></summary><p className="max-w-2xl pb-2 pr-8 leading-relaxed text-muted-foreground">{item.answer}</p></details>)}</div></div>
+        </section>
+
+        <section className="px-5 pb-5 pt-10 text-center sm:px-8" aria-labelledby="closing-title"><div className="mx-auto max-w-7xl rounded-[2rem] bg-[#2a2129] px-6 py-20 text-[#f6efea] sm:px-10 sm:py-24"><BrandLogo className="mx-auto h-12 w-44 text-[#f6efea] sm:h-16 sm:w-60" /><h2 id="closing-title" className="mx-auto mt-7 max-w-3xl text-balance font-display text-4xl font-medium leading-tight sm:text-6xl">{copy.closing.title}</h2><p className="mx-auto mt-5 max-w-xl text-lg text-[#d3c7cc]">{copy.closing.body}</p><div className="mt-8 flex flex-wrap justify-center gap-3"><Link className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#e6bac6] px-7 py-3 text-sm font-semibold text-[#2a2129] hover:bg-[#f2d6de] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#e6bac6]" href={`/${locale}/register`}>{copy.start}<ArrowRight className="size-4" aria-hidden="true" /></Link><Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d3c7cc]/60 px-7 py-3 text-sm font-semibold text-[#f6efea] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#e6bac6]" href={`/${locale}/salons`}>{copy.browse}</Link></div></div></section>
+      </main>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { reportApplicationFailure, type ApplicationCode, type ApplicationStage } from "@/lib/application-diagnostics";
+import { publicBookingV2Enabled } from "@/lib/public-booking-v2-config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -82,6 +83,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Once v2 is enabled, arbitrary client-supplied keys must not bypass its
+  // server-owned intent. The default-off rollout leaves legacy behavior intact.
+  if (publicBookingV2Enabled()) {
+    return NextResponse.json({ error: "booking_contract_changed" }, {
+      status: 410, headers: { "cache-control": "private, no-store" },
+    });
+  }
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });

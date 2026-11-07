@@ -1,48 +1,82 @@
+import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import type { Locale } from "@/lib/i18n";
 
 const copy = {
-  fr: { back: "Trouver un salon", secure: "Votre espace salon sécurisé" },
-  en: { back: "Find a salon", secure: "Your secure salon workspace" },
-  es: { back: "Encontrar un salón", secure: "Tu espacio de salón seguro" },
-} satisfies Record<Locale, { back: string; secure: string }>;
+  fr: {
+    home: "Retour à l’accueil",
+    browse: "Explorer les salons",
+    secure: "Votre espace salon",
+    asideTitle: "Plus de place pour votre métier.",
+    illustration: "Photo de stock : RDNE Stock project / Pexels",
+  },
+  en: {
+    home: "Back to home",
+    browse: "Explore salons",
+    secure: "Your salon workspace",
+    asideTitle: "More room for your craft.",
+    illustration: "Stock photo: RDNE Stock project / Pexels",
+  },
+  es: {
+    home: "Volver al inicio",
+    browse: "Explorar salones",
+    secure: "Tu espacio de salón",
+    asideTitle: "Más espacio para tu talento.",
+    illustration: "Foto de archivo: RDNE Stock project / Pexels",
+  },
+} satisfies Record<Locale, { home: string; browse: string; secure: string; asideTitle: string; illustration: string }>;
 
 export function AuthShell({
   locale,
   title,
   subtitle,
   children,
+  showLanguageSwitcher = true,
+  wide = false,
 }: {
   locale: Locale;
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  showLanguageSwitcher?: boolean;
+  wide?: boolean;
 }) {
+  const labels = copy[locale];
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f3ece2] p-4 dark:bg-[#101216]">
-      <section className="w-full max-w-md rounded-[2rem] border border-[#e4d6c5] bg-[#faf9f6] p-6 shadow-[0_24px_80px_rgba(48,32,18,0.12)] dark:border-white/10 dark:bg-[#17191e] sm:p-8">
-        <div className="mb-8 flex items-start justify-between gap-3">
-          <Link href={`/${locale}/salons`} className="flex min-w-0 items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950">
-              <Sparkles className="size-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <strong className="block text-xl tracking-[-0.04em]">GlowFlow</strong>
-              <span className="block text-xs text-slate-500 dark:text-stone-400">{copy[locale].secure}</span>
-            </span>
+    <main className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+      <section className="flex min-w-0 flex-col px-5 py-6 sm:px-10 sm:py-8 lg:min-h-screen lg:px-12 xl:px-16" aria-labelledby="auth-title">
+        <header className="flex items-center justify-between gap-4">
+          <Link href={`/${locale}`} className="inline-flex min-h-11 items-center rounded-md text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary" aria-label={`GlowFlow, ${labels.home}`}>
+            <BrandLogo className="h-9 w-32 sm:w-36" />
           </Link>
-          <LanguageSwitcher locale={locale} />
+          {showLanguageSwitcher ? <LanguageSwitcher locale={locale} /> : null}
+        </header>
+
+        <div className={`mx-auto w-full flex-1 py-12 sm:py-16 lg:flex lg:flex-col lg:justify-center ${wide ? "max-w-2xl" : "max-w-lg"}`}>
+          <Link href={`/${locale}`} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><ArrowLeft className="size-4" aria-hidden="true" />{labels.home}</Link>
+          <p className="mt-7 text-xs font-semibold uppercase tracking-[0.18em] text-champagne-deep dark:text-[#d9b48f]">{labels.secure}</p>
+          <h1 id="auth-title" className="mt-3 max-w-xl font-display text-5xl font-medium leading-[1.05] sm:text-6xl">{title}</h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">{subtitle}</p>
+          <div className="mt-8 rounded-[1.75rem] border border-border bg-card p-6 shadow-[0_18px_55px_-36px_rgba(94,52,69,0.35)] sm:p-8">{children}</div>
         </div>
-        <h1 className="text-3xl font-semibold tracking-[-0.05em]">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-stone-400">{subtitle}</p>
-        <div className="mt-7">{children}</div>
-        <Link href={`/${locale}/salons`} className="mt-7 block text-center text-sm text-slate-500 hover:text-slate-950 dark:hover:text-white">
-          {copy[locale].back}
-        </Link>
+
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-sm text-muted-foreground">
+          <span>© {new Date().getUTCFullYear()} GlowFlow</span>
+          <Link href={`/${locale}/salons`} className="min-h-11 py-3 font-medium hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">{labels.browse}</Link>
+        </footer>
       </section>
+
+      <aside className="relative hidden min-h-screen overflow-hidden bg-[#2a2129] text-[#f6efea] lg:block" aria-label={labels.illustration}>
+        <Image src="/brand/pexels-nail-colors.webp" alt="" fill priority sizes="40vw" className="object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#2a2129]/95 via-[#2a2129]/10 to-[#2a2129]/10" />
+        <div className="absolute inset-x-0 bottom-0 p-10 xl:p-14">
+          <p className="max-w-md font-display text-5xl font-medium leading-tight">{labels.asideTitle}</p>
+        </div>
+      </aside>
     </main>
   );
 }
@@ -50,11 +84,11 @@ export function AuthShell({
 export function AuthMessage({ error, message }: { error?: string; message?: string }) {
   if (!error && !message) return null;
   return (
-    <p className={`mb-5 rounded-xl border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
+    <p role={error ? "alert" : "status"} className={`mb-5 rounded-xl border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
       {error ?? message}
     </p>
   );
 }
 
-export const inputClass = "h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 text-sm outline-none focus:border-[#b77a42] focus:ring-2 focus:ring-[#b77a42]/20 dark:border-white/15 dark:bg-white/5";
-export const buttonClass = "h-12 w-full rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950";
+export const inputClass = "min-h-12 w-full rounded-[0.9rem] border border-input bg-background px-4 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
+export const buttonClass = "min-h-12 w-full rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary disabled:opacity-50";

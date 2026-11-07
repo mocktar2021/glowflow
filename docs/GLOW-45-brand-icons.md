@@ -2,7 +2,7 @@
 
 ![GlowFlow icon sizes and social card](GLOW-45-brand-preview.png)
 
-The vector sources are `public/favicon.svg` and `public/og-glowflow.svg`. Their sparkle geometry is original and follows the dark-slate and rose-gold mark already used in the GlowFlow interface. The PNG and ICO files are rendered derivatives, not third-party artwork.
+The vector sources are `public/favicon.svg` and `public/og-glowflow.svg`. The GLOW-58 follow-up replaces the standalone `g` with the full approved GlowFlow wordmark in the favicon and app icon family. The PNG and ICO files are rendered derivatives, not third-party artwork. The social card already used the full wordmark.
 
 `favicon.ico` contains 16, 32, and 48 pixel images. The other browser and app assets are 32, 180, 192, and 512 pixels. `app/manifest.ts` advertises the app icons and starts in French, the current default language. Locale layout metadata advertises the browser, Apple, and social assets. Production metadata uses the custom domain; preview metadata uses its Vercel URL.
 

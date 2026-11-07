@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
@@ -26,6 +27,7 @@ export const dynamic = "force-dynamic";
 
 const copy = {
   fr: {
+    home: "Accueil",
     eyebrow: "Salons GlowFlow",
     title: "Trouvez votre prochain rendez-vous beauté",
     subtitle: "Recherchez par salon, prestation, produit ou ville.",
@@ -57,6 +59,7 @@ const copy = {
     next: "Prochain créneau",
     availabilityUnknown: "Disponibilité sur la page du salon",
     book: "Voir et réserver",
+    viewProfile: "Voir le salon",
     emptyTitle: "Aucun salon ne correspond à ces critères",
     emptyText: "Modifiez votre ville, votre catégorie ou votre prix maximum.",
     errorTitle: "La recherche est indisponible",
@@ -69,7 +72,7 @@ const copy = {
     previous: "Précédent",
     nextPage: "Suivant",
     page: "Page",
-    marketplace: "Marketplace beauté",
+    marketplace: "Recherche de salons",
     exploreCountries: "Explorer les salons par pays",
     sort: "Trier par",
     sortRelevance: "Pertinence",
@@ -78,8 +81,10 @@ const copy = {
     sortAvailability: "Prochain créneau",
     sortUnavailable: "Le tri est momentanément indisponible. Les résultats sont affichés par pertinence.",
     priceSortNeedsCountry: "Choisissez un pays pour comparer les prix dans une même devise. Les résultats sont affichés par pertinence.",
+    invalidCountry: "Ce pays n’est pas disponible dans la recherche. Tous les pays disponibles sont affichés.",
   },
   en: {
+    home: "Home",
     eyebrow: "GlowFlow salons",
     title: "Find your next beauty appointment",
     subtitle: "Search by salon, service, product, or city.",
@@ -111,6 +116,7 @@ const copy = {
     next: "Next opening",
     availabilityUnknown: "Availability on the salon page",
     book: "View and book",
+    viewProfile: "View profile",
     emptyTitle: "No salons match these filters",
     emptyText: "Change your city, category, or maximum price.",
     errorTitle: "Search is unavailable",
@@ -132,8 +138,10 @@ const copy = {
     sortAvailability: "Soonest available",
     sortUnavailable: "Sorting is temporarily unavailable. Results are shown by relevance.",
     priceSortNeedsCountry: "Choose a country to compare prices in one currency. Results are shown by relevance.",
+    invalidCountry: "That country is not available in search. Showing all available countries.",
   },
   es: {
+    home: "Inicio",
     eyebrow: "Salones GlowFlow",
     title: "Encuentra tu próxima cita de belleza",
     subtitle: "Busca por salón, servicio, producto o ciudad.",
@@ -165,6 +173,7 @@ const copy = {
     next: "Próxima disponibilidad",
     availabilityUnknown: "Disponibilidad en la página del salón",
     book: "Ver y reservar",
+    viewProfile: "Ver perfil",
     emptyTitle: "Ningún salón coincide con estos filtros",
     emptyText: "Cambia la ciudad, la categoría o el precio máximo.",
     errorTitle: "La búsqueda no está disponible",
@@ -186,6 +195,7 @@ const copy = {
     sortAvailability: "Próxima disponibilidad",
     sortUnavailable: "La ordenación no está disponible temporalmente. Los resultados se muestran por relevancia.",
     priceSortNeedsCountry: "Elige un país para comparar precios en una sola moneda. Los resultados se muestran por relevancia.",
+    invalidCountry: "Ese país no está disponible en la búsqueda. Se muestran todos los países disponibles.",
   },
 } as const;
 
@@ -250,19 +260,22 @@ export default async function SalonSearchPage({
   const filters = await searchParams;
   const labels = copy[locale];
   const searchText = value(filters, "q").trim();
-  const country = value(filters, "country").toUpperCase();
+  const requestedCountry = value(filters, "country").trim().toUpperCase();
+  const selectedMarket = fallbackMarkets.find((market) => market.country_code === requestedCountry);
+  const country = selectedMarket?.country_code ?? "";
+  const invalidCountry = Boolean(requestedCountry && !selectedMarket);
   const city = value(filters, "city").trim();
   const postalCode = value(filters, "postcode").trim();
   const categoryValue = value(filters, "category");
   const category = isSalonCategory(categoryValue) ? categoryValue : "";
   const sortBy = salonSearchSort(value(filters, "sort"));
-  const selectedMarket = fallbackMarkets.find((market) => market.country_code === country);
   const priceSortNeedsCountry = (sortBy === "price_asc" || sortBy === "price_desc") && !selectedMarket;
   const effectiveSort = priceSortNeedsCountry ? "relevance" : sortBy;
   const maxPriceValue = value(filters, "maxPrice");
   const maxPriceNeedsCountry = Boolean(maxPriceValue && !selectedMarket);
   const maximumPrice = maximumPriceMinorUnits(maxPriceValue, selectedMarket?.currency ?? null);
   const availableDate = value(filters, "availableBefore");
+  const hasAdvancedFilters = Boolean(postalCode || category || maxPriceValue || availableDate);
   const requestedTimeZone = value(filters, "timeZone");
   const invalidTimeZone = Boolean(requestedTimeZone && !isValidIanaTimeZone(requestedTimeZone));
   // Legacy date-only links keep their original UTC meaning. For a new search,
@@ -270,7 +283,7 @@ export default async function SalonSearchPage({
   const selectedTimeZone = requestedTimeZone && !invalidTimeZone ? requestedTimeZone : "UTC";
   const availableBefore = availableDate ? endOfLocalDayUtc(availableDate, selectedTimeZone) : null;
   const invalidDate = Boolean(availableDate && !availableBefore);
-  const paginationFilters = invalidTimeZone ? { ...filters, timeZone: selectedTimeZone } : filters;
+  const paginationFilters = { ...filters, country, ...(invalidTimeZone ? { timeZone: selectedTimeZone } : {}) };
   const requestedPage = value(filters, "page");
   let page = salonSearchPage(requestedPage);
   let pageAdjusted = Boolean(requestedPage && page === 1 && requestedPage !== "1");
@@ -341,13 +354,10 @@ export default async function SalonSearchPage({
     <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#101216] dark:text-stone-100">
       <header className="border-b border-[#e7ddd0] bg-[#faf9f6]/95 dark:border-white/10 dark:bg-[#101216]/95">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href={`/${locale}/salons`} className="flex items-center gap-3" aria-label="GlowFlow">
-            <span className="grid size-10 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950">
-              <Sparkles className="size-5" aria-hidden="true" />
-            </span>
+          <Link href={`/${locale}`} className="flex min-h-11 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" aria-label={`GlowFlow, ${labels.home}`}>
             <span>
-              <strong className="block text-lg tracking-[-0.04em]">GlowFlow</strong>
-              <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.marketplace}</span>
+              <BrandLogo className="h-8 w-28 text-foreground" />
+              <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-stone-400"><ArrowLeft className="size-3" aria-hidden="true" />{labels.home}</span>
             </span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={labels.marketplace}>
@@ -387,19 +397,19 @@ export default async function SalonSearchPage({
               </label>
             </div>
 
-            <details className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
+            <details open={hasAdvancedFilters} className="mt-3 rounded-xl border border-[#eadfD2] px-4 py-3 dark:border-white/10">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]">
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
                 {labels.category}, {labels.postal}, {labels.maximumPrice}, {labels.availableBefore}
               </summary>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="text-sm font-medium">
                   {labels.postal}
-                  <input name="postcode" defaultValue={postalCode} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="postcode" defaultValue={postalCode} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <label className="text-sm font-medium">
                   {labels.category}
-                  <select name="category" defaultValue={category} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5">
+                  <select name="category" defaultValue={category} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5">
                     <option value="">{labels.allCategories}</option>
                     <option value="hair">{labels.hair}</option>
                     <option value="nails">{labels.nails}</option>
@@ -408,11 +418,11 @@ export default async function SalonSearchPage({
                 </label>
                 <label className="text-sm font-medium">
                   {labels.maximumPrice}{selectedMarket ? ` (${selectedMarket.currency})` : ""}
-                  <input name="maxPrice" type="number" min="0.01" step="0.01" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="maxPrice" type="number" min="0.01" step="0.01" defaultValue={maxPriceValue} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <label className="text-sm font-medium">
                   {labels.availableBefore}
-                  <input name="availableBefore" type="date" defaultValue={availableDate} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none dark:border-white/15 dark:bg-white/5" />
+                  <input name="availableBefore" type="date" defaultValue={availableDate} className="mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:border-white/15 dark:bg-white/5" />
                 </label>
                 <VisitorTimeZoneField
                   initialZone={selectedTimeZone}
@@ -434,8 +444,8 @@ export default async function SalonSearchPage({
                   <option value="availability">{labels.sortAvailability}</option>
                 </select>
               </label>
-              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-[#e7b779] dark:text-slate-950" type="submit">{labels.submit}</button>
-              <Link className="px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
+              <button className="h-12 rounded-xl bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:bg-[#e7b779] dark:text-slate-950 dark:focus-visible:outline-[#efc992]" type="submit">{labels.submit}</button>
+              <Link className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-[#9a602d] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:text-[#efc992] dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link>
             </div>
           </form>
           <nav className="mt-6" aria-label={labels.exploreCountries}>
@@ -451,16 +461,21 @@ export default async function SalonSearchPage({
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-live="polite">
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {invalidCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidCountry}</p> : null}
         {priceSortNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.priceSortNeedsCountry}</p> : null}
         {maxPriceNeedsCountry ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].priceNeedsCountry}</p> : null}
         {invalidTimeZone ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidTimeZone}</p> : null}
         {invalidDate ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.invalidDate}</p> : null}
         {pageAdjusted ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{extraCopy[locale].pageAdjusted}</p> : null}
         {sortUnavailable ? <p role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">{labels.sortUnavailable}</p> : null}
-        <DistanceSearch locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}>
+        {/* A new URL must not retain nearby cards fetched for the previous filters. */}
+        <DistanceSearch key={pageHref(locale, paginationFilters, page)} locale={locale} labels={labels} filters={rpcFilters} pageSize={pageSize} visitorPreference={visitorPreference ?? null} countryDefaultLocales={Object.fromEntries(countryDefaultLocales)} initialSalonTimeZones={salonTimeZones} enabled={!loadError}
+          fallbackAnnouncement={results.length === 0
+            ? `${hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}. ${hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}`
+            : `${total} ${total === 1 ? labels.oneResult : labels.results}.`}>
         {loadError ? (
-          <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
+          <div role="status" className="rounded-[1.75rem] border border-rose-200 bg-rose-50 p-8 text-center dark:border-rose-900/50 dark:bg-rose-950/20">
             <h2 className="text-xl font-semibold">{labels.errorTitle}</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-stone-300">{labels.errorText}</p>
           </div>
@@ -469,7 +484,7 @@ export default async function SalonSearchPage({
             <Search className="mx-auto size-8 text-[#b77a42]" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-semibold">{hasFilters ? labels.filteredEmptyTitle : labels.browseEmptyTitle}</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-stone-300">{hasFilters ? labels.filteredEmptyText : labels.browseEmptyText}</p>
-            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] dark:border-white/15 dark:hover:bg-white/10" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
+            {hasFilters ? <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold hover:bg-[#f3e8dc] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:border-white/15 dark:hover:bg-white/10 dark:focus-visible:outline-[#efc992]" href={`/${locale}/salons`}>{labels.reset}</Link> : null}
           </div>
         ) : (
           <>
@@ -481,6 +496,7 @@ export default async function SalonSearchPage({
                 key={salon.slug}
                 salon={salon}
                 locale={locale}
+                countryDefaultLocale={countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale}
                 href={`/${salonProfileLocale(countryDefaultLocales.get(salon.country_code) ?? fallbackMarkets.find((market) => market.country_code === salon.country_code)?.default_locale, visitorPreference, locale)}/salons/${salon.slug}`}
                 cityHref={marketplaceLocation(salon.country_code, [salon.city]) ? marketplaceLocationHref(locale, salon.country_code, salon.city) : undefined}
                 timeZone={salonTimeZones[salon.slug]}
@@ -490,9 +506,9 @@ export default async function SalonSearchPage({
 
             {totalPages > 1 ? (
               <nav className="mt-8 flex items-center justify-center gap-3" aria-label={`${labels.page} ${page}`}>
-                {page > 1 ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
+                {page > 1 ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page - 1)}>{labels.previous}</Link> : null}
                 <span className="text-sm text-slate-600 dark:text-stone-300">{labels.page} {page} / {totalPages}</span>
-                {page < totalPages ? <Link className="rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
+                {page < totalPages ? <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#d9c7b2] px-4 py-2 text-sm font-semibold focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" href={pageHref(locale, paginationFilters, page + 1)}>{labels.nextPage}</Link> : null}
               </nav>
             ) : null}
           </>

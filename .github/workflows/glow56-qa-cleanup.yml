@@ -1,0 +1,55 @@
+name: GlowFlow shared-sandbox booking cleanup (dormant)
+
+# This fixed Supabase ref also backs the current live glowflow.mocktar.com site;
+# it is NOT isolated QA. Activation requires separately approved live-backend
+# operations or a verified isolated backend and revised target. GitHub schedule
+# is best effort; the two-hour database gate remains fail closed.
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: glowflow-qa-booking-cleanup
+  cancel-in-progress: false
+
+jobs:
+  qa-cleanup:
+    if: ${{ github.repository == 'mocktar2021/glowflow' && github.ref == 'refs/heads/master' && vars.GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK == 'enable-glow56-qa-cleanup-20261105' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: glowflow-qa-booking-cleanup
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Require the separately configured Healthchecks check
+        run: node ops/booking-v2-healthcheck.mjs preflight
+        env:
+          GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ${{ secrets.GLOWFLOW_QA_HEALTHCHECKS_PING_URL }}
+      - name: Run bounded shared-sandbox intent and quota sweeps
+        id: cleanup
+        run: node ops/booking-v2-cleanup.mjs
+        env:
+          GLOWFLOW_CLEANUP_EXECUTE: run-glowflow-qa-cleanup-only
+          GLOWFLOW_CLEANUP_PROJECT_REF: rfwhqutkiztxkagbhevp
+          GLOWFLOW_CLEANUP_SUPABASE_URL: https://rfwhqutkiztxkagbhevp.supabase.co
+          GLOWFLOW_CLEANUP_SERVICE_ROLE_KEY: ${{ secrets.GLOWFLOW_QA_CLEANUP_SERVICE_ROLE_KEY }}
+          GLOWFLOW_CLEANUP_MAX_CALLS_PER_SWEEP: "25"
+          GLOWFLOW_CLEANUP_MAX_WALL_MS: "60000"
+          GLOWFLOW_CLEANUP_INTENT_BATCH_LIMIT: "100"
+          GLOWFLOW_CLEANUP_QUOTA_BATCH_LIMIT: "1000"
+      - name: Signal cleanup failure
+        if: ${{ failure() && steps.cleanup.outcome == 'failure' }}
+        run: node ops/booking-v2-healthcheck.mjs fail
+        env:
+          GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ${{ secrets.GLOWFLOW_QA_HEALTHCHECKS_PING_URL }}
+      - name: Signal complete cleanup only
+        run: node ops/booking-v2-healthcheck.mjs ping
+        env:
+          GLOWFLOW_QA_HEALTHCHECKS_PING_URL: ${{ secrets.GLOWFLOW_QA_HEALTHCHECKS_PING_URL }}

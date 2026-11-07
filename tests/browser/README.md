@@ -6,11 +6,15 @@ server output, and runtime metadata even on failure.
 
 These isolated browser checks import the production booking and sandbox payment
 status components into a small Next.js fixture. They cover FR/EN/ES booking payloads,
-sandbox query and hash preservation when switching language, authoritative pending to
-paid/failed/expired transitions, and unavailable checkout/status behavior. Each test
+sandbox query and hash preservation when switching language, authoritative
+FR/EN/ES pending to paid/failed/expired transitions, and unavailable
+checkout/status behavior. Each test
 uses a fresh browser context; external network requests are blocked, booking and
 checkout APIs are controlled fixtures, and sandbox POSTs to the real booking API fail.
 No Supabase or Stripe application credentials are inherited by the fixture server.
+The checkout-destination guard tests reject lookalike or unsafe URLs from fixture
+responses and assert that no browser request leaves the local origin. They never
+follow even an approved Stripe Checkout link.
 
 This is component interaction evidence, not a deployed payment integration test. The
 fixture does not load the application stylesheet, so its narrow viewport screenshots
@@ -27,6 +31,14 @@ French, English, and Spanish cash and externally processed card recording; inval
 unauthenticated, over-balance, and cross-tenant failure paths; and owner/staff
 cancellation success and denial. It verifies the trusted RPC payloads and localized
 redirects, but does not claim a real card charge or hosted authorization check.
+
+`booking.browser.mjs` also holds a synthetic public-booking response to verify that
+the disabled form and submit guard allow only one POST while a reservation is pending.
+When the first POST has an ambiguous network failure, a retry of the unchanged
+booking payload must reuse its request key. An unavailable sandbox checkout
+response has the same retry-key invariant and cannot display a confirmed booking.
+These fixture checks do not prove the
+hosted PostgreSQL conflict constraint or a real booking outcome.
 
 `tests/stripe-deposit-events.test.mjs` signs synthetic sandbox events with a fixture
 webhook secret, then sends the raw bytes to the production webhook handler. It
@@ -73,3 +85,20 @@ These are server-route/browser integration tests with a mocked authentication an
 database SDK, not proof of real Supabase JWT verification, RLS policies, or deployed
 owner access. Real authenticated-session and database isolation checks remain separate.
 Screenshots and runtime/server evidence go to `test-results/browser/auth`.
+
+## GLOW-16 client directory fixture
+
+`clients.browser.mjs` imports the production directory and profile server pages with
+only the Supabase client replaced by synthetic in-memory rows. It checks owner and
+staff search/profile access in FR/EN/ES, anonymous redirects, cross-tenant profile
+denial, a search that keeps contact details out of the URL, and invalid/valid phone
+form submissions. It also submits the production create form in FR/EN/ES and checks
+the redirect and profile fields using fixture-only in-memory rows. Invalid phone and
+email submissions use a guard identity that throws on any attempted insert; the email
+case bypasses native browser validity to exercise server-side validation. A test-only
+route binds a forged foreign UUID to the real Server Action and confirms it cannot
+be saved. Fixture writes exist only in the isolated Next.js test process and do not
+prove a deployed session or hosted database behavior.
+`tests/client-directory-authorization.sql`, loaded by the disposable local PostgreSQL
+RLS suite, checks real migrated policies for owner/staff/anonymous/cross-tenant client
+field access and writes. No hosted database is used.

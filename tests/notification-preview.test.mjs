@@ -66,6 +66,48 @@ test("history page reports unavailable persistence without exposing query diagno
   assert.ok(!JSON.stringify(result.props).includes("private SQL diagnostic"));
 });
 
+test("staff history maps a recorded opt-out and audit events without a send operation", async () => {
+  const calls = [];
+  const rows = {
+    client_notification_consent_events: [{ id: "consent-2", client_id: "client-1", channel: "email", consent_status: "opted_out", occurred_at: "2030-06-14T12:00:00Z" }],
+    notification_delivery_attempts: [{ id: "attempt-1", outbox_id: "outbox-1", event_type: "retryable", attempt_number: 1, occurred_at: "2030-06-14T11:00:00Z", error_code: "temporary_unavailable" }],
+    clients: [{ id: "client-1", full_name: "Synthetic Client" }],
+  };
+  const query = (table) => ({
+    select() { return this; },
+    eq(field, value) { calls.push(["eq", table, field, value]); return this; },
+    order() { return this; },
+    limit() { return this; },
+    in(field, values) { calls.push(["in", table, field, values]); return this; },
+    async single() { return { data: { tenant_id: "own-tenant", role: "staff" }, error: null }; },
+    then(resolve, reject) { return Promise.resolve({ data: rows[table], error: null }).then(resolve, reject); },
+  });
+  const { deriveNotificationStatus } = await load("../lib/notifications/status.ts");
+  const { default: Page } = await load("../app/[locale]/dashboard/notifications/page.tsx", {
+    "next/navigation": { notFound() { throw new Error("not-found"); }, redirect(path) { throw new Error(`redirect:${path}`); } },
+    "@/lib/i18n": { isLocale: (value) => value === "en" },
+    "@/lib/auth": { async requireUser() { return { userId: "staff-1", supabase: {
+      from(table) { calls.push(["from", table]); return query(table); },
+      async rpc(name, args) {
+        calls.push(["rpc", name, args]);
+        return { data: [{ id: "outbox-1", appointment_id: "appointment-1", client_id: "client-1", appointment_start_time: "2030-06-15T12:00:00Z", schedule_generation: 1, notification_kind: "confirmation", channel: "email", scheduled_for: "2030-06-14T12:00:00Z", appointment_status: "confirmed", current_appointment_start_time: "2030-06-15T12:00:00Z", current_schedule_generation: 1, consent_status: "opted_out", latest_event_type: "retryable", latest_retry_after: "2030-06-14T12:00:00Z", latest_lease_expires_at: null, latest_occurred_at: "2030-06-14T11:00:00Z", attempt_count: 1 }], error: null };
+      },
+    } }; } },
+    "@/components/glowflow/notification-template-preview": { NotificationTemplatePreview: "preview" },
+    "@/lib/notifications/status": { deriveNotificationStatus },
+  });
+  const result = await Page({ params: Promise.resolve({ locale: "en" }) });
+  assert.equal(result.props.records[0].status, "opted_out");
+  assert.equal(result.props.records[0].clientName, "Synthetic Client");
+  assert.deepEqual(result.props.consents, [{ id: "consent-2", clientName: "Synthetic Client", channel: "email", status: "opted_out", occurredAt: "2030-06-14T12:00:00Z" }]);
+  assert.deepEqual(result.props.attempts, [{ id: "attempt-1", outboxId: "outbox-1", eventType: "retryable", attemptNumber: 1, occurredAt: "2030-06-14T11:00:00Z", errorCode: "temporary_unavailable" }]);
+  assert.deepEqual(calls.filter((call) => call[0] === "rpc"), [["rpc", "get_notification_status_rows", { target_tenant_id: "own-tenant", row_limit: 100 }]]);
+  for (const table of ["client_notification_consent_events", "notification_delivery_attempts", "clients"]) {
+    assert.ok(calls.some((call) => call[0] === "eq" && call[1] === table && call[2] === "tenant_id" && call[3] === "own-tenant"));
+  }
+  assert.deepEqual(calls.find((call) => call[0] === "in"), ["in", "clients", "id", ["client-1"]]);
+});
+
 test("preview identifies fictitious data in all interface languages and escapes template text", async () => {
   for (const [locale, label] of [["fr", "données fictives"], ["en", "fictitious data"], ["es", "datos ficticios"]]) {
     let supplied;
