@@ -10,7 +10,7 @@ export function LegalFooter({ locale }: { locale: Locale }) {
   return (
     <footer className="border-t border-border bg-background px-5 py-6 text-sm text-muted-foreground">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p>© 2026 <a href={operatorUrl} className="hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Mocktar Technologies</a> · GlowFlow</p>
+        <p>© 2026 <a href={operatorUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">Mocktar Technologies</a> · GlowFlow</p>
         <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2">
           <Link href={`/${locale}/privacy`} className="hover:text-primary hover:underline">{copy.privacy}</Link>
           <Link href={`/${locale}/terms`} className="hover:text-primary hover:underline">{copy.terms}</Link>
