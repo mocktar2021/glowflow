@@ -21,7 +21,7 @@ type SearchFilters = {
 
 type CardLabels = {
   hair: string; nails: string; other: string; from: string; price: string;
-  priceUnavailable: string; next: string; availabilityUnknown: string; book: string;
+  priceUnavailable: string; next: string; availabilityUnknown: string; book: string; viewProfile: string;
 };
 
 const copy = {

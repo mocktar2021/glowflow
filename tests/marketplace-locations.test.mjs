@@ -256,7 +256,7 @@ test("published cover image appears in result cards with an initials fallback", 
     "@/lib/markets": markets,
     "@/lib/salon-search": search,
   });
-  const labels = { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book" };
+  const labels = { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book", viewProfile: "View profile" };
   const salon = { slug: "example-salon", business_name: "Example Salon", country_code: "US", city: "Greensboro", postal_code: "27405", categories: ["hair"], description_json: {}, next_available_at: null, starting_price: null, currency: "USD" };
   const props = { salon, locale: "en", href: "/en/salons/example-salon", cityHref: "/en/salons/locations/US/Greensboro", labels };
   const withCover = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: "https://fixture.supabase.co/storage/v1/object/public/salon-public-media/cover.webp" } }));
@@ -287,7 +287,7 @@ test("result cards mark sparse fallback descriptions with their actual language"
     postal_code: "28001", categories: [], image_url: null, description_json: { fr: "Texte français", en: "  ", es: "Descripción española" },
     next_available_at: null, starting_price: null, currency: "EUR",
   };
-  const labels = { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book" };
+  const labels = { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book", viewProfile: "View profile" };
   const props = { salon, countryDefaultLocale: "es", href: "/en/salons/example-salon", labels };
   const fallback = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, locale: "en" }));
   assert.match(fallback, /<p lang="es"[^>]*>Descripción española<\/p>/);
@@ -298,7 +298,7 @@ test("result cards mark sparse fallback descriptions with their actual language"
   assert.doesNotMatch(empty, /<p lang=/);
 });
 
-test("localized result-card booking links identify their salon to assistive technology", async () => {
+test("result cards promise booking only when a priced service is present", async () => {
   const { MarketplaceSalonCard } = await load("../components/glowflow/marketplace-salon-card.tsx", {
     "next/link": "a",
     "next/image": ({ src, alt }) => React.createElement("img", { src, alt }),
@@ -314,16 +314,17 @@ test("localized result-card booking links identify their salon to assistive tech
     hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price",
     priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon",
   };
-  for (const [locale, book] of [["fr", "Voir et réserver"], ["en", "View and book"], ["es", "Ver y reservar"]]) {
-    const first = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
-      salon, locale, href: `/${locale}/salons/first-salon`, labels: { ...labels, book },
+  for (const [locale, book, viewProfile] of [["fr", "Voir et réserver", "Voir le salon"], ["en", "View and book", "View profile"], ["es", "Ver y reservar", "Ver perfil"]]) {
+    const unpriced = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
+      salon, locale, href: `/${locale}/salons/first-salon`, labels: { ...labels, book, viewProfile },
     }));
-    const second = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
-      salon: { ...salon, slug: "second-salon", business_name: "Second Salon" },
-      locale, href: `/${locale}/salons/second-salon`, labels: { ...labels, book },
+    const priced = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, {
+      salon: { ...salon, slug: "second-salon", business_name: "Second Salon", starting_price: 4500 },
+      locale, href: `/${locale}/salons/second-salon`, labels: { ...labels, book, viewProfile },
     }));
-    assert.match(first, new RegExp(`aria-label="${book}: First Salon"`));
-    assert.match(second, new RegExp(`aria-label="${book}: Second Salon"`));
-    assert.match(first, new RegExp(`>${book}<\\/a>`), "visible link text stays unchanged");
+    assert.match(unpriced, new RegExp(`aria-label="${viewProfile}: First Salon"`));
+    assert.match(priced, new RegExp(`aria-label="${book}: Second Salon"`));
+    assert.match(unpriced, new RegExp(`>${viewProfile}<\\/a>`));
+    assert.match(priced, new RegExp(`>${book}<\\/a>`));
   }
 });
