@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { formatLocalDateTime, formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney } from "../lib/markets.ts";
+import { fallbackMarkets, formatLocalDateTime, formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney, marketPostalCodeLabel } from "../lib/markets.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -69,6 +69,16 @@ test("formats persisted catalog cents as major currency amounts", () => {
   assert.equal(formatMinorMoney(4599, "USD", "en"), "$45.99");
   assert.equal(formatMinorMoney(4500, "EUR", "es"), "45 €");
   assert.equal(formatMoney(1248, "USD", "en"), "$1,248");
+});
+
+test("postal-code labels follow interface language, not the selected country's default language", () => {
+  const spain = fallbackMarkets.find((market) => market.country_code === "ES");
+  const us = fallbackMarkets.find((market) => market.country_code === "US");
+  assert.equal(marketPostalCodeLabel(spain, "fr"), "Code postal");
+  assert.equal(marketPostalCodeLabel(spain, "en"), "Postal code");
+  assert.equal(marketPostalCodeLabel(spain, "es"), "Código postal");
+  assert.equal(marketPostalCodeLabel(us, "en"), "ZIP code");
+  assert.equal(marketPostalCodeLabel(us, "fr"), "Code postal");
 });
 
 test("formats profile service amounts with booking currency precision", () => {
