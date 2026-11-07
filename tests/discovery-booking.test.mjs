@@ -24,14 +24,14 @@ const tenant = { id: "salon-a", slug: "salon-a", name: "Salon A", city: "Madrid"
 const service = (id, tenant_id = tenant.id, is_active = true) => ({ id, tenant_id, is_active, title_json: { fr: `Prestation ${id}`, en: `Service ${id}`, es: `Servicio ${id}` }, duration_minutes: 30, price: id === chosen ? 4200 : 2500, deposit_amount: 500, currency: "EUR" });
 const catalog = [service(first), service(chosen), service(foreign, "salon-b"), service(inactive, tenant.id, false)];
 const profile = { tenant_id: tenant.id, slug: tenant.slug, business_name: tenant.name, is_published: true, description_json: {}, country_code: "ES", city: tenant.city, categories: [], gallery_urls: [], opening_hours: {}, team_json: [], policies_json: {}, payment_methods: [] };
-function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, marketDefaultLocale = "es", products = [], policies = {}, services = catalog } = {}) {
+function database({ profilePublished = true, profileCountry = tenant.country_code, tenantCurrency = tenant.currency, marketDefaultLocale = "es", products = [], policies = {}, services = catalog, publicPhone = null, nextAvailableAt = null } = {}) {
   const queries = [];
   return { queries, from(table) {
     let filters = [];
     const query = { select() { return query; }, eq(key, value) { filters.push([key, value]); return query; }, order() { return result(false); }, single() { return result(true); }, maybeSingle() { return result(true); } };
     function result(single) {
       queries.push({ table, filters });
-      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished, policies_json: policies }];
+      const profiles = [{ ...profile, country_code: profileCountry, is_published: profilePublished, policies_json: policies, public_phone: publicPhone, next_available_at: nextAvailableAt }];
       const rows = (table === "tenants" ? [{ ...tenant, currency: tenantCurrency }] : table === "services" ? services : table === "markets" ? [{ country_code: "ES", default_locale: marketDefaultLocale }] : table === "salon_products" ? products : profiles).filter(row => filters.every(([key, value]) => row[key] === value));
       return Promise.resolve({ data: single ? rows[0] ?? null : rows });
     }
@@ -80,11 +80,38 @@ test("localized profile service links carry only active services for this salon"
     const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
     const links = nodes(tree).filter(node => node.props?.href?.includes("?service="));
     assert.deepEqual(links.map(link => link.props.href), [first, chosen].map(id => `/${locale}/book/${tenant.slug}?service=${id}`));
+    assert.ok(nodes(tree).some(node => node.props?.href === `/${locale}/book/${tenant.slug}`), "salons with active services keep their main booking link");
     assert.equal(links[1].props.children, label);
     assert.ok(links[1].props["aria-label"].includes(catalog[1].title_json[locale]));
     assert.ok(nodes(tree).some(node => node.type === "strong" && node.props.children === markets.formatMinorMoneyWithCurrencyPrecision(4200, "EUR", locale)));
     assert.ok(nodes(tree).some(node => node.type === "span" && Array.isArray(node.props.children) && node.props.children.includes(markets.formatMinorMoneyWithCurrencyPrecision(500, "EUR", locale))));
   }
+}));
+test("a published salon without active services offers contact instead of a broken booking link", async () => withConfiguration(async () => {
+  const db = database({ services: [], publicPhone: "+33600000000", nextAvailableAt: "2030-06-15T14:00:00Z" });
+  const markets = await load("../lib/markets.ts");
+  const { default: Page } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => db },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  for (const [locale, message, action] of [
+    ["fr", "Réservation en ligne indisponible pour le moment.", "Appeler le salon"],
+    ["en", "Online booking is unavailable for now.", "Call the salon"],
+    ["es", "Las reservas en línea no están disponibles por ahora.", "Llamar al salón"],
+  ]) {
+    const tree = await Page({ params: Promise.resolve({ locale, slug: tenant.slug }) });
+    const all = nodes(tree);
+    assert.ok(!all.some(node => node.props?.href?.includes(`/book/${tenant.slug}`)), "no booking CTA when its route would 404");
+    assert.ok(all.some(node => node.type === "p" && node.props.children === message));
+    assert.ok(all.some(node => node.type === "a" && node.props.href === "tel:+33600000000" && node.props.children === action));
+    assert.ok(!all.some(node => node.type === "strong"), "stale next opening is hidden");
+  }
+  const Booking = await booking(db);
+  await assert.rejects(Booking(request("fr")), /not-found/, "the original empty-catalog route stays closed");
 }));
 test("published product text follows selection and falls back to the salon country language", async () => withConfiguration(async () => {
   const db = database({ products: [{ id: "product-1", tenant_id: tenant.id, is_published: true, category: "hair", name_json: { fr: "", en: "English product", es: "Producto español" }, description_json: { fr: "", en: "", es: "Descripción española" }, image_alt_json: { fr: "", en: "", es: "Imagen española" }, image_url: "https://example.invalid/product.jpg", price: 1500, currency: "EUR", stock_visibility: "not_shown" }] });
