@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isLocale } from "@/lib/i18n";
+import { formatLocalDateTime } from "@/lib/markets";
 import { localizedServiceTitle, paymentSummary, type LedgerSummary } from "@/lib/payments/recording";
 import { sandboxOwner } from "@/lib/stripe-sandbox";
 import { sandboxConfiguration } from "@/lib/stripe-sandbox-config";
@@ -72,7 +73,7 @@ export default async function PaymentsPage({ params, searchParams }: {
             const money = (amount: number) => new Intl.NumberFormat(locale, { style: "currency", currency: appointment.service_currency }).format(amount / 100);
             return <article key={appointment.id} className="space-y-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-700">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div><h3 className="font-semibold">{localizedServiceTitle(appointment.service_title_json, locale)}</h3><p className="text-sm text-slate-600 dark:text-stone-300">{new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(appointment.start_time))}</p></div>
+                <div><h3 className="font-semibold">{localizedServiceTitle(appointment.service_title_json, locale)}</h3><p className="text-sm text-slate-600 dark:text-stone-300">{formatLocalDateTime(appointment.start_time, locale, owner.tenant.time_zone)}</p></div>
                 <div className="text-right text-sm"><p>{t.total}: {money(appointment.service_price)}</p><p>{t.netPaid}: {money(summary.netPaid)}</p><p className="font-semibold">{t.outstanding}: {money(summary.outstanding)}</p></div>
               </div>
               {summary.outstanding > 0 && <form action={recordManualPayment.bind(null, locale)} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">

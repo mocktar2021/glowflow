@@ -49,6 +49,7 @@ test('rejects URL paths, query strings and insecure origins', () => {
 test('comparison targets require an exact production URL', () => {
   const comparison = {
     ...valid,
+    GLOWFLOW_RECOVERY_COMPARISON_SCOPE: 'current-state-clone-only',
     GLOWFLOW_PRODUCTION_SUPABASE_URL: 'https://productionproject1.supabase.co',
     GLOWFLOW_PRODUCTION_SERVICE_ROLE_KEY: 'production-secret',
     GLOWFLOW_RECOVERY_ANON_KEY: 'recovery-anon',
@@ -58,6 +59,10 @@ test('comparison targets require an exact production URL', () => {
     ...comparison,
     GLOWFLOW_PRODUCTION_SUPABASE_URL: 'https://another-project.supabase.co',
   }), /exactly match/);
+  assert.throws(() => parseComparisonTargets({
+    ...comparison,
+    GLOWFLOW_RECOVERY_COMPARISON_SCOPE: 'historical-restore',
+  }), /cannot validate a historical restore/);
 });
 
 test('recovered app target requires a temporary publishable key', () => {

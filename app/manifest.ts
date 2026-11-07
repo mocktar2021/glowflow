@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Découvrez des salons et réservez votre prochain rendez-vous beauté.",
     start_url: "/fr/salons",
     display: "standalone",
-    background_color: "#faf9f6",
-    theme_color: "#0f172a",
+    background_color: "#faf6f1",
+    theme_color: "#7a4659",
     lang: "fr",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

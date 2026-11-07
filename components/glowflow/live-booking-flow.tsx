@@ -1,11 +1,13 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import type { Locale } from "@/lib/i18n";
+import { findNextAvailableBookingDate } from "@/lib/next-available-booking-date";
 import { sandboxPaymentCopy } from "@/lib/sandbox-payment-copy";
 
 const noHydrationSubscription = () => () => {};
@@ -123,6 +125,11 @@ const copy = {
     time: "Créneaux disponibles",
     loading: "Recherche des créneaux…",
     noSlots: "Aucun créneau disponible pour cette date.",
+    findNextDate: "Chercher la prochaine date disponible",
+    findingNextDate: "Recherche sur les 14 prochains jours…",
+    chooseNextDate: "Voir les créneaux du",
+    noNextDate: "Aucun créneau trouvé dans les 14 prochains jours. Essayez une autre date.",
+    nextDateError: "Impossible de chercher une autre date. Réessayez.",
     details: "Vos coordonnées",
     name: "Nom complet",
     phone: "Téléphone",
@@ -192,6 +199,11 @@ const copy = {
     time: "Available times",
     loading: "Checking available times…",
     noSlots: "No times are available on this date.",
+    findNextDate: "Find the next available date",
+    findingNextDate: "Checking the next 14 days…",
+    chooseNextDate: "See times on",
+    noNextDate: "No times found in the next 14 days. Try another date.",
+    nextDateError: "Could not search another date. Try again.",
     details: "Your details",
     name: "Full name",
     phone: "Phone",
@@ -261,6 +273,11 @@ const copy = {
     time: "Horas disponibles",
     loading: "Buscando horarios…",
     noSlots: "No hay horarios disponibles para esta fecha.",
+    findNextDate: "Buscar la próxima fecha disponible",
+    findingNextDate: "Buscando en los próximos 14 días…",
+    chooseNextDate: "Ver horarios del",
+    noNextDate: "No se encontraron horarios en los próximos 14 días. Prueba otra fecha.",
+    nextDateError: "No se pudo buscar otra fecha. Inténtalo de nuevo.",
     details: "Tus datos",
     name: "Nombre completo",
     phone: "Teléfono",
@@ -367,6 +384,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const v2Bootstrap = useRef<Promise<V2Response> | null>(null);
   const v2ActionCooldownRef = useRef<Partial<Record<V2CapabilityAction, true>>>({});
   const v2ActionTimers = useRef<Partial<Record<V2CapabilityAction, number>>>({});
+  const nextDateSearch = useRef<AbortController | null>(null);
   const today = useMemo(() => dateInZone(salon.timeZone), [salon.timeZone]);
   // Do not accept a native selection before React can persist it to booking state.
   const hydrated = useSyncExternalStore(noHydrationSubscription, () => true, () => false);
@@ -395,6 +413,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   const [v2PreparedOffer, setV2PreparedOffer] = useState<V2OriginalPrepared | null>(null);
   const [v2AgainError, setV2AgainError] = useState(false);
   const [v2DetectedRecoveryOnly, setV2DetectedRecoveryOnly] = useState(false);
+  const [nextDateStatus, setNextDateStatus] = useState<"idle" | "searching" | "found" | "none" | "error">("idle");
+  const [nextAvailableDate, setNextAvailableDate] = useState<string | null>(null);
   const v2RecoveryOnly = recoveryOnly || v2DetectedRecoveryOnly;
   const service = services.find((item) => item.id === serviceId) ?? services[0];
   const staffChoices = bookingStaffByService[serviceId] ?? [];
@@ -425,6 +445,43 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
 
     return () => controller.abort();
   }, [date, salon.slug, serviceId, availabilityVersion]);
+
+  useEffect(() => () => nextDateSearch.current?.abort(), []);
+
+  function resetNextDateSearch() {
+    nextDateSearch.current?.abort();
+    nextDateSearch.current = null;
+    setNextDateStatus("idle");
+    setNextAvailableDate(null);
+  }
+
+  async function searchNextDate() {
+    if (loadingSlots || availabilityFailed || visibleSlots.length || nextDateStatus === "searching") return;
+    const controller = new AbortController();
+    nextDateSearch.current?.abort();
+    nextDateSearch.current = controller;
+    setNextDateStatus("searching");
+    setNextAvailableDate(null);
+    try {
+      const found = await findNextAvailableBookingDate(date, preferredStaffId, async (candidate, signal) => {
+        const query = new URLSearchParams({ salonSlug: salon.slug, serviceId, date: candidate });
+        const response = await fetch(`/api/public-booking?${query}`, { signal, cache: "no-store" });
+        if (!response.ok) throw new Error("availability_failed");
+        const body: unknown = await response.json();
+        if (!body || typeof body !== "object" || !Array.isArray((body as { slots?: unknown }).slots)) {
+          throw new Error("invalid_availability_response");
+        }
+        return (body as { slots: Slot[] }).slots;
+      }, controller.signal);
+      if (controller.signal.aborted) return;
+      setNextAvailableDate(found);
+      setNextDateStatus(found ? "found" : "none");
+    } catch {
+      if (!controller.signal.aborted) setNextDateStatus("error");
+    } finally {
+      if (nextDateSearch.current === controller) nextDateSearch.current = null;
+    }
+  }
 
   useEffect(() => {
     if (confirmation) confirmationRef.current?.focus();
@@ -724,6 +781,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   }
 
   function reloadAvailability() {
+    resetNextDateSearch();
     setSlot(null);
     setSlots([]);
     setLoadingSlots(true);
@@ -1080,8 +1138,8 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
   return <main className="min-h-screen bg-[#f3ece2] p-3 text-slate-950 dark:bg-[#101216] dark:text-stone-50 sm:p-6">
     <div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-[#faf9f6] shadow-[0_32px_100px_rgba(48,32,18,0.12)] dark:bg-[#17191e]">
       <header className="flex items-center justify-between bg-slate-950 px-5 py-4 text-white sm:px-8">
-        {locked ? <span className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</span>
-          : <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold"><Sparkles className="size-5 text-[#e7b779]" />GlowFlow</Link>}
+        {locked ? <span className="flex items-center" aria-label="GlowFlow"><BrandLogo className="h-8 w-28" /></span>
+          : <Link href={`/${locale}`} className="flex items-center" aria-label="GlowFlow"><BrandLogo className="h-8 w-28" /></Link>}
         {locked ? <span className="text-sm font-semibold">{locale.toUpperCase()}</span> : <LanguageSwitcher locale={locale} />}
       </header>
       <div className="grid lg:grid-cols-[0.75fr_1.25fr]">
@@ -1139,6 +1197,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
                   window.history.replaceState(window.history.state, "", url.href);
                 }
                 setLoadingSlots(true);
+                resetNextDateSearch();
                 setAvailabilityFailed(false);
                 setSlots([]);
                 setSlot(null);
@@ -1150,7 +1209,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
             </select>
           </label>
           {staffChoices.length ? <label className="block font-semibold">{labels.staff}
-            <select name="bookingStaff" disabled={!hydrated || submitting} value={preferredStaffId} onChange={(event) => { setPreferredStaffId(event.target.value); setSlot(null); setError(""); }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
+            <select name="bookingStaff" disabled={!hydrated || submitting} value={preferredStaffId} onChange={(event) => { resetNextDateSearch(); setPreferredStaffId(event.target.value); setSlot(null); setError(""); }} className="mt-2 h-12 w-full rounded-xl border border-[#dfd2c1] bg-white px-4 dark:border-white/15 dark:bg-white/5">
               <option value="">{labels.anyStaff}</option>
               {staffChoices.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </select>
@@ -1158,6 +1217,7 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
           <label className="block font-semibold">{labels.date}
             <input type="date" disabled={!hydrated || submitting} min={today} value={date} onChange={(event) => {
               setLoadingSlots(true);
+              resetNextDateSearch();
               setAvailabilityFailed(false);
               setSlots([]);
               setSlot(null);
@@ -1175,7 +1235,26 @@ export function LiveBookingFlow({ locale, salon, services, bookingStaffByService
                   {new Intl.DateTimeFormat(locale, { timeZone: salon.timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(value.slot_start))}
                 </span>
               </label>)}
-            </div> : <div role="status" className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5"><p>{preferredStaffId ? labels.preferredStaffUnavailable : labels.noSlots}</p>{preferredStaffId ? <button type="button" onClick={() => { setPreferredStaffId(""); setSlot(null); }} className="mt-3 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.showAllStaff}</button> : null}</div>}
+            </div> : <div role="status" className="mt-3 rounded-xl bg-[#f4ece2] p-4 text-sm dark:bg-white/5">
+              <p>{preferredStaffId ? labels.preferredStaffUnavailable : labels.noSlots}</p>
+              {preferredStaffId ? <button type="button" onClick={() => { resetNextDateSearch(); setPreferredStaffId(""); setSlot(null); }} className="mt-3 min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.showAllStaff}</button> : null}
+              <div className="mt-3">
+                {nextDateStatus === "found" && nextAvailableDate ? <button type="button" onClick={() => {
+                  const found = nextAvailableDate;
+                  resetNextDateSearch();
+                  setLoadingSlots(true);
+                  setAvailabilityFailed(false);
+                  setSlots([]);
+                  setSlot(null);
+                  setError("");
+                  setDate(found);
+                }} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.chooseNextDate} {new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${nextAvailableDate}T12:00:00Z`))}</button> : null}
+                {nextDateStatus === "searching" ? <p aria-live="polite">{labels.findingNextDate}</p> : null}
+                {nextDateStatus === "none" ? <p aria-live="polite">{labels.noNextDate}</p> : null}
+                {nextDateStatus === "error" ? <p role="alert">{labels.nextDateError}</p> : null}
+                {(nextDateStatus === "idle" || nextDateStatus === "error") ? <button type="button" onClick={searchNextDate} className="min-h-11 rounded-xl border border-[#d9c7b2] px-4 font-semibold">{labels.findNextDate}</button> : null}
+              </div>
+            </div>}
           </fieldset>
           <fieldset disabled={submitting} aria-describedby="booking-contact-hint" className="grid gap-4 sm:grid-cols-2">
             <legend className="mb-3 font-semibold">{labels.details}</legend>

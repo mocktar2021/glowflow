@@ -20,6 +20,7 @@ async function render(locale, owner = true, invitations = false) {
   const dependencies = {
     "next/link": "a",
     "next/navigation": { notFound() { throw new Error("not-found"); } },
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/auth": { requireUser: async () => ({ userId: "signed-in-user", supabase }) },
     "@/lib/i18n": { isLocale: value => ["fr", "en", "es"].includes(value) },
@@ -38,6 +39,8 @@ test("signed-in dashboard shows actual salon identity and working localized dest
     assert.match(html, /Actual User/);
     assert.match(html, /Actual Salon/);
     assert.match(html, /America\/New_York/);
+    assert.match(html, /aria-current="page"/);
+    assert.match(html, /font-display/);
     assert.doesNotMatch(html, /Sofia|Nadia|Maya|1248|312|Mar\. 8|allerg/i);
     for (const route of ["calendar", "walk-ins", "services", "products", "availability", "public-profile", "payments", "notifications"]) assert.ok(html.includes(`href="/${locale}/dashboard/${route}"`));
     assert.ok(html.includes({ fr: "Historique des notifications", en: "Notification history", es: "Historial de notificaciones" }[locale]));

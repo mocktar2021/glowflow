@@ -14,6 +14,7 @@ async function load(path, dependencies = {}) {
 }
 const payment = await load("../lib/sandbox-payment-copy.ts");
 const bookingStaff = await load("../lib/public-booking-staff.ts");
+const nextAvailableDate = await load("../lib/next-available-booking-date.ts");
 const props = { locale: "fr", salon: { name: "Salon Test", slug: "salon-test", city: "Paris", countryCode: "FR", currency: "EUR", timeZone: "Europe/Paris" }, services: [{ id: "service", title_json: { fr: "Coupe", en: "Haircut", es: "Corte" }, duration_minutes: 30, price: 3000, deposit_amount: 1000, currency: "EUR" }] };
 const slot = { slot_start: "2026-09-12T10:00:00Z", staff_id: "public-staff-id" };
 async function harness(initial = {}) {
@@ -28,10 +29,12 @@ async function harness(initial = {}) {
   };
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react,
-    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg", Sparkles: "svg" },
+    "lucide-react": { CalendarDays: "svg", CheckCircle2: "svg", Clock3: "svg", MapPin: "svg" },
     "next/link": ({ children }) => children,
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": payment,
+    "@/lib/next-available-booking-date": nextAvailableDate,
   });
   return { values, refs, render(extra = {}) { stateIndex = refIndex = effectIndex = 0; return LiveBookingFlow({ ...props, ...extra }); }, runEffects() { for (const effect of effects) if (effect.pending) { effect.pending = false; effect.cleanup = effect.fn(); } }, cleanup() { effects.forEach((effect) => effect.cleanup?.()); } };
 }
@@ -109,6 +112,66 @@ test("named staff choice filters slots without losing the no-preference option",
   assert.equal(h.values[11], "");
   tree = h.render(extra);
   assert.equal(nodes(tree).filter((node) => node.type === "input" && node.props.name === "bookingTime").length, 1);
+});
+test("empty date offers a localized, explicit next-date search and rechecks the chosen date", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedDates = [];
+  const h = await harness({ 4: false });
+  h.render();
+  const target = nextAvailableDate.nextCalendarDate(nextAvailableDate.nextCalendarDate(h.values[1]));
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.cache, "no-store");
+    const candidate = new URL(url, "https://fixture.invalid").searchParams.get("date");
+    requestedDates.push(candidate);
+    return { ok: true, json: async () => ({ slots: candidate === target ? [{ ...slot, slot_start: `${target}T14:00:00Z` }] : [] }) };
+  };
+  try {
+    for (const [locale, label] of [["fr", "Chercher la prochaine date disponible"], ["en", "Find the next available date"], ["es", "Buscar la próxima fecha disponible"]]) {
+      const tree = h.render({ locale });
+      assert.ok(find(tree, (node) => node.type === "button" && node.props.children === label));
+    }
+    await find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    assert.deepEqual(requestedDates, [nextAvailableDate.nextCalendarDate(h.values[1]), target]);
+    const tree = h.render();
+    const suggestion = find(tree, (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du"));
+    assert.ok(suggestion);
+    suggestion.props.onClick();
+    assert.equal(h.values[1], target);
+    assert.equal(h.values[4], true);
+    assert.equal(find(h.render(), (node) => node.type === "button" && node.props.type === "submit").props.disabled, true);
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
+});
+test("changing the selected date cancels an in-flight next-date search", async () => {
+  const originalFetch = globalThis.fetch;
+  let release;
+  let signal;
+  globalThis.fetch = (_url, options) => { signal = options.signal; return new Promise((resolve) => { release = resolve; }); };
+  const h = await harness({ 4: false });
+  try {
+    const search = find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    assert.equal(signal.aborted, false);
+    const newer = nextAvailableDate.nextCalendarDate(h.values[1]);
+    find(h.render(), (node) => node.type === "input" && node.props.type === "date").props.onChange({ target: { value: newer } });
+    assert.equal(signal.aborted, true);
+    release({ ok: true, json: async () => ({ slots: [{ ...slot, slot_start: `${newer}T14:00:00Z` }] }) });
+    await search;
+    assert.equal(h.values[1], newer);
+    assert.equal(find(h.render(), (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du")), undefined);
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
+});
+test("failed next-date lookup does not invent availability and allows an explicit retry", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return { ok: false }; };
+  const h = await harness({ 4: false });
+  try {
+    await find(h.render(), (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible").props.onClick();
+    const tree = h.render();
+    assert.equal(calls, 1);
+    assert.ok(renderToStaticMarkup(tree).includes("Impossible de chercher une autre date"));
+    assert.equal(find(tree, (node) => node.type === "button" && String(node.props.children).includes("Voir les créneaux du")), undefined);
+    assert.ok(find(tree, (node) => node.type === "button" && node.props.children === "Chercher la prochaine date disponible"));
+  } finally { globalThis.fetch = originalFetch; h.cleanup(); }
 });
 test("booking another appointment reloads availability instead of reusing the booked slot", async () => {
   const h = await harness({ 2: [slot], 3: slot, 4: false, 8: { appointment_id: "reference", service_title: { fr: "Coupe" }, confirmed_start: slot.slot_start, confirmed_end: "2026-09-12T10:30:00Z", salon_name: "Salon Test", currency: "EUR", saved_locale: "fr" } });

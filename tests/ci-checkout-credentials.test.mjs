@@ -39,6 +39,16 @@ function assertReadOnlyCheckout(workflow, name) {
   }
 }
 
+function assertPinnedActions(workflow, name) {
+  for (const job of Object.values(workflow.jobs)) {
+    for (const step of job.steps) {
+      if (typeof step?.uses !== "string" || step.uses.startsWith("./")) continue;
+      assert.match(step.uses, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[a-f\d]{40}$/,
+        `${name} must pin every remote action to a full commit SHA`);
+    }
+  }
+}
+
 function assertPrSecretBoundary(workflow, name) {
   assert.ok(object(workflow.on), `${name} must declare events as a YAML mapping`);
   assert.ok(Object.hasOwn(workflow.on, "pull_request"), `${name} needs ordinary pull_request checks`);
@@ -69,8 +79,19 @@ function assertPrSecretBoundary(workflow, name) {
 test("pull request workflows keep checkout and permissions read-only", async () => {
   for (const name of workflows) {
     const source = await readFile(new URL(`.github/workflows/${name}`, root), "utf8");
-    assertReadOnlyCheckout(parseWorkflow(source, name), name);
+    const workflow = parseWorkflow(source, name);
+    assertReadOnlyCheckout(workflow, name);
+    assertPinnedActions(workflow, name);
   }
+});
+
+test("workflow action guard rejects mutable tags and container references", () => {
+  const workflow = parseWorkflow("on: { pull_request: {} }\njobs: { check: { steps: [{ uses: actions/setup-node@v4 }] } }\n", "tagged");
+  assert.throws(() => assertPinnedActions(workflow, "tagged"), /full commit SHA/);
+  workflow.jobs.check.steps[0].uses = "docker://alpine:latest";
+  assert.throws(() => assertPinnedActions(workflow, "container"), /full commit SHA/);
+  workflow.jobs.check.steps[0].uses = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020";
+  assert.doesNotThrow(() => assertPinnedActions(workflow, "pinned"));
 });
 
 test("pull request workflows use no privileged trigger, secrets, or deployment environment", async () => {

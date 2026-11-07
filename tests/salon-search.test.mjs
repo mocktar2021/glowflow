@@ -23,6 +23,19 @@ const discoveryPage = await readFile(path.join(root, "app/[locale]/salons/(searc
 const distanceSearch = await readFile(path.join(root, "components/glowflow/distance-search.tsx"), "utf8");
 const resultCard = await readFile(path.join(root, "components/glowflow/marketplace-salon-card.tsx"), "utf8");
 
+test("discovery logo provides a localized route back to the landing page", () => {
+  assert.match(discoveryPage, /href=\{`\/\$\{locale\}`\}[^>]*aria-label=\{`GlowFlow, \$\{labels\.home\}`\}/);
+  assert.match(discoveryPage, /<ArrowLeft[^>]*aria-hidden="true"[^>]*\/?>\{labels\.home\}/);
+  for (const label of ['home: "Accueil"', 'home: "Home"', 'home: "Inicio"']) {
+    assert.ok(discoveryPage.includes(label));
+  }
+});
+
+test("French discovery navigation has a French accessible label", () => {
+  assert.match(discoveryPage, /marketplace: "Recherche de salons"/);
+  assert.doesNotMatch(discoveryPage, /marketplace: "Marketplace beauté"/);
+});
+
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");
 

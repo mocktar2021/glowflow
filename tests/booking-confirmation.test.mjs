@@ -10,9 +10,11 @@ async function load(file, dependencies) {
   const source = await readFile(new URL(file, import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loaded = { exports: {} };
-  new Function("require", "exports", js)((name) => dependencies[name] ?? require(name), loaded.exports);
+  new Function("require", "exports", js)((name) => dependencies[name] ??
+    (name === "@/lib/next-available-booking-date" ? nextAvailableDate : require(name)), loaded.exports);
   return loaded.exports;
 }
+const nextAvailableDate = await load("../lib/next-available-booking-date.ts", {});
 const serviceId = "11111111-1111-4111-8111-111111111111";
 const originalServiceId = "22222222-2222-4222-8222-222222222222";
 const requestKey = "33333333-3333-4333-8333-333333333333";
@@ -84,6 +86,7 @@ async function markup(locale, details, salonName = base.salon_name) {
   let stateIndex = 0;
   const { LiveBookingFlow } = await load("../components/glowflow/live-booking-flow.tsx", {
     react: { ...React, useEffect() {}, useRef: () => ({ current: null }), useMemo: (fn) => fn(), useState(initial) { return [stateIndex++ === 8 ? confirmation : initial, () => {}]; } },
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/lib/sandbox-payment-copy": { sandboxPaymentCopy: { fr: {}, en: {}, es: {} } },
   });

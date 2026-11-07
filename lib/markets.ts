@@ -71,6 +71,12 @@ export function marketName(market: Market, locale: Locale) {
   return market.name_json[locale] ?? market.name_json[market.default_locale] ?? market.country_code;
 }
 
+export function marketPostalCodeLabel(market: Market, locale: Locale) {
+  const fallback = { fr: "Code postal", en: "Postal code", es: "Código postal" }[locale];
+  // The market's single label is written in its default language, not every UI language.
+  return locale === market.default_locale ? market.address_format.postal_code_label?.trim() || fallback : fallback;
+}
+
 export function formatMoney(amount: number, currency: string, locale: Locale) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
