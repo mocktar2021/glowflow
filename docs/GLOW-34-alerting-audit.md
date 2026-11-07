@@ -54,10 +54,12 @@ threshold or claim an SLO has been met.
 
 Before routing any event, record a named primary and alternate incident owner,
 their coverage hours, an approved and monitored alert destination, who may
-acknowledge and escalate, and a response deadline. The existing recovery
-document names roles but does not establish a current named alert rota or
-destination. The product owner must approve these choices; no paid monitoring
-service is assumed or required by this proposal.
+acknowledge and escalate, and a response deadline. For webhook failures,
+GLOW-34 records Mocktar Tairou as primary and Admin as backup, with monitored
+email addresses confirmed by the owner. Those contacts do not establish
+coverage hours, an acknowledgement rota, escalation, a response deadline, or
+an active alert route. The product owner must approve the remaining choices;
+no paid monitoring service is assumed or required by this proposal.
 
 Then add the smallest sender or platform rule needed for the chosen destination,
 with secrets only in provider settings and a redacted payload allowlist. Test a
