@@ -58,12 +58,12 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
       </header>
 
       <main id="main">
-        <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-24 pt-14 sm:px-8 sm:pt-20 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:py-28" aria-labelledby="hero-title">
+        <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-24 pt-14 sm:px-8 sm:pt-20 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:py-16" aria-labelledby="hero-title">
           <div>
             <p className={eyebrow}>{copy.hero.eyebrow}</p>
-            <h1 id="hero-title" className="motion-safe:animate-[landing-rise_600ms_100ms_ease-out_both] mt-6 max-w-3xl text-balance font-display text-6xl font-medium leading-[0.98] tracking-[-0.025em] sm:text-7xl lg:text-[5.5rem]">{copy.hero.title}</h1>
-            <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">{copy.hero.body}</p>
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <h1 id="hero-title" className="motion-safe:animate-[landing-rise_600ms_100ms_ease-out_both] mt-6 max-w-3xl text-balance font-display text-6xl font-medium leading-[0.98] tracking-[-0.025em] sm:text-7xl lg:mt-4 lg:text-[clamp(3.5rem,4.7vw,4.5rem)]">{copy.hero.title}</h1>
+            <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground lg:mt-5">{copy.hero.body}</p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row lg:mt-6">
               <Link className={primaryAction} href={`/${locale}/register`}>{copy.start}<ArrowRight className="size-4" aria-hidden="true" /></Link>
               <Link className={secondaryAction} href={`/${locale}/salons`}>{copy.browse}</Link>
             </div>
