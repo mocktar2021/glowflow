@@ -85,11 +85,22 @@ for (const locale of ["fr", "en", "es"]) {
         document.querySelector("form").addEventListener("submit", (event) => {
           event.preventDefault();
           event.stopPropagation();
+          window.__registrationFields = Object.fromEntries(new FormData(event.target));
           window.__registrationSubmitted = true;
         }, { capture: true });
       });
       await page.getByRole("button", { name: copy.submit }).click();
       await page.waitForFunction(() => window.__registrationSubmitted);
+      const fields = await page.evaluate(() => window.__registrationFields);
+      assert.equal(fields.full_name, "Salon Owner");
+      assert.equal(fields.email, "owner@example.invalid");
+      assert.equal(fields.password, "example-secret-123");
+      assert.equal(fields.salon_name, "Example Salon");
+      assert.equal(fields.country_code, "FR");
+      assert.equal(fields.time_zone, "Europe/Paris");
+      assert.equal(fields.address_line1, "10 Rue Exemple");
+      assert.equal(fields.city, "Paris");
+      assert.equal(fields.postal_code, "75001");
       assert.deepEqual(mutations, []);
     } finally {
       await context.close();
