@@ -271,8 +271,8 @@ test("published cover image appears in result cards with an initials fallback", 
   const utcTime = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: null, starting_price: 4500, next_available_at: "2026-11-15T14:00:00Z" } }));
   assert.match(utcTime, /UTC/);
   const staleTime = renderToStaticMarkup(React.createElement(MarketplaceSalonCard, { ...props, salon: { ...salon, image_url: null, next_available_at: "2026-11-15T14:00:00Z" } }));
-  assert.match(staleTime, /See salon/);
-  assert.doesNotMatch(staleTime, /11\/15\/2026|America\/Los_Angeles|UTC/);
+  assert.match(staleTime, /Price unavailable/);
+  assert.doesNotMatch(staleTime, /Next opening|See salon|11\/15\/2026|America\/Los_Angeles|UTC/);
   assert.equal(search.publicSalonImageUrl("https://example.com/photo.jpg"), null);
   assert.equal(search.publicSalonImageUrl("https://foo.supabase.co.evil.com/storage/v1/object/public/salon-public-media/photo.jpg"), null);
   assert.match(search.publicSalonImageUrl("https://fixture.supabase.co/storage/v1/object/public/salon-public-media/photo.jpg"), /fixture\.supabase\.co/);
