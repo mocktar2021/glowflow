@@ -11,6 +11,7 @@ test("registration collects account essentials before salon details in one final
   assert.match(page, /<RegistrationForm locale=\{locale\} markets=\{markets\} action=\{signUp\.bind\(null, locale\)\}/);
   assert.match(form, /type="button" onClick=\{continueToSalon\}/);
   assert.match(form, /field\.reportValidity\(\)/);
+  assert.match(form, /event\.key === "Enter"/);
   assert.match(form, /hidden=\{step !== 1\}/);
   assert.match(form, /hidden=\{step !== 2\}/);
   assert.match(form, /<CountryFields locale=\{locale\} markets=\{markets\} \/>/);

@@ -74,7 +74,7 @@ for (const locale of ["fr", "en", "es"]) {
       await page.getByRole("button", { name: copy.back }).click();
       await page.getByRole("heading", { name: copy.accountStep, exact: true }).waitFor();
       assert.equal(await page.locator('input[name="email"]').inputValue(), "owner@example.invalid");
-      await page.getByRole("button", { name: copy.continue }).click();
+      await page.locator('input[name="password"]').press("Enter");
       assert.equal(await page.locator('input[name="salon_name"]').inputValue(), "Example Salon");
       await page.locator('select[name="country_code"]').selectOption("FR");
       await page.locator('input[name="address_line1"]').fill("10 Rue Exemple");

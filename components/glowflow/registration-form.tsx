@@ -42,7 +42,12 @@ export function RegistrationForm({ locale, markets, action }: {
         <li aria-current={step === 2 ? "step" : undefined} className={step === 2 ? "text-primary" : "text-muted-foreground"}>2. {labels.salonStep}</li>
       </ol>
 
-      <div ref={firstStep} hidden={step !== 1}>
+      <div ref={firstStep} hidden={step !== 1} onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) {
+          event.preventDefault();
+          continueToSalon();
+        }
+      }}>
         <h2 ref={firstHeading} tabIndex={-1} className="font-display text-2xl font-medium">{labels.accountStep}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{labels.accountBenefit}</p>
         <div className="mt-5 space-y-5">
