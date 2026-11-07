@@ -113,7 +113,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <figure className="relative min-h-[380px] overflow-hidden rounded-[2rem] bg-blush sm:min-h-[540px]">
               <Image src="/brand/pexels-nail-colors.webp" alt={copy.hero.imageAlt} fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
-              <figcaption className="absolute bottom-4 left-4 rounded-full bg-card/95 px-4 py-2 text-xs text-foreground shadow-sm sm:bottom-6 sm:left-6">{copy.hero.stockCaption}</figcaption>
+              <figcaption className="sr-only">{copy.hero.stockCaption}</figcaption>
             </figure>
             <div>
               <p className={eyebrow}>{copy.marketplace.eyebrow}</p>
