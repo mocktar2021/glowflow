@@ -75,7 +75,6 @@ export function AuthShell({
         <div className="absolute inset-0 bg-gradient-to-t from-[#2a2129]/95 via-[#2a2129]/10 to-[#2a2129]/10" />
         <div className="absolute inset-x-0 bottom-0 p-10 xl:p-14">
           <p className="max-w-md font-display text-5xl font-medium leading-tight">{labels.asideTitle}</p>
-          <p className="mt-5 text-sm text-[#f6efea]">{labels.illustration}</p>
         </div>
       </aside>
     </main>

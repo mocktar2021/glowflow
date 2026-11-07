@@ -56,4 +56,10 @@ test("stock photo and full wordmark replace the synthetic photo and isolated let
     assert.match(content, /pexels-nail-colors\.webp/);
     assert.doesNotMatch(content, /illustrative-manicure\.jpg|BrandLogo compact/);
   }
+  const landing = await readFile(new URL("app/[locale]/page.tsx", root), "utf8");
+  const auth = await readFile(new URL("components/glowflow/auth-shell.tsx", root), "utf8");
+  assert.match(landing, /<figcaption className="sr-only">\{copy\.hero\.stockCaption\}<\/figcaption>/);
+  assert.doesNotMatch(landing, /<figcaption className="absolute bottom-4 left-4/);
+  assert.match(auth, /aria-label=\{labels\.illustration\}/);
+  assert.doesNotMatch(auth, /<p[^>]*>\{labels\.illustration\}<\/p>/);
 });
