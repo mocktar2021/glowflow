@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GlowFlow"><rect width="512" height="512" rx="118" fill="#F2DDD6"/><g transform="translate(256.0 256.0) scale(1.7066666666666668) translate(-50 -164)"><g fill="none" stroke="#2A2129" stroke-width="20"><circle cx="50" cy="150.0" r="43.0"/><path d="M93.0 100 V218 A34 34 0 0 1 59.0 252 H14"/></g><g fill="none" stroke="#C8A27A"><path d="M3.93 108.51 A62.0 62.0 0 0 1 96.07 108.51" stroke-width="7" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GlowFlow">
+  <rect width="512" height="512" rx="118" fill="#2A2129"/>
+  <svg x="28" y="174" width="456" height="164" viewBox="-10 20 754 260">
+    <g fill="none" stroke="#FAF6F1" stroke-width="14" stroke-linecap="butt">
+      <circle cx="50" cy="150" r="43"/>
+      <path d="M93 100V218a34 34 0 0 1-34 34H14"/>
+      <path d="M127 36v164"/>
+      <circle cx="204" cy="150" r="43"/>
+      <clipPath id="icon-w"><rect x="262" y="100" width="124" height="100"/></clipPath>
+      <path clip-path="url(#icon-w)" stroke-linejoin="miter" d="m274 70 24 160 26-160 26 160 24-160"/>
+      <path d="M407 200V72a30 30 0 0 1 30-30h14M390 107h57M487 36v164"/>
+      <circle cx="564" cy="150" r="43"/>
+      <clipPath id="icon-w2"><rect x="622" y="100" width="124" height="100"/></clipPath>
+      <path clip-path="url(#icon-w2)" stroke-linejoin="miter" d="m634 70 24 160 26-160 26 160 24-160"/>
+    </g>
+    <path d="M157.93 108.51a62 62 0 0 1 92.14 0" fill="none" stroke="#C8A27A" stroke-width="7" stroke-linecap="round"/>
+  </svg>
+</svg>

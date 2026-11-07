@@ -38,7 +38,7 @@ test("landing route stays localized and sends users to existing product flows", 
   assert.match(page, /<MotionPreview kind="hero"/);
   assert.match(page, /<MotionPreview kind="booking"/);
   assert.match(page, /BrandLogo/);
-  assert.match(page, /illustrative-manicure\.jpg/);
+  assert.match(page, /pexels-nail-colors\.webp/);
   assert.doesNotMatch(page, /Sparkles/);
   assert.doesNotMatch(page, /—/);
 });
