@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { legalCopy, legalEffectiveDate, supportEmail } from "@/lib/legal-content";
 import type { Locale } from "@/lib/i18n";
@@ -14,7 +15,7 @@ export function LegalPage({ locale, document }: { locale: Locale; document: Lega
     <main className="min-h-screen bg-[#f7f2eb] text-slate-950 dark:bg-[#101216] dark:text-white">
       <header className="border-b border-[#e4d6c5] bg-white/90 dark:border-white/10 dark:bg-[#17191e]/90">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-4">
-          <Link href={`/${locale}/salons`} className="flex items-center gap-3 font-semibold"><Sparkles className="size-5 text-[#a56d37]" />GlowFlow</Link>
+          <Link href={`/${locale}/salons`} className="flex items-center text-foreground" aria-label="GlowFlow"><BrandLogo className="h-9 w-32" /></Link>
           <LanguageSwitcher locale={locale} />
         </div>
       </header>

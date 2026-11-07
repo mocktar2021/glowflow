@@ -9,7 +9,6 @@ import {
   AtSign,
   MapPin,
   ShieldCheck,
-  Sparkles,
   Star,
 } from "lucide-react";
 import Image from "next/image";
@@ -18,6 +17,7 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,11 +99,8 @@ export function BookingFlow({ locale, salonSlug }: { locale: Locale; salonSlug: 
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-slate-950/10" />
           <div className="absolute inset-x-0 top-0 flex items-center justify-between p-5 sm:p-7">
-            <Link href={`/${locale}/dashboard`} className="flex items-center gap-2 text-lg font-semibold tracking-[-0.035em]">
-              <span className="grid size-9 place-items-center rounded-xl bg-[#e7b779] text-slate-950">
-                <Sparkles className="size-4" />
-              </span>
-              GlowFlow
+            <Link href={`/${locale}/dashboard`} className="flex items-center text-white" aria-label="GlowFlow">
+              <BrandLogo className="h-9 w-32" />
             </Link>
             <LanguageSwitcher locale={locale} />
           </div>

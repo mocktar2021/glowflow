@@ -14,7 +14,7 @@ Treat GlowFlow as two connected products:
 1. A private multi-tenant workspace for salon owners and staff.
 2. A public multi-country marketplace for salon search, profiles, products, availability, and booking.
 
-Preserve the GlowFlow cream, dark-slate, and rose-gold identity. Use competitor products only as research. Do not copy their text, artwork, branding, or layouts.
+Use the product-owner-approved Porcelain & Mulberry identity for the GLOW-58 redesign: porcelain surfaces, ink text, mulberry actions, blush and champagne accents, Cormorant Garamond headings, and Jost UI. Keep untouched production surfaces stable until their reviewed redesign slices ship. Use competitor products only as research. Do not copy their text, artwork, branding, or layouts. Do not add em dashes to app copy.
 
 ## Required product rules
 

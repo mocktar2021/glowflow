@@ -1,9 +1,10 @@
-import { CalendarDays, Clock3, CreditCard, MapPin, Phone, ShieldCheck, ShoppingBag, Sparkles, Users } from "lucide-react";
+import { CalendarDays, Clock3, CreditCard, MapPin, Phone, ShieldCheck, ShoppingBag, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { formatLocalDateTime, formatMinorMoneyWithCurrencyPrecision } from "@/lib/markets";
@@ -40,6 +41,12 @@ const copy = {
   fr: { back: "Rechercher des salons", book: "Choisir une prestation", bookService: "Réserver cette prestation", about: "À propos", services: "Prestations", team: "Équipe", hours: "Horaires", policies: "Conditions", policiesMissing: "Conditions d’annulation non publiées. Contactez le salon pour les connaître.", payments: "Paiements acceptés", location: "Adresse", map: "Ouvrir dans Maps", next: "Prochain créneau", duration: "Durée", deposit: "Acompte", card: "Carte", cash: "Espèces", mixed: "Paiement mixte", onlineDeposit: "Acompte en ligne", hair: "Coiffure", nails: "Ongles", other: "Autres", closed: "Fermé", noTeam: "Équipe présentée prochainement", noServices: "Prestations disponibles prochainement", serviceMissing: "Nom de la prestation indisponible", days: ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"] },
   en: { back: "Search salons", book: "Choose a service", bookService: "Book this service", about: "About", services: "Services", team: "Team", hours: "Opening hours", policies: "Policies", policiesMissing: "Cancellation policies are not published. Contact the salon for details.", payments: "Accepted payments", location: "Location", map: "Open in Maps", next: "Next opening", duration: "Duration", deposit: "Deposit", card: "Card", cash: "Cash", mixed: "Mixed payment", onlineDeposit: "Online deposit", hair: "Hair", nails: "Nails", other: "Other", closed: "Closed", noTeam: "Team details coming soon", noServices: "Services coming soon", serviceMissing: "Service name unavailable", days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] },
   es: { back: "Buscar salones", book: "Elegir un servicio", bookService: "Reservar este servicio", about: "Información", services: "Servicios", team: "Equipo", hours: "Horarios", policies: "Políticas", policiesMissing: "Las condiciones de cancelación no están publicadas. Contacta con el salón para conocerlas.", payments: "Pagos aceptados", location: "Dirección", map: "Abrir en Maps", next: "Próxima disponibilidad", duration: "Duración", deposit: "Depósito", card: "Tarjeta", cash: "Efectivo", mixed: "Pago mixto", onlineDeposit: "Depósito en línea", hair: "Cabello", nails: "Uñas", other: "Otros", closed: "Cerrado", noTeam: "Próximamente se presentará el equipo", noServices: "Servicios disponibles próximamente", serviceMissing: "Nombre del servicio no disponible", days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] },
+} as const;
+
+const bookingUnavailableCopy = {
+  fr: { message: "Réservation en ligne indisponible pour le moment.", contact: "Appeler le salon" },
+  en: { message: "Online booking is unavailable for now.", contact: "Call the salon" },
+  es: { message: "Las reservas en línea no están disponibles por ahora.", contact: "Llamar al salón" },
 } as const;
 
 const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
@@ -97,6 +104,7 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
     supabase.from("markets").select("default_locale").eq("country_code", profile.country_code).single(),
   ]);
   const products = (productRows ?? []) as PublicProduct[];
+  const bookingReady = Boolean(services?.length);
   const productLabels = productCopy[locale];
   const productFallbackLocale = productDefaultLocale(market?.default_locale);
   const timeZone = tenant?.time_zone ?? "UTC";
@@ -108,10 +116,10 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
   return (
     <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#101216] dark:text-stone-100">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      <header className="border-b border-[#e7ddd0] bg-[#faf9f6]/95 dark:border-white/10 dark:bg-[#101216]/95"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8"><Link href={`/${locale}/salons`} className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950"><Sparkles className="size-5" /></span><span><strong className="block text-lg">GlowFlow</strong><span className="text-xs text-slate-500">{labels.back}</span></span></Link><LanguageSwitcher locale={locale} /></div></header>
+      <header className="border-b border-[#e7ddd0] bg-[#faf9f6]/95 dark:border-white/10 dark:bg-[#101216]/95"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8"><Link href={`/${locale}/salons`} className="flex items-center gap-3"><span><BrandLogo className="h-8 w-28 text-foreground" /><span className="block text-xs text-slate-500">{labels.back}</span></span></Link><LanguageSwitcher locale={locale} /></div></header>
 
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {photos.length ? <div className="grid h-[22rem] gap-2 overflow-hidden rounded-[1.75rem] sm:grid-cols-2 lg:grid-cols-4">{photos.map((url, index) => <div key={url} className={`relative overflow-hidden bg-[#eadfd2] ${index === 0 ? "sm:row-span-2 lg:col-span-2" : ""} ${index > 2 ? "hidden lg:block" : ""}`}><Image src={url} alt={`${profile.business_name} ${index + 1}`} fill priority={index === 0} sizes={index === 0 ? "(max-width: 640px) 100vw, 50vw" : "25vw"} className="object-cover" /></div>)}</div> : <div className="grid h-64 place-items-center rounded-[1.75rem] bg-[linear-gradient(135deg,#ead7c1,#f5ece2_52%,#dec0a1)]"><Sparkles className="size-14 text-[#9a602d]" /></div>}
+        {photos.length ? <div className="grid h-[22rem] gap-2 overflow-hidden rounded-[1.75rem] sm:grid-cols-2 lg:grid-cols-4">{photos.map((url, index) => <div key={url} className={`relative overflow-hidden bg-[#eadfd2] ${index === 0 ? "sm:row-span-2 lg:col-span-2" : ""} ${index > 2 ? "hidden lg:block" : ""}`}><Image src={url} alt={`${profile.business_name} ${index + 1}`} fill priority={index === 0} sizes={index === 0 ? "(max-width: 640px) 100vw, 50vw" : "25vw"} className="object-cover" /></div>)}</div> : <div className="grid h-64 place-items-center rounded-[1.75rem] bg-[linear-gradient(135deg,#ead7c1,#f5ece2_52%,#dec0a1)]"><BrandLogo className="h-14 w-44 text-[#7a4659] sm:h-20 sm:w-60" /></div>}
 
         <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.7fr)]">
           <div className="space-y-7">
@@ -129,7 +137,7 @@ export default async function SalonProfilePage({ params }: { params: Promise<{ l
           </div>
 
           <aside className="space-y-5 lg:sticky lg:top-5 lg:self-start">
-            <section className="rounded-[1.75rem] border border-[#dec9aa] bg-white p-6 shadow-[0_18px_50px_rgba(48,32,18,0.10)] dark:border-white/10 dark:bg-[#17191e]">{profile.next_available_at ? <p className="text-sm text-slate-500">{labels.next}<strong className="mt-1 flex items-center gap-2 text-base text-slate-950 dark:text-white"><CalendarDays className="size-4 text-[#a56d37]" />{formatLocalDateTime(profile.next_available_at, locale, timeZone)}</strong></p> : null}<Link href={`/${locale}/book/${profile.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white dark:bg-[#e7b779] dark:text-slate-950">{labels.book}</Link></section>
+            <section className="rounded-[1.75rem] border border-[#dec9aa] bg-white p-6 shadow-[0_18px_50px_rgba(48,32,18,0.10)] dark:border-white/10 dark:bg-[#17191e]">{bookingReady && profile.next_available_at ? <p className="text-sm text-slate-500">{labels.next}<strong className="mt-1 flex items-center gap-2 text-base text-slate-950 dark:text-white"><CalendarDays className="size-4 text-[#a56d37]" />{formatLocalDateTime(profile.next_available_at, locale, timeZone)}</strong></p> : null}{bookingReady ? <Link href={`/${locale}/book/${profile.slug}`} className="mt-5 block rounded-xl bg-slate-950 px-5 py-3 text-center text-sm font-semibold text-white dark:bg-[#e7b779] dark:text-slate-950">{labels.book}</Link> : <div className="space-y-4"><p className="text-sm text-slate-700 dark:text-stone-200">{bookingUnavailableCopy[locale].message}</p>{profile.public_phone ? <a href={`tel:${profile.public_phone}`} className="block rounded-xl bg-[#744155] px-5 py-3 text-center text-sm font-semibold text-white hover:bg-[#603448] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#744155]">{bookingUnavailableCopy[locale].contact}</a> : null}</div>}</section>
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="text-lg font-semibold">{labels.location}</h2><p className="mt-3 text-sm leading-6 text-slate-600 dark:text-stone-300">{address}</p>{profile.public_phone ? <a href={`tel:${profile.public_phone}`} className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#8c5728]"><Phone className="size-4" />{profile.public_phone}</a> : null}<a href={mapUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#8c5728]">{labels.map}<MapPin className="size-4" /></a></section>
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="text-lg font-semibold">{labels.hours}</h2><dl className="mt-3 space-y-2 text-sm">{dayKeys.map((day, index) => <div key={day} className="flex justify-between gap-3"><dt className="text-slate-500">{labels.days[index]}</dt><dd className="font-medium">{profile.opening_hours[day] || labels.closed}</dd></div>)}</dl></section>
             <section className="rounded-[1.75rem] border border-[#e4d6c5] bg-white p-6 dark:border-white/10 dark:bg-[#17191e]"><h2 className="flex items-center gap-2 text-lg font-semibold"><CreditCard className="size-5 text-[#a56d37]" />{labels.payments}</h2><div className="mt-3 flex flex-wrap gap-2">{profile.payment_methods.map((method) => <span key={method} className="rounded-full bg-[#f3e8dc] px-3 py-1 text-xs font-semibold text-[#7b4b24]">{method === "cash" ? labels.cash : method === "mixed" ? labels.mixed : method === "deposit" ? labels.onlineDeposit : labels.card}</span>)}</div></section>

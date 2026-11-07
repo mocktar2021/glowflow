@@ -16,6 +16,7 @@ type CardLabels = {
   next: string;
   availabilityUnknown: string;
   book: string;
+  viewProfile: string;
 };
 
 export function MarketplaceSalonCard({
@@ -33,6 +34,7 @@ export function MarketplaceSalonCard({
   const imageUrl = publicSalonImageUrl(salon.image_url);
   const location = <><MapPin className="size-4" aria-hidden="true" />{salon.city}, {salon.postal_code} · {salon.country_code}</>;
   const displayTimeZone = timeZone ?? "UTC";
+  const action = salon.starting_price === null ? labels.viewProfile : labels.book;
 
   return (
     <article className="overflow-hidden rounded-[1.75rem] border border-[#e4d6c5] bg-white shadow-[0_12px_36px_rgba(48,32,18,0.08)] dark:border-white/10 dark:bg-[#17191e]">
@@ -60,22 +62,22 @@ export function MarketplaceSalonCard({
           <p className="mt-2 flex items-center gap-2 text-sm text-slate-500 dark:text-stone-400">{location}</p>
         )}
         {description ? <p lang={description.language} className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-stone-300">{description.text}</p> : null}
-        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#eee4d8] pt-4 text-sm dark:border-white/10">
+        <div className={`mt-5 grid ${salon.starting_price === null ? "grid-cols-1" : "grid-cols-2"} gap-3 border-t border-[#eee4d8] pt-4 text-sm dark:border-white/10`}>
           <span>
             <span className="block text-xs text-slate-500 dark:text-stone-400">{salon.starting_price === null ? labels.price : labels.from}</span>
             <strong>{salon.starting_price === null ? labels.priceUnavailable : formatMinorMoney(salon.starting_price, salon.currency, locale)}</strong>
           </span>
-          <span>
+          {salon.starting_price !== null ? <span>
             <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.next}</span>
             <strong className="flex items-center gap-1">
               <CalendarDays className="size-3.5" aria-hidden="true" />
               {salon.next_available_at ? formatLocalDateTime(salon.next_available_at, locale, displayTimeZone) : labels.availabilityUnknown}
             </strong>
             {salon.next_available_at ? <span className="mt-1 block text-xs text-slate-500 dark:text-stone-400">{displayTimeZone}</span> : null}
-          </span>
+          </span> : null}
         </div>
-        <Link href={href} aria-label={`${labels.book}: ${salon.business_name}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">
-          {labels.book}
+        <Link href={href} aria-label={`${action}: ${salon.business_name}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">
+          {action}
         </Link>
       </div>
     </article>

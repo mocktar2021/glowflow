@@ -19,10 +19,10 @@ payments during preflight. Record a rollback target and confirm both origin
 settings and the domain alias can return to their previous values. This does
 not activate invitations, payments, or any hosted database migration.
 
-The owner-facing booking link label in the dashboard demonstration now uses
-the same relative path as its clickable link, so it does not advertise the old
-host after cutover. The current `GLOWFLOW_APP_URL` Auth/join fallback still
-targets `glowflow.mocktar.com` when the variable is absent; verify its exact
+The prior dashboard demonstration was removed during the workspace redesign,
+so this PR does not restore or alter that obsolete booking-link surface. The
+current `GLOWFLOW_APP_URL` Auth/join fallback still targets
+`glowflow.mocktar.com` when the variable is absent; verify its exact
 Production value and callbacks before beauty launch. The Resend adapter still
 names `email.glowflow.mocktar.com`; a dedicated verified beauty sending domain,
 monitored reply-to, restricted key, and separate approval remain GLOW-9/GLOW-55

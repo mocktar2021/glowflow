@@ -28,6 +28,17 @@ test("the staff cancellation action cannot invoke Stripe or create a ledger refu
   assert.doesNotMatch(body, /payment_entries|refund|stripe/i);
 });
 
+test("paid-deposit cancellation warns staff in each locale without promising a refund outcome", async () => {
+  const page = await read("app/[locale]/dashboard/calendar/page.tsx");
+  for (const message of [
+    "Cette action ne rembourse pas l’acompte. Consultez la politique du salon et traitez tout remboursement séparément.",
+    "This action does not refund the deposit. Review the salon policy and handle any refund separately.",
+    "Esta acción no reembolsa el depósito. Consulta la política del salón y gestiona cualquier reembolso por separado.",
+  ]) assert.ok(page.includes(message), `Missing localized refund notice: ${message}`);
+  assert.match(page, /appointment\.deposit_paid \? <p role="note"[^>]*>\{labels\.cancelPaidNotice\}<\/p> : null/,
+    "the notice must appear beside the cancel action only when a deposit was paid");
+});
+
 test("sandbox webhook does not mistake a refund event for a settled booking", async () => {
   const source = await read("lib/stripe-deposit-events.ts");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
