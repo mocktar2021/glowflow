@@ -35,6 +35,7 @@ export function MarketplaceSalonCard({
   const location = <><MapPin className="size-4" aria-hidden="true" />{salon.city}, {salon.postal_code} · {salon.country_code}</>;
   const displayTimeZone = timeZone ?? "UTC";
   const action = salon.starting_price === null ? labels.viewProfile : labels.book;
+  const nextAvailableAt = salon.starting_price === null ? null : salon.next_available_at;
 
   return (
     <article className="overflow-hidden rounded-[1.75rem] border border-[#e4d6c5] bg-white shadow-[0_12px_36px_rgba(48,32,18,0.08)] dark:border-white/10 dark:bg-[#17191e]">
@@ -71,9 +72,9 @@ export function MarketplaceSalonCard({
             <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.next}</span>
             <strong className="flex items-center gap-1">
               <CalendarDays className="size-3.5" aria-hidden="true" />
-              {salon.next_available_at ? formatLocalDateTime(salon.next_available_at, locale, displayTimeZone) : labels.availabilityUnknown}
+              {nextAvailableAt ? formatLocalDateTime(nextAvailableAt, locale, displayTimeZone) : labels.availabilityUnknown}
             </strong>
-            {salon.next_available_at ? <span className="mt-1 block text-xs text-slate-500 dark:text-stone-400">{displayTimeZone}</span> : null}
+            {nextAvailableAt ? <span className="mt-1 block text-xs text-slate-500 dark:text-stone-400">{displayTimeZone}</span> : null}
           </span>
         </div>
         <Link href={href} aria-label={`${action}: ${salon.business_name}`} className="mt-5 block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b77a42] dark:bg-[#e7b779] dark:text-slate-950">
