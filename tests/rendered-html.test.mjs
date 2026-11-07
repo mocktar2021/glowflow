@@ -93,7 +93,8 @@ test("renders localized authentication, booking, and legal routes in production"
   const frenchRegistrationHtml = await frenchRegistration.text();
   assert.match(frenchRegistrationHtml, /Créez votre salon/);
   assert.match(frenchRegistrationHtml, /Votre nom/);
-  assert.match(frenchRegistrationHtml, /Fuseau horaire/);
+  assert.match(frenchRegistrationHtml, /Choisir un pays/);
+  assert.doesNotMatch(frenchRegistrationHtml, /Fuseau horaire|Europe\/Madrid|Código postal/);
   assert.doesNotMatch(frenchRegistrationHtml, /Create your salon|Salon address|>Country</);
 
   const spanishReset = await fetch(`${origin}/es/forgot-password`);
