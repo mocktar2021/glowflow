@@ -5,7 +5,7 @@ import type { Locale } from "@/lib/i18n";
 
 export function LegalFooter({ locale }: { locale: Locale }) {
   const copy = legalCopy[locale];
-  const operatorUrl = locale === "fr" ? "https://mocktar.com/fr" : "https://mocktar.com/en";
+  const operatorUrl = locale === "fr" ? "https://mocktar.com/fr" : "https://mocktar.com";
 
   return (
     <footer className="border-t border-border bg-background px-5 py-6 text-sm text-muted-foreground">

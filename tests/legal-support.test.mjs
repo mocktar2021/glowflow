@@ -48,8 +48,8 @@ test("links every localized surface to product legal and support routes", async 
 test("footer links Mocktar Technologies to the requested language site", async () => {
   for (const [locale, target] of [
     ["fr", "https://mocktar.com/fr"],
-    ["en", "https://mocktar.com/en"],
-    ["es", "https://mocktar.com/en"],
+    ["en", "https://mocktar.com"],
+    ["es", "https://mocktar.com"],
   ]) {
     const html = await renderFooter(locale);
     assert.match(html, new RegExp(`<a href="${target}"[^>]*>Mocktar Technologies</a>`));
