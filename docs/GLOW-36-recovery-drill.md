@@ -38,7 +38,7 @@ Supabase documents that database backups exclude Storage objects, that restore o
 
 ### Guarded hosted checks
 
-`tests/hosted-recovery-compare.mjs` performs read-only count comparisons between production and an isolated recovery project. It requires exact, different project refs and URLs before it will run. It compares all 16 application tables, Auth user counts, Storage bucket definitions, and representative anonymous access denials. It never prints credentials or row contents.
+`tests/hosted-recovery-compare.mjs` performs GET-only count comparisons between production and an isolated **current-state clone**. It requires exact, different project refs and URLs plus `GLOWFLOW_RECOVERY_COMPARISON_SCOPE=current-state-clone-only` before it will run. It compares a fixed 16-table subset, **all pages** of Auth users, selected Storage bucket settings (ID, name, public access, size limit, allowed MIME types), and representative anonymous access denials. It never prints credentials or row contents. Its service-role credentials are privileged even though this script only reads: use a one-off, access-controlled process. A count match does not prove row-level equality or a historical recovery point.
 
 `tests/hosted-storage-recovery-run.mjs` writes only to the explicitly named recovery project. It uploads a synthetic image, downloads and checksums the backup, deletes the object metadata, restores the file, verifies its checksum, and removes the synthetic object. The URL guard rejects production, mismatched project refs, URL paths, query strings, and insecure origins.
 
@@ -55,6 +55,7 @@ $env:GLOWFLOW_RECOVERY_SUPABASE_URL = 'https://<temporary-recovery-ref>.supabase
 $env:GLOWFLOW_RECOVERY_SERVICE_ROLE_KEY = '<temporary recovery credential>'
 $env:GLOWFLOW_RECOVERY_ANON_KEY = '<temporary recovery publishable key>'
 $env:GLOWFLOW_RECOVERY_PUBLISHABLE_KEY = '<temporary recovery publishable key>'
+$env:GLOWFLOW_RECOVERY_COMPARISON_SCOPE = 'current-state-clone-only'
 node tests/hosted-recovery-compare.mjs
 node tests/hosted-storage-recovery-run.mjs
 node tests/hosted-recovered-app-run.mjs
@@ -71,3 +72,7 @@ The recovered-app run subsequently verified confirmed-owner password authenticat
 The final local validation passed the production build, 125 ordinary tests with 2 expected opt-in database skips, and both database suites separately against disposable PostgreSQL 14. The fresh-schema suite applied the baseline plus every migration, including the owner-workspace fix, and passed the full authorization matrix. The sandbox transaction/RLS suite also passed.
 
 The old proposal to apply `20260924213044_fix_owner_workspace_market_permissions.sql` and then repair its migration history is **superseded; do not execute it**. A read-only 2026-11-05 check identified GlowFlow organization `goutxcrujaxjjssbjfsn`, project `rfwhqutkiztxkagbhevp`, and 41 hosted migration rows through `20261104004728`; the hosted ledger already includes version `20260924213044`. This ledger check does not by itself prove current schema equivalence or a successful historical restore. For any new hosted change, first verify the exact project, ledger, and schema against the intended release, obtain separate approval for the exact operation, and use the migration-specific preflight in `docs/GLOW-56-hosted-migration-preflight.md` where applicable. Do not use an unrestricted `supabase db push` to replay unrelated migrations.
+
+### Historical-point acceptance remains separate
+
+Do **not** run the current-state comparison against a selected older backup and interpret mismatched live counts as restore failure, or matching counts as historical proof. Production can change after the chosen recovery timestamp. Before a historical drill, record the exact backup timestamp, expected source snapshot or manifest from that timestamp, separate Storage-file backup source, Auth and provider configuration inventory, and authorized recovery project. Restore only into that isolated project, compare against the recorded historical manifest (including file checksums, not just bucket metadata), and measure achieved RPO/RTO. The existing 16-table comparator is not that historical-manifest verifier. Keep the GLOW-36 launch gate open until the owner reviews actual hosted historical-point evidence and the recovery project is safely retired.

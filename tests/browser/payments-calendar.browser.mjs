@@ -125,6 +125,11 @@ for (const locale of ["fr", "en", "es"]) {
     await page.goto(`${origin}/${locale}/dashboard/payments`);
     const appointment = page.locator("article").filter({ hasText: labels.service });
     await appointment.getByRole("heading", { name: labels.service }).waitFor();
+    const salonStart = new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York",
+    }).format(new Date("2030-06-15T12:00:00Z"));
+    assert.ok((await appointment.innerText()).includes(salonStart),
+      "payment appointment time uses the salon's daylight-saving time zone");
     const initialBalance = new Intl.NumberFormat(locale, { style: "currency", currency: "USD" }).format(40);
     assert.ok((await appointment.innerText()).includes(`${labels.outstanding}: ${initialBalance}`));
     assert.equal(await appointment.locator('input[name="amount"]').getAttribute("max"), "40.00");

@@ -2,6 +2,30 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
+@font-face {
+  font-family: "GlowFlow Jost";
+  src: url("/fonts/jost-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GlowFlow Cormorant";
+  src: url("/fonts/cormorant-garamond-latin-500-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GlowFlow Cormorant";
+  src: url("/fonts/cormorant-garamond-latin-500-italic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+}
+
 @utility scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -19,38 +43,47 @@
 }
 
 :root {
-  --background: #faf9f6;
-  --foreground: #0f172a;
+  --gf-porcelain: #faf6f1;
+  --gf-linen: #f3ece4;
+  --gf-ink: #2a2129;
+  --gf-muted: #6e5f68;
+  --gf-mulberry: #7a4659;
+  --gf-mulberry-deep: #5e3445;
+  --gf-blush: #f2ddd6;
+  --gf-champagne: #c8a27a;
+  --gf-champagne-deep: #8a6a44;
+  --background: var(--gf-porcelain);
+  --foreground: var(--gf-ink);
   --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #fffdf9;
-  --popover-foreground: #0f172a;
-  --primary: #0f172a;
+  --card-foreground: var(--gf-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--gf-ink);
+  --primary: var(--gf-mulberry);
   --primary-foreground: #ffffff;
-  --secondary: #f2e8dc;
-  --secondary-foreground: #4b3828;
-  --muted: #f3eee7;
-  --muted-foreground: #6b7280;
-  --accent: #f0e2cf;
-  --accent-foreground: #7b4b24;
-  --destructive: #e7000b;
-  --border: #e7ddd0;
-  --input: #dfd2c1;
-  --ring: #c18a51;
-  --chart-1: #d29a5a;
-  --chart-2: #ca795c;
-  --chart-3: #7f9d88;
-  --chart-4: #8b668d;
-  --chart-5: #31435d;
-  --radius: 0.9rem;
-  --sidebar: #f4ede3;
-  --sidebar-foreground: #172033;
-  --sidebar-primary: #0f172a;
+  --secondary: var(--gf-blush);
+  --secondary-foreground: var(--gf-mulberry-deep);
+  --muted: var(--gf-linen);
+  --muted-foreground: var(--gf-muted);
+  --accent: #f8ece7;
+  --accent-foreground: var(--gf-mulberry-deep);
+  --destructive: #a8443c;
+  --border: #e6dbd0;
+  --input: #d6c7b9;
+  --ring: var(--gf-mulberry);
+  --chart-1: var(--gf-mulberry);
+  --chart-2: #d9a7a8;
+  --chart-3: var(--gf-champagne);
+  --chart-4: #4f6b53;
+  --chart-5: #4a3d46;
+  --radius: 1.25rem;
+  --sidebar: var(--gf-linen);
+  --sidebar-foreground: var(--gf-ink);
+  --sidebar-primary: var(--gf-mulberry);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eadcc9;
-  --sidebar-accent-foreground: #51381f;
-  --sidebar-border: #e3d5c3;
-  --sidebar-ring: #c18a51;
+  --sidebar-accent: var(--gf-blush);
+  --sidebar-accent-foreground: var(--gf-mulberry-deep);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--gf-mulberry);
 }
 
 @theme inline {
@@ -85,61 +118,68 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-porcelain: var(--gf-porcelain);
+  --color-linen: var(--gf-linen);
+  --color-ink: var(--gf-ink);
+  --color-mulberry: var(--gf-mulberry);
+  --color-blush: var(--gf-blush);
+  --color-champagne-deep: var(--gf-champagne-deep);
+  --radius-sm: calc(var(--radius) - 10px);
+  --radius-md: calc(var(--radius) - 6px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --radius-xl: calc(var(--radius) + 8px);
+  --font-sans: "GlowFlow Jost", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "GlowFlow Cormorant", Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f1115;
-    --foreground: #f4f1ec;
-    --card: #17191e;
-    --card-foreground: #f4f1ec;
-    --popover: #1c1e24;
-    --popover-foreground: #f4f1ec;
-    --primary: #e7b779;
-    --primary-foreground: #0f172a;
-    --secondary: #2b2724;
-    --secondary-foreground: #f4f1ec;
-    --muted: #25272d;
-    --muted-foreground: #a8a29e;
-    --accent: #342b23;
-    --accent-foreground: #efc992;
-    --destructive: #ff6467;
+    --background: #1d171c;
+    --foreground: #f6efea;
+    --card: #261e24;
+    --card-foreground: #f6efea;
+    --popover: #2b2229;
+    --popover-foreground: #f6efea;
+    --primary: #e6bac6;
+    --primary-foreground: #2a2129;
+    --secondary: #3a2c35;
+    --secondary-foreground: #f6efea;
+    --muted: #2b2229;
+    --muted-foreground: #b5a6ae;
+    --accent: #35282f;
+    --accent-foreground: #f2d6de;
+    --destructive: #e2867c;
     --border: #ffffff1a;
-    --input: #ffffff22;
-    --ring: #d7a66d;
-    --chart-1: #e7b779;
-    --chart-2: #e28d6f;
-    --chart-3: #8fbd9c;
-    --chart-4: #c092c8;
-    --chart-5: #88a9d2;
-    --sidebar: #151515;
-    --sidebar-foreground: #f1eee8;
-    --sidebar-primary: #e7b779;
-    --sidebar-primary-foreground: #0f172a;
-    --sidebar-accent: #2b2724;
-    --sidebar-accent-foreground: #efc992;
+    --input: #ffffff24;
+    --ring: #e6bac6;
+    --chart-1: #e6bac6;
+    --chart-2: #b07a8d;
+    --chart-3: #d9b48f;
+    --chart-4: #9fbea2;
+    --chart-5: #cfc3ca;
+    --sidebar: #181317;
+    --sidebar-foreground: #f6efea;
+    --sidebar-primary: #e6bac6;
+    --sidebar-primary-foreground: #2a2129;
+    --sidebar-accent: #35282f;
+    --sidebar-accent-foreground: #f2d6de;
     --sidebar-border: #ffffff1a;
-    --sidebar-ring: #737373;
+    --sidebar-ring: #e6bac6;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "GlowFlow Jost", ui-sans-serif, system-ui, sans-serif;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: #e7b779;
-  color: #0f172a;
+  background: var(--gf-blush);
+  color: var(--gf-mulberry-deep);
 }
 
 button,
@@ -152,4 +192,11 @@ select {
 @keyframes landing-rise {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

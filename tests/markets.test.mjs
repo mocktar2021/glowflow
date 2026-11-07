@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney } from "../lib/markets.ts";
+import { fallbackMarkets, formatLocalDateTime, formatMinorMoney, formatMinorMoneyWithCurrencyPrecision, formatMoney, marketPostalCodeLabel } from "../lib/markets.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const migrationPath = path.join(
@@ -71,6 +71,16 @@ test("formats persisted catalog cents as major currency amounts", () => {
   assert.equal(formatMoney(1248, "USD", "en"), "$1,248");
 });
 
+test("postal-code labels follow interface language, not the selected country's default language", () => {
+  const spain = fallbackMarkets.find((market) => market.country_code === "ES");
+  const us = fallbackMarkets.find((market) => market.country_code === "US");
+  assert.equal(marketPostalCodeLabel(spain, "fr"), "Code postal");
+  assert.equal(marketPostalCodeLabel(spain, "en"), "Postal code");
+  assert.equal(marketPostalCodeLabel(spain, "es"), "Código postal");
+  assert.equal(marketPostalCodeLabel(us, "en"), "ZIP code");
+  assert.equal(marketPostalCodeLabel(us, "fr"), "Code postal");
+});
+
 test("formats profile service amounts with booking currency precision", () => {
   assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "en"), "$45.00");
   assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "en"), "$25.00");
@@ -79,4 +89,20 @@ test("formats profile service amounts with booking currency precision", () => {
   assert.equal(formatMinorMoneyWithCurrencyPrecision(4500, "USD", "es"), "45,00 US$");
   assert.equal(formatMinorMoneyWithCurrencyPrecision(2500, "USD", "es"), "25,00 US$");
   assert.equal(formatMinorMoneyWithCurrencyPrecision(4599, "EUR", "fr"), "45,99 €");
+});
+
+test("formats salon appointment time across daylight saving for all supported languages", () => {
+  for (const locale of ["fr", "en", "es"]) {
+    for (const [instant, expectedHour] of [
+      ["2030-01-15T12:00:00Z", "07"],
+      ["2030-06-15T12:00:00Z", "08"],
+    ]) {
+      const actual = formatLocalDateTime(instant, locale, "America/New_York");
+      const expected = new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York",
+      }).format(new Date(instant));
+      assert.equal(actual, expected);
+      assert.match(actual, new RegExp(`(?:0?${Number(expectedHour)}):00|(?:0?${Number(expectedHour)})\\s?AM`, "i"));
+    }
+  }
 });

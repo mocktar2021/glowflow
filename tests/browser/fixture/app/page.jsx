@@ -9,9 +9,9 @@ import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
 
 const cardLabels = {
-  fr: { hair: "Coiffure", nails: "Ongles", other: "Autres", from: "À partir de", price: "Prix", priceUnavailable: "Tarif indisponible", next: "Prochain créneau", availabilityUnknown: "Disponibilité sur la page du salon", book: "Voir et réserver" },
-  en: { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book" },
-  es: { hair: "Peluquería", nails: "Uñas", other: "Otros", from: "Desde", price: "Precio", priceUnavailable: "Precio no disponible", next: "Próximo turno", availabilityUnknown: "Ver salón", book: "Ver y reservar" },
+  fr: { hair: "Coiffure", nails: "Ongles", other: "Autres", from: "À partir de", price: "Prix", priceUnavailable: "Tarif indisponible", next: "Prochain créneau", availabilityUnknown: "Disponibilité sur la page du salon", book: "Voir et réserver", viewProfile: "Voir le salon" },
+  en: { hair: "Hair", nails: "Nails", other: "Other", from: "From", price: "Price", priceUnavailable: "Price unavailable", next: "Next opening", availabilityUnknown: "See salon", book: "View and book", viewProfile: "View profile" },
+  es: { hair: "Peluquería", nails: "Uñas", other: "Otros", from: "Desde", price: "Precio", priceUnavailable: "Precio no disponible", next: "Próximo turno", availabilityUnknown: "Ver salón", book: "Ver y reservar", viewProfile: "Ver perfil" },
 };
 
 function CardLinksFixture({ locale }) {

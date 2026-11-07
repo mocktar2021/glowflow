@@ -44,14 +44,14 @@ export default async function LoginPage({ params, searchParams }: { params: Prom
   return (
     <AuthShell locale={locale} title={labels.title} subtitle={labels.subtitle}>
       <AuthMessage {...notices} />
-      <form action={signIn.bind(null, locale)} className="space-y-4">
+      <form action={signIn.bind(null, locale)} className="space-y-5">
         <label className="block text-sm font-medium">{labels.email}<input className={`${inputClass} mt-2`} name="email" type="email" autoComplete="email" required /></label>
         <label className="block text-sm font-medium">{labels.password}<input className={`${inputClass} mt-2`} name="password" type="password" autoComplete="current-password" required /></label>
         <button className={buttonClass} type="submit">{labels.submit}</button>
       </form>
-      <div className="mt-5 flex justify-between text-sm">
-        <Link className="min-h-11 py-3 pr-3 text-[#9a622f] hover:underline" href={`/${locale}/forgot-password`}>{labels.forgot}</Link>
-        <Link className="min-h-11 py-3 pl-3 text-right font-semibold hover:underline" href={`/${locale}/register`}>{labels.register}</Link>
+      <div className="mt-5 flex flex-wrap justify-between gap-x-5 text-sm">
+        <Link className="min-h-11 py-3 pr-3 text-primary hover:underline" href={`/${locale}/forgot-password`}>{labels.forgot}</Link>
+        <Link className="min-h-11 py-3 pl-3 text-right font-semibold text-primary hover:underline" href={`/${locale}/register`}>{labels.register}</Link>
       </div>
     </AuthShell>
   );

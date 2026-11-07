@@ -21,6 +21,7 @@ async function loadPage(rpc, configured = true, captureDistanceProps) {
     "next/link": "a",
     "next/headers": { cookies: async () => ({ get: () => ({ value: "en" }) }) },
     "next/navigation": { notFound() { throw new Error("not-found"); } },
+    "@/components/glowflow/brand-logo": { BrandLogo: () => null },
     "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
     "@/components/glowflow/distance-search": { DistanceSearch: ({ children, ...props }) => { captureDistanceProps?.(props); return children; } },
     "@/components/glowflow/marketplace-salon-card": { MarketplaceSalonCard: ({ salon }) => React.createElement("article", null, salon.business_name) },

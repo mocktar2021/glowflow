@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { BrandLogo } from "@/components/glowflow/brand-logo";
 import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
 import { DistanceSearch } from "@/components/glowflow/distance-search";
 import { MarketplaceSalonCard } from "@/components/glowflow/marketplace-salon-card";
@@ -26,6 +27,7 @@ export const dynamic = "force-dynamic";
 
 const copy = {
   fr: {
+    home: "Accueil",
     eyebrow: "Salons GlowFlow",
     title: "Trouvez votre prochain rendez-vous beauté",
     subtitle: "Recherchez par salon, prestation, produit ou ville.",
@@ -57,6 +59,7 @@ const copy = {
     next: "Prochain créneau",
     availabilityUnknown: "Disponibilité sur la page du salon",
     book: "Voir et réserver",
+    viewProfile: "Voir le salon",
     emptyTitle: "Aucun salon ne correspond à ces critères",
     emptyText: "Modifiez votre ville, votre catégorie ou votre prix maximum.",
     errorTitle: "La recherche est indisponible",
@@ -69,7 +72,7 @@ const copy = {
     previous: "Précédent",
     nextPage: "Suivant",
     page: "Page",
-    marketplace: "Marketplace beauté",
+    marketplace: "Recherche de salons",
     exploreCountries: "Explorer les salons par pays",
     sort: "Trier par",
     sortRelevance: "Pertinence",
@@ -81,6 +84,7 @@ const copy = {
     invalidCountry: "Ce pays n’est pas disponible dans la recherche. Tous les pays disponibles sont affichés.",
   },
   en: {
+    home: "Home",
     eyebrow: "GlowFlow salons",
     title: "Find your next beauty appointment",
     subtitle: "Search by salon, service, product, or city.",
@@ -112,6 +116,7 @@ const copy = {
     next: "Next opening",
     availabilityUnknown: "Availability on the salon page",
     book: "View and book",
+    viewProfile: "View profile",
     emptyTitle: "No salons match these filters",
     emptyText: "Change your city, category, or maximum price.",
     errorTitle: "Search is unavailable",
@@ -136,6 +141,7 @@ const copy = {
     invalidCountry: "That country is not available in search. Showing all available countries.",
   },
   es: {
+    home: "Inicio",
     eyebrow: "Salones GlowFlow",
     title: "Encuentra tu próxima cita de belleza",
     subtitle: "Busca por salón, servicio, producto o ciudad.",
@@ -167,6 +173,7 @@ const copy = {
     next: "Próxima disponibilidad",
     availabilityUnknown: "Disponibilidad en la página del salón",
     book: "Ver y reservar",
+    viewProfile: "Ver perfil",
     emptyTitle: "Ningún salón coincide con estos filtros",
     emptyText: "Cambia la ciudad, la categoría o el precio máximo.",
     errorTitle: "La búsqueda no está disponible",
@@ -347,13 +354,10 @@ export default async function SalonSearchPage({
     <main className="min-h-screen bg-[#faf9f6] text-slate-950 dark:bg-[#101216] dark:text-stone-100">
       <header className="border-b border-[#e7ddd0] bg-[#faf9f6]/95 dark:border-white/10 dark:bg-[#101216]/95">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href={`/${locale}/salons`} className="flex items-center gap-3" aria-label="GlowFlow">
-            <span className="grid size-10 place-items-center rounded-2xl bg-slate-950 text-[#e7b779] dark:bg-[#e7b779] dark:text-slate-950">
-              <Sparkles className="size-5" aria-hidden="true" />
-            </span>
+          <Link href={`/${locale}`} className="flex min-h-11 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8a5728] dark:focus-visible:outline-[#efc992]" aria-label={`GlowFlow, ${labels.home}`}>
             <span>
-              <strong className="block text-lg tracking-[-0.04em]">GlowFlow</strong>
-              <span className="block text-xs text-slate-500 dark:text-stone-400">{labels.marketplace}</span>
+              <BrandLogo className="h-8 w-28 text-foreground" />
+              <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-stone-400"><ArrowLeft className="size-3" aria-hidden="true" />{labels.home}</span>
             </span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={labels.marketplace}>
