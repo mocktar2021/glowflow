@@ -52,7 +52,10 @@ test("footer links Mocktar Technologies to the requested language site", async (
     ["es", "https://mocktar.com"],
   ]) {
     const html = await renderFooter(locale);
-    assert.match(html, new RegExp(`<a href="${target}"[^>]*>Mocktar Technologies</a>`));
+    const operatorLink = html.match(new RegExp(`<a href="${target}"[^>]*>Mocktar Technologies</a>`))?.[0];
+    assert.ok(operatorLink);
+    assert.match(operatorLink, /target="_blank"/);
+    assert.match(operatorLink, /rel="noopener noreferrer"/);
     for (const route of ["privacy", "terms", "support"]) {
       assert.match(html, new RegExp(`href="/${locale}/${route}"`));
     }
