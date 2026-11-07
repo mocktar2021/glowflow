@@ -31,6 +31,11 @@ test("discovery logo provides a localized route back to the landing page", () =>
   }
 });
 
+test("French discovery navigation has a French accessible label", () => {
+  assert.match(discoveryPage, /marketplace: "Recherche de salons"/);
+  assert.doesNotMatch(discoveryPage, /marketplace: "Marketplace beauté"/);
+});
+
 test("keeps public discovery separate and protected by RLS", async () => {
   const sql = await readFile(migrationPath, "utf8");
 

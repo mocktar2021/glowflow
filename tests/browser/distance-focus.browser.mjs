@@ -119,9 +119,9 @@ for (const [locale, actionText, nextText, firstStatus, secondStatus] of [
 });
 
 for (const [locale, actionText] of [
-  ["fr", "Voir et réserver"],
-  ["en", "View and book"],
-  ["es", "Ver y reservar"],
+  ["fr", "Voir le salon"],
+  ["en", "View profile"],
+  ["es", "Ver perfil"],
 ]) test(`${locale} mobile salon-card actions have unique keyboard-accessible names`, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
