@@ -112,6 +112,19 @@ test("a published salon without active services offers contact instead of a brok
   }
   const Booking = await booking(db);
   await assert.rejects(Booking(request("fr")), /not-found/, "the original empty-catalog route stays closed");
+
+  const withoutPhone = database({ services: [], publicPhone: null });
+  const { default: PageWithoutPhone } = await load("../app/[locale]/salons/[slug]/page.tsx", {
+    "@/lib/supabase/server": { createClient: async () => withoutPhone },
+    "@/components/glowflow/language-switcher": { LanguageSwitcher: () => null },
+    "@/lib/i18n": { isLocale: locale => ["fr", "en", "es"].includes(locale) },
+    "@/lib/markets": markets,
+    "@/lib/product-localization": { localizedProductText, productDefaultLocale },
+    "@/lib/published-policy": { selectPublishedPolicy },
+  });
+  const withoutPhoneNodes = nodes(await PageWithoutPhone({ params: Promise.resolve({ locale: "fr", slug: tenant.slug }) }));
+  assert.ok(withoutPhoneNodes.some(node => node.type === "p" && node.props.children === "Réservation en ligne indisponible pour le moment."));
+  assert.ok(!withoutPhoneNodes.some(node => node.props?.href?.startsWith("tel:") || node.props?.href?.includes(`/book/${tenant.slug}`)));
 }));
 test("published product text follows selection and falls back to the salon country language", async () => withConfiguration(async () => {
   const db = database({ products: [{ id: "product-1", tenant_id: tenant.id, is_published: true, category: "hair", name_json: { fr: "", en: "English product", es: "Producto español" }, description_json: { fr: "", en: "", es: "Descripción española" }, image_alt_json: { fr: "", en: "", es: "Imagen española" }, image_url: "https://example.invalid/product.jpg", price: 1500, currency: "EUR", stock_visibility: "not_shown" }] });
