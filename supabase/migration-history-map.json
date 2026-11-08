@@ -310,6 +310,13 @@
       "sourceVersion": "20261105124804",
       "marker": false,
       "normalizedSha256": "dd3ae969ddb7fe39931aa53813045c95fd85650ab1b0764899913b8967aa3a73"
+    },
+    {
+      "version": "20261108003618",
+      "name": "gate_notification_claim_replay_start_drift",
+      "sourceVersion": "20261108003618",
+      "marker": false,
+      "normalizedSha256": "db55195f8c7a65f72fdcdd91eb504e78175194d750829fcfc08a0b7a4db04859"
     }
   ]
 }
