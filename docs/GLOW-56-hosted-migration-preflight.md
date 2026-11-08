@@ -270,8 +270,10 @@ complete authorization. The stronger cleanup-heartbeat guards from merged
 [#221](https://github.com/mocktar2021/glowflow/pull/221) are in master as
 source files only, not applied to the hosted database. Recheck the exact
 rollback files after any subsequent source change. This document provides no
-rollback approval or executable rollback command. In particular, migration 1
-grants `service_role` USAGE on schema `private`, while its rollback does not
-revoke that grant. Dropping its new objects would therefore not restore the
-entire pre-migration privilege state. Treat that residual ACL as a separately
-reviewed rollback condition, not a completed reversal.
+rollback approval or executable rollback command. In both immutable source
+snapshots above, migration 1 grants `service_role` USAGE on schema `private`
+but its rollback does not revoke that grant. Pending code-only correction
+commit `58d037b` proposes the missing revoke and a rollback test; it is not
+part of either pinned source or a hosted change. Before any rollback, review
+the exact source containing the correction and the live schema ACL, or stop
+on the residual privilege instead of claiming a complete reversal.
