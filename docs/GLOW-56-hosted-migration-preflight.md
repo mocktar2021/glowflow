@@ -228,6 +228,10 @@ or quota-cleanup state. Installation leaves the
 gate in `legacy` mode and seeds no booking policy. A future v2 transition,
 Vercel setting, cookie/signing key, cleanup schedule, or live QA needs its own
 review and authorization.
+Even in `legacy` mode, the final gate replaces the live
+`public.create_public_appointment` RPC with a wrapper. Its hosted application
+therefore needs a separately approved monitored booking-write smoke and
+rollback plan; this runbook does not authorize a live booking POST.
 
 The forward gate now guards both cleanup heartbeat tables created by the
 first two migrations. Independently, after both predecessors and immediately
