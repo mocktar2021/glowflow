@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const connection = process.env.GLOWFLOW_SANDBOX_TEST_DATABASE_URL;
 const psql = process.env.PSQL_BIN || "psql";
 const root = new URL("../", import.meta.url);
-const digest = letter => letter.repeat(64);
+const digest = label => /^[0-9a-f]$/.test(label) ? label.repeat(64)
+  : createHash("sha256").update(`local-qa-quota:${label}`).digest("hex");
 const capabilityDigest = label => createHmac("sha256", "local-test-only-capability-key")
   .update(label).digest("hex");
 const browserCapabilityDigest = browser => capabilityDigest(`browser:${browser}`);
@@ -62,6 +63,14 @@ test("capability quota fixtures are valid, domain-separated HMACs", () => {
   assert.match(intent, /^[0-9a-f]{64}$/);
   assert.notEqual(browser, intent);
   assert.notEqual(intent, intentCapabilityDigest("g", "i"));
+});
+
+test("approved QA quota fixture labels are valid 64-character hex digests", () => {
+  for (const label of ["q", "r", "s", "t", "u", "v", "w",
+    "prepare-full", "reconcile-full"]) {
+    assert.match(digest(label), /^[0-9a-f]{64}$/);
+  }
+  assert.notEqual(digest("q"), digest("r"));
 });
 
 test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !connection, timeout: 120_000 }, async () => {
@@ -276,7 +285,7 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
   // proposal without seeding any hosted policy or changing application code.
   const secondsToApprovedWindowEnd = Number(sql(`select 300 -
     (floor(extract(epoch from clock_timestamp()))::bigint % 300)`));
-  if (secondsToApprovedWindowEnd <= 20) {
+  if (secondsToApprovedWindowEnd <= 45) {
     await new Promise(resolve => setTimeout(resolve, (secondsToApprovedWindowEnd + 1) * 1000));
   }
   sql("delete from private.public_booking_quota_counters; delete from private.public_booking_quota_policy");
