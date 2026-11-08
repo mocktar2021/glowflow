@@ -92,12 +92,16 @@ they are bearer credentials that can falsely mark a check healthy if leaked.
 Scheduled cleanup must run unattended every 30 minutes. Do not require a
 human reviewer or wait timer on each Environment deployment: either would
 hold scheduled jobs and risk breaching the two-hour freshness fence. Instead,
-protect and review changes to `master` before they can execute with the
-service-role secret. Keep the Environment restricted to `master`, with
-administrator bypass disabled, and verify those controls independently before
-storing a key or opting in. The owner's report that bypass was turned off is
-not a current settings verification. If reviewed `master` changes and the
-Environment restriction cannot be enforced, do not store the key or opt in.
+require an enforceable `master` ruleset before it can execute with the
+service-role secret: mandatory PR review and required CI/security checks,
+no direct or force pushes or branch deletion, and no administrator bypass.
+Keep the Environment restricted to `master` with its bypass control off.
+With no per-run reviewers, turning off Environment administrator bypass alone
+is not an approval gate or a substitute for protected `master`. Independently
+verify both sets of current GitHub settings before storing a key or opting in;
+the owner's report that Environment bypass was turned off is not verification.
+If the required branch rules or Environment restriction cannot be enforced,
+do not store the key or opt in.
 No secret or repository ACK is authorized by this runbook correction. The
 unattended schedule also requires tested Healthchecks failure and missed-ping
 alerts with named responders before activation.
