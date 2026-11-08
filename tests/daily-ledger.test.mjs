@@ -105,6 +105,15 @@ test("rejects cross-tenant, mixed-currency, and malformed rows without partial t
   }
 });
 
+test("rejects nonexistent source calendar dates instead of shifting payments into another day", () => {
+  for (const timestamp of ["2026-02-29T12:00:00Z", "2026-02-30T12:00:00+01:00", "2026-04-31T12:00:00Z"]) {
+    assert.deepEqual(aggregateDailyLedger({ ...scope, entries: [row(timestamp, 100)] }), {
+      status: "invalid", reason: "invalid_entry",
+    });
+  }
+  assert.equal(aggregateDailyLedger({ ...scope, entries: [row("2028-02-29T12:00:00Z", 100)] }).status, "ready");
+});
+
 test("rejects invalid scope, unbounded sets, and integer overflow", () => {
   assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: " \t ", entries: [] }), { status: "invalid", reason: "invalid_scope" });
   assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: 42, entries: [] }), { status: "invalid", reason: "invalid_scope" });
