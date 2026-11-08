@@ -270,10 +270,10 @@ complete authorization. The stronger cleanup-heartbeat guards from merged
 [#221](https://github.com/mocktar2021/glowflow/pull/221) are in master as
 source files only, not applied to the hosted database. Recheck the exact
 rollback files after any subsequent source change. This document provides no
-rollback approval or executable rollback command. In both immutable source
-snapshots above, migration 1 grants `service_role` USAGE on schema `private`
-but its rollback does not revoke that grant. Pending code-only correction
-commit `58d037b` proposes the missing revoke and a rollback test; it is not
-part of either pinned source or a hosted change. Before any rollback, review
-the exact source containing the correction and the live schema ACL, or stop
-on the residual privilege instead of claiming a complete reversal.
+rollback approval or executable rollback command. In both immutable forward
+source snapshots above, migration 1 grants `service_role` USAGE on schema
+`private`, but its original rollback does not revoke that grant. Code-only
+correction commit `58d037b` adds the revoke and a rollback test. It is not
+part of either pinned forward source or a hosted change. Before any rollback,
+pin the corrected rollback file separately and verify the live schema ACL,
+or stop on the residual privilege instead of claiming a complete reversal.
