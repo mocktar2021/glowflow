@@ -32,8 +32,8 @@ test('fresh baseline and all migrations preserve core tenant authorization', { s
     try { sql(readFileSync(new URL(`supabase/migrations/${migration}`, root), 'utf8')); }
     catch (error) { throw new Error(`Migration ${migration} failed: ${error.message}`); }
   }
-  const unprotected = sql("select string_agg(c.relname, ',') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p') and not c.relrowsecurity");
-  assert.equal(unprotected, '', 'every public table must have runtime RLS enabled');
+  const unprotected = sql("select string_agg(format('%I.%I', n.nspname, c.relname), ',') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind in ('r','p') and not c.relrowsecurity");
+  assert.equal(unprotected, '', 'every application table must have runtime RLS enabled');
   const unprotectedTenantTables = sql(`
     select string_agg(format('%I.%I', n.nspname, c.relname), ',' order by n.nspname, c.relname)
     from pg_class c

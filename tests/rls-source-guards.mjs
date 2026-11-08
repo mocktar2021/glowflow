@@ -29,21 +29,21 @@ export function assertRlsDeclarations(sources) {
     for (const match of source.matchAll(declarations)) {
       if (!match[2]) throw new Error(`Unqualified table ${match[1]} in ${filename}; schema qualification is required by the RLS guard.`);
     }
-    // CREATE TABLE AS does not have a column-list parenthesis, but still
-    // creates a public table that must enable RLS before this guard passes.
-    const operations = /\b(create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?)(?:public|"public")\s*\.\s*"?([a-z_][a-z0-9_]*)"?\s*(\(|as\b|enable\s+row\s+level\s+security|disable\s+row\s+level\s+security)/gi;
+    // CREATE TABLE AS does not have a column-list parenthesis. Private
+    // singleton tables also need RLS, even when they have no tenant_id column.
+    const operations = /\b(create\s+(?:unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?|alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?)(public|private|"public"|"private")\s*\.\s*"?([a-z_][a-z0-9_]*)"?\s*(\(|as\b|enable\s+row\s+level\s+security|disable\s+row\s+level\s+security)/gi;
     for (const match of source.matchAll(operations)) {
-      const table = match[2].toLowerCase();
+      const table = `${match[2].replaceAll('"', '').toLowerCase()}.${match[3].toLowerCase()}`;
       if (match[1].toLowerCase().startsWith('create')) {
         if (!/if\s+not\s+exists/i.test(match[1]) || !states.has(table)) states.set(table, { enabled: false, filename });
       } else {
-        states.set(table, { enabled: /^enable/i.test(match[3]), filename });
+        states.set(table, { enabled: /^enable/i.test(match[4]), filename });
       }
     }
   }
-  if (states.size === 0) throw new Error('No public table declarations found.');
+  if (states.size === 0) throw new Error('No application table declarations found.');
   const missing = [...states].filter(([, state]) => !state.enabled);
-  if (missing.length) throw new Error(`Public tables without RLS enabled: ${missing.map(([table, state]) => `${table} (${state.filename})`).join(', ')}`);
+  if (missing.length) throw new Error(`Application tables without RLS enabled: ${missing.map(([table, state]) => `${table} (${state.filename})`).join(', ')}`);
   return [...states.keys()].sort();
 }
 
