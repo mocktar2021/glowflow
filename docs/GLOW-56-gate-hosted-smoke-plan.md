@@ -1,11 +1,12 @@
 # GLOW-56 contract-gate hosted smoke plan
 
-Status: proposal only. This file changes no hosted state and does not authorize
-the migration, a booking write, rollback, v2 activation, or a deployment. The
-GlowFlow QA domain shares this hosted database; generic Vercel Preview is not
-an isolated test target. Do not run `db push`.
+Status: the owner approved the exact gate migration and one rollback-only
+synthetic booking smoke on November 7, 2026; both were executed once. This
+file records that operation but authorizes no repeat, rollback, v2 activation,
+or deployment. The GlowFlow QA domain shares this hosted database; generic
+Vercel Preview is not an isolated test target. Do not run `db push`.
 
-## Exact scope and present baseline
+## Exact scope and historical preflight baseline
 
 - Supabase organization `goutxcrujaxjjssbjfsn`, project
   `rfwhqutkiztxkagbhevp` (`glowflow`, `us-east-1`, `ACTIVE_HEALTHY`). Never
@@ -16,18 +17,18 @@ an isolated test target. Do not run `db push`.
   from immutable reviewed GlowFlow source `b5de72bf7599e45b587670faf4a4df2e38d5d06f`.
   It must receive exactly migration-history version `20261105124804` and name
   `glow56_public_booking_contract_gate`.
-- The last observed hosted ledger has exactly 43 rows, ending in
+- Before the approved gate application, the hosted ledger had exactly 43 rows, ending in
   `20261104184112_glow56_private_public_booking_intents` and
   `20261104234445_glow56_public_booking_quota`. The final gate and later
-  GLOW-27 `20261108003618` are absent. Recheck all 43 versions and names
-  against the immutable map immediately before any approved application.
+  GLOW-27 `20261108003618` were absent. All 43 versions and names matched the
+  immutable map immediately before application.
 - All seven predecessor intent/session/policy/quota/cleanup tables had zero
   rows, the gate table was absent, and the legacy booking RPC definition MD5
   was `f94a559fb95e17b0ddac3d75de81ffff` at the November 7 check.
   Recheck those values, the six public table fingerprints, ACL/RLS, required
   constraints/extensions, source hash, and advisors. Stop on any difference.
 
-## Proposed hosted operation, requiring separate exact approval
+## Approved one-time operation checklist, now completed
 
 1. Confirm the project identity and current 43-row ledger. Query aggregate
    counts only for all seven predecessor tables; each must be zero. The
@@ -66,9 +67,35 @@ an isolated test target. Do not run `db push`.
    booking-route error count has not risen. Record the synthetic marker and
    confirmation only in restricted operator evidence, never public logs.
 
-The transaction-only smoke is an explicit exception to the older no-live-write
-QA rule and **must be approved as such before execution**. It does not prove
-v2 booking or browser recovery, and it does not permit v2 activation.
+The transaction-only smoke was an owner-approved, one-time exception to the
+older no-live-write QA rule. It does not prove v2 booking or browser recovery,
+and it does not permit v2 activation or another hosted booking test.
+
+## Recorded result
+
+- Applied only `20261105124804` once. Supabase's single-migration tool first
+  recorded a generated version; after verifying exactly one new row and the
+  installed `legacy` gate, a guarded metadata-only update changed that row to
+  the repository version. The final ledger has exactly 44 reviewed entries,
+  with no generated alias and no GLOW-27 entry.
+- The gate has one row, `mode = 'legacy'`, `ever_v2 = false`. Its public booking
+  wrapper is executable only by `service_role`; the original private core and
+  operator-only transition function are not executable by that role. All
+  seven predecessor tables remain empty. The six public table fingerprints
+  are unchanged. Security advisories added only the expected informational
+  no-policy finding for the private gate table; health advisories are empty.
+- The single service-role smoke used the published **Test** service at
+  Mocktar Braiding, a future available slot, and a unique synthetic
+  `@example.invalid` contact. The wrapper returned a valid confirmation
+  inside a transaction ending in `ROLLBACK`. Follow-up checks found zero
+  persisted appointment, client, notification-outbox, or payment-entry rows
+  for the synthetic marker. The slot query still returned 14 available slots.
+  No HTTP booking POST, payment method, or notification was used. The fixture
+  has a configured deposit, so this result is **not** a payment test.
+- Vercel's GlowFlow booking-route runtime error check returned no errors in
+  the 15-minute postflight window. No Vercel setting, scheduler, or v2 mode
+  was changed. GLOW-56 remains In Progress pending separate activation
+  readiness and owner acceptance.
 
 ## Failure and rollback boundary
 
