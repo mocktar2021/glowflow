@@ -54,8 +54,8 @@ an isolated test target. Do not run `db push`.
    transaction that ends in `ROLLBACK`**. Set short local lock, statement, and
    idle-in-transaction timeouts so an error or lost client cannot leave a
    write transaction open. Require a valid confirmation from the wrapper,
-   then verify the synthetic request key, email, and appointment ID have no
-   persisted rows.
+   then verify the synthetic request key, email, appointment ID, and any
+   appointment-linked notification outbox entry have no persisted rows.
    This is a transient write to the shared QA database, not a public HTTP POST.
    The appointment trigger was observed to return before scheduling when the
    synthetic client lacks email consent. Recheck its definition before use;
