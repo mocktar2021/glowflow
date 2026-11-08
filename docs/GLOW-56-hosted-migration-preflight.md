@@ -21,14 +21,22 @@ Hardened [#221](https://github.com/mocktar2021/glowflow/pull/221) head
 `ba902571cfb99790c0aa8020ecdd4bcc4ef67214` merged as
 `b9f6066074a60a5471d98bcabac428e55f457f2e`; this runbook in
 [#222](https://github.com/mocktar2021/glowflow/pull/222) merged as
-`a14a648456fc4ccadf22b671e45925713a17ef20`. At this reconciliation,
-master is `e53701510030db033155190b759858ad2b0f9d60`. These merges
+`a14a648456fc4ccadf22b671e45925713a17ef20`. At that reconciliation,
+master was `e53701510030db033155190b759858ad2b0f9d60`. Those merges
 committed source files only; they did not apply the three hosted migrations.
+Later [#257](https://github.com/mocktar2021/glowflow/pull/257) merged the
+GLOW-27 claim gate as master `7e15c56027198450bd7d186e131ad7fcd20255f7`.
 Use an immutable reviewed GlowFlow commit, not a moving branch, as the source.
-Before doing anything hosted, verify the local migration map identifies the
-same organization and project and contains exactly 44 entries. Its last three
-entries must be the following files in this order, with these raw SHA-256
-digests (also recorded as `normalizedSha256` in the current map):
+Before doing anything hosted, verify that the migration map at the selected
+immutable source identifies the same organization and project. The historical
+`e53701510030db033155190b759858ad2b0f9d60` source contains exactly 44
+entries, ending with the three GLOW-56 files below. That remains a valid
+GLOW-56-only source if their exact bytes and hashes still match the reviewed
+files. The later `7e15c56027198450bd7d186e131ad7fcd20255f7` source
+contains exactly 45 entries: the same three GLOW-56 files followed by the
+separate GLOW-27 file below. Do not treat a future master SHA as equivalent
+without another source review. The raw SHA-256 digests below are also recorded
+as `normalizedSha256` in the corresponding maps:
 
 | Version | File | SHA-256 |
 | --- | --- | --- |
@@ -36,12 +44,19 @@ digests (also recorded as `normalizedSha256` in the current map):
 | `20261104234445` | [booking quota](../supabase/migrations/20261104234445_glow56_public_booking_quota.sql) | `0941c81a76ae4b2ad4cb7b48f04121fef13fe2e5873861ddd68f66b1bd893518` |
 | `20261105124804` | [booking contract gate](../supabase/migrations/20261105124804_glow56_public_booking_contract_gate.sql) | `dd3ae969ddb7fe39931aa53813045c95fd85650ab1b0764899913b8967aa3a73` |
 
+Only the 45-entry source has a fourth, later local-only file:
+`20261108003618` [GLOW-27 claim gate](../supabase/migrations/20261108003618_gate_notification_claim_replay_start_drift.sql),
+SHA-256 `db55195f8c7a65f72fdcdd91eb504e78175194d750829fcfc08a0b7a4db04859`.
+It is **not** a candidate for this GLOW-56 rollout.
+
 Check the connected Supabase project metadata first. Expected: project ID/ref
 `rfwhqutkiztxkagbhevp`, organization ID `goutxcrujaxjjssbjfsn`, name
 `glowflow`, region `us-east-1`, status `ACTIVE_HEALTHY`. Use the project's
 read-only migration-history listing, not a local file count, for the hosted
 ledger: expected **41 rows**, ending at version `20261104004728`
-(`queue_staff_invitation_delivery`). All three versions above must be absent.
+(`queue_staff_invitation_delivery`). All three GLOW-56 versions above must be
+absent. For the 45-entry source, GLOW-27 `20261108003618` must also be absent;
+the three GLOW-56 versions are its first three of four local-only entries.
 Stop if the project, existing 41-version sequence, or local files differ.
 Do not repair history by assumption. Recheck immediately before any separately
 approved application and again afterward.
@@ -203,12 +218,20 @@ not repair history or infer permission to apply SQL from a green code merge.
 If a later owner approval names the exact SQL and matching history operation,
 the only candidate order is intent `20261104184112`, quota `20261104234445`,
 then contract gate `20261105124804`. Check each predecessor before advancing.
+After those three stages, the expected hosted ledger would have 44 rows, with
+no local-only entries under the 44-entry source, or only GLOW-27 `20261108003618`
+still local-only under the 45-entry source. Do not apply that later version as
+part of this rollout. Stop if the runner would select it or any other version.
 The hardened final gate migration itself rejects existing intent,
 browser-session, intent-cleanup, intent-policy, quota-policy, quota-counter,
 or quota-cleanup state. Installation leaves the
 gate in `legacy` mode and seeds no booking policy. A future v2 transition,
 Vercel setting, cookie/signing key, cleanup schedule, or live QA needs its own
 review and authorization.
+Even in `legacy` mode, the final gate replaces the live
+`public.create_public_appointment` RPC with a wrapper. Its hosted application
+therefore needs a separately approved monitored booking-write smoke and
+rollback plan; this runbook does not authorize a live booking POST.
 
 The forward gate now guards both cleanup heartbeat tables created by the
 first two migrations. Independently, after both predecessors and immediately
@@ -247,4 +270,10 @@ complete authorization. The stronger cleanup-heartbeat guards from merged
 [#221](https://github.com/mocktar2021/glowflow/pull/221) are in master as
 source files only, not applied to the hosted database. Recheck the exact
 rollback files after any subsequent source change. This document provides no
-rollback approval or executable rollback command.
+rollback approval or executable rollback command. In both immutable forward
+source snapshots above, migration 1 grants `service_role` USAGE on schema
+`private`, but its original rollback does not revoke that grant. Code-only
+correction commit `58d037b` adds the revoke and a rollback test. It is not
+part of either pinned forward source or a hosted change. Before any rollback,
+pin the corrected rollback file separately and verify the live schema ACL,
+or stop on the residual privilege instead of claiming a complete reversal.
