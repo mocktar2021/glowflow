@@ -5,14 +5,14 @@ merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
 The GitHub Actions cleanup job is deliberately skipped
 unless the **repository Actions variable** `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
 `enable-glow56-qa-cleanup-20261105`.
-At code merge, the owner's GitHub Settings screenshots showed no repository
-Actions variables or Environment secrets. Later owner evidence showed a
-`glowflow-qa-booking-cleanup` Environment limited to `master`, with required
-reviewers and wait timer off and no Environment secrets or variables. The
-owner subsequently reported turning administrator bypass off. These are
-dated, owner-provided observations, not independent verification of the
-current settings; this connected workspace cannot read GitHub Actions
-variables or Environment protection settings. There is no manual-dispatch
+At code merge, the owner's GitHub Settings screenshot showed no repository
+Actions variables; it did not show the dedicated cleanup Environment. A later
+owner screenshot showed a `glowflow-qa-booking-cleanup` Environment limited to
+`master`, with required reviewers and wait timer off and no Environment
+secrets or variables. The owner subsequently reported turning administrator
+bypass off. These are dated, owner-provided observations, not independent
+verification of the current settings. This connected workspace cannot read
+GitHub Actions variables or Environment protection settings. There is no manual-dispatch
 trigger. The job remains skipped while the repository opt-in is absent.
 Before any activation, recheck the repository variable, branch restriction,
 bypass control, and Environment secret state. A code merge
