@@ -25,7 +25,9 @@ validation. Do not describe a live rotation as seamless.
   [quota key construction](../lib/public-booking-quota-keys.ts) and
   [quota-before-intent ordering](../app/api/public-booking/v2/route.ts).
 - Generate independent high-entropy values for these two purposes and for each
-  environment. Format and nonzero checks do not prove entropy. Never use a
+  environment. The route and quota adapter fail closed when the two configured
+  values are identical; this guard does not prove independent generation or
+  separation between environments. Format and nonzero checks do not prove entropy. Never use a
   `NEXT_PUBLIC_` variable, copy a key between QA and Production, print a key,
   put it in an issue, or include it in a diagnostic response or log. Review
   secret *presence and scope*, not values, during preflight.
