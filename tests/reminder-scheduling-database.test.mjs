@@ -71,6 +71,8 @@ test("confirmed appointments enqueue only consented email revisions without send
   const freshDriftBooking = "50000000-0000-0000-0000-000000000012";
   const earlyReminderBooking = "50000000-0000-0000-0000-000000000013";
   const completedClaimBooking = "50000000-0000-0000-0000-000000000014";
+  const wrongRecipientBooking = "50000000-0000-0000-0000-000000000015";
+  const freshWrongRecipientBooking = "50000000-0000-0000-0000-000000000016";
 
   sql(`
     insert into auth.users(id,email) values
@@ -249,6 +251,8 @@ test("confirmed appointments enqueue only consented email revisions without send
   sql(appointment(optedOutBooking, clientA, 23));
   sql(appointment(freshDriftBooking, clientA, 24));
   sql(appointment(completedClaimBooking, clientA, 25));
+  sql(appointment(wrongRecipientBooking, clientA, 26));
+  sql(appointment(freshWrongRecipientBooking, clientA, 27));
   const driftConfirmation = sql(`select id from public.notification_outbox
     where appointment_id='${driftBooking}' and notification_kind='confirmation'`);
   const driftReminder = sql(`select id from public.notification_outbox
@@ -261,6 +265,12 @@ test("confirmed appointments enqueue only consented email revisions without send
     where appointment_id='${freshDriftBooking}' and notification_kind='confirmation'`);
   const completedClaimConfirmation = sql(`select id from public.notification_outbox
     where appointment_id='${completedClaimBooking}' and notification_kind='confirmation'`);
+  const wrongRecipientConfirmation = sql(`select id from public.notification_outbox
+    where appointment_id='${wrongRecipientBooking}' and notification_kind='confirmation'`);
+  const wrongRecipientReminder = sql(`select id from public.notification_outbox
+    where appointment_id='${wrongRecipientBooking}' and notification_kind='reminder24h'`);
+  const freshWrongRecipientConfirmation = sql(`select id from public.notification_outbox
+    where appointment_id='${freshWrongRecipientBooking}' and notification_kind='confirmation'`);
   const claimAt = sql("select now()");
   const driftClaimKey = "60000000-0000-0000-0000-000000000201";
   const canceledClaimKey = "60000000-0000-0000-0000-000000000202";
@@ -277,6 +287,8 @@ test("confirmed appointments enqueue only consented email revisions without send
     "a valid replay must not append a second attempt");
   claim(canceledConfirmation, canceledClaimKey);
   claim(optedOutConfirmation, optedOutClaimKey);
+  const wrongRecipientClaimKey = "60000000-0000-0000-0000-000000000209";
+  claim(wrongRecipientConfirmation, wrongRecipientClaimKey);
   const completedClaimKey = "60000000-0000-0000-0000-000000000207";
   const completedClaim = claim(completedClaimConfirmation, completedClaimKey);
   sql(`set role service_role;select public.record_notification_delivery_result(
@@ -330,6 +342,30 @@ test("confirmed appointments enqueue only consented email revisions without send
   assert.equal(sql(`select count(*) from public.notification_delivery_attempts
     where outbox_id='${driftConfirmation}' and event_type='claimed'`), "1",
     "rejected claims do not mutate append-only attempt history");
+
+  // A client reassignment is another no-generation-bump mutation. The
+  // immutable outbox still names the original recipient, so neither a fresh
+  // claim nor replay may authorize delivery to that stale recipient.
+  sql(`update public.appointments set client_id='${clientNoEmail}'
+    where id in ('${wrongRecipientBooking}','${freshWrongRecipientBooking}')`);
+  assert.equal(sql(`select count(*) from public.appointments as appointment
+    join public.notification_outbox as outbox on outbox.appointment_id=appointment.id
+    where appointment.id in ('${wrongRecipientBooking}','${freshWrongRecipientBooking}')
+      and appointment.status='confirmed'
+      and appointment.start_time=outbox.appointment_start_time
+      and appointment.notification_schedule_generation=outbox.schedule_generation
+      and appointment.client_id<>outbox.client_id`), "6",
+    "recipient drift must be isolated from status, start, and generation guards");
+  assert.equal(sql(`select private.notification_delivery_eligible('${wrongRecipientReminder}',now()+interval '30 days')`), "f",
+    "a stale-recipient reminder is ineligible even when its start matches");
+  assert.throws(() => claim(freshWrongRecipientConfirmation, "60000000-0000-0000-0000-000000000210"),
+    /notification_not_eligible/, "a first claim cannot target the appointment's former client");
+  assert.throws(() => claim(wrongRecipientConfirmation, wrongRecipientClaimKey),
+    /notification_not_eligible/, "an in-lease replay cannot target the former client");
+  assert.equal(sql(`select count(*) from public.notification_delivery_attempts
+    where outbox_id='${wrongRecipientConfirmation}' and event_type='claimed'`), "1");
+  assert.equal(sql(`select count(*) from public.notification_delivery_attempts
+    where outbox_id='${freshWrongRecipientConfirmation}'`), "0");
 
   sql(`update public.appointments set status='canceled' where id='${canceledBooking}'`);
   assert.throws(() => claim(canceledConfirmation, canceledClaimKey),
