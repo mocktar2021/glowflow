@@ -5,17 +5,20 @@ merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
 The GitHub Actions cleanup job is deliberately skipped
 unless the **repository Actions variable** `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
 `enable-glow56-qa-cleanup-20261105`.
-At merge, the owner's GitHub Settings screenshots showed no repository Actions
-variables, no variables or secrets in the `glowflow-qa-booking-cleanup`
-Environment, and no organization scope because `mocktar2021` is a personal
-account. This is a dated observation, not a continuing guarantee. There is no
-manual-dispatch trigger. The job remains skipped while the repository opt-in is
-absent. Before any activation, recheck the repository variable and Environment
-secret state;
-this connected workspace cannot read GitHub Actions variables. A code merge
-alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to Vercel, send a
-Healthchecks ping, or contact a customer. Do not set the variable until the
-steps below are separately reviewed and approved.
+At code merge, the owner's GitHub Settings screenshots showed no repository
+Actions variables or Environment secrets. Later owner evidence showed a
+`glowflow-qa-booking-cleanup` Environment limited to `master`, with required
+reviewers and wait timer off and no Environment secrets or variables. The
+owner subsequently reported turning administrator bypass off. These are
+dated, owner-provided observations, not independent verification of the
+current settings; this connected workspace cannot read GitHub Actions
+variables or Environment protection settings. There is no manual-dispatch
+trigger. The job remains skipped while the repository opt-in is absent.
+Before any activation, recheck the repository variable, branch restriction,
+bypass control, and Environment secret state. A code merge
+alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to
+Vercel, send a Healthchecks ping, or contact a customer. Do not set the
+variable until the steps below are separately reviewed and approved.
 
 **This target is not isolated QA.** The fixed Supabase project
 `rfwhqutkiztxkagbhevp` backs the current live
@@ -86,13 +89,18 @@ two-hour deadline. Use a separate credential owner and backup for the GitHub
 Environment and Healthchecks account. Keep Healthchecks UUID URLs private:
 they are bearer credentials that can falsely mark a check healthy if leaked.
 
-The same owner screenshots show that the Environment permits administrators
-to bypass its protection rules and has no deployment-branch restriction. Do
-not add a service-role secret or opt in while either condition remains. Before
-storing the key, require reviewed changes to protected `master` and an
-Environment that permits only `master` with non-bypassable human approval.
-If this account cannot enforce those controls, do not store the key or opt in.
-Recheck the actual protection settings rather than relying on these screenshots.
+Scheduled cleanup must run unattended every 30 minutes. Do not require a
+human reviewer or wait timer on each Environment deployment: either would
+hold scheduled jobs and risk breaching the two-hour freshness fence. Instead,
+protect and review changes to `master` before they can execute with the
+service-role secret. Keep the Environment restricted to `master`, with
+administrator bypass disabled, and verify those controls independently before
+storing a key or opting in. The owner's report that bypass was turned off is
+not a current settings verification. If reviewed `master` changes and the
+Environment restriction cannot be enforced, do not store the key or opt in.
+No secret or repository ACK is authorized by this runbook correction. The
+unattended schedule also requires tested Healthchecks failure and missed-ping
+alerts with named responders before activation.
 
 Before opt-in, verify the existing shared GlowFlow project identity and migration
 ledger, apply only separately approved hosted migrations, approve quota and
