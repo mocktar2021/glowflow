@@ -3,24 +3,22 @@
 **Historical predecessor baseline.** On November 7, 2026, the owner-approved
 intent and quota migrations (`20261104184112` and `20261104234445`) were applied
 to the named GlowFlow QA project with their exact repository history versions.
-The hosted ledger now has 43 rows. The 41-row and absent-intent/quota checks
-below document the *before* state and must not be reused as a current gate
-preflight. See [the proposed contract-gate rollout plan](GLOW-56-gate-hosted-smoke-plan.md)
-for the current read-only checks and the separate approval boundary. The final
-contract gate and later GLOW-27 migration remain unapplied.
+The final contract gate `20261105124804` was separately approved and applied
+afterward; the hosted ledger now has **44** rows. The 41-row and absent-object
+checks below document the *before* state and must not be reused as a current
+preflight. See the [gate rollout result](GLOW-56-gate-hosted-smoke-plan.md).
+The later GLOW-27 migration remains unapplied, and v2 remains off.
 
 This is an evidence checklist, not authority to apply SQL. Its only target is
 Supabase organization `goutxcrujaxjjssbjfsn`, project
 `rfwhqutkiztxkagbhevp` (`glowflow`). It does not target MowFlow or the future
 `glowflow.beauty` production environment. This project backs the live
 `glowflow.mocktar.com` site; it is not an isolated QA database. The three
-GLOW-56 migrations are
-committed as dormant code on GlowFlow `master`; this repository's CI/build
-path does not apply them. Do not run `db push`, a migration runner, the
-rollback files, a policy seed, or a mode transition based on this document.
-Obtain separate approval
-for the exact hosted SQL and migration-history operation after a fresh
-preflight.
+GLOW-56 migrations were initially committed as source only; this repository's
+CI/build path did not apply them. The three reviewed forward versions have
+since been applied individually with exact history. Do not run `db push`,
+reapply a migration, run the rollback files, seed a policy, or transition modes
+based on this historical document. Any new hosted action needs its own review.
 
 ## Immutable source and ledger gate
 
