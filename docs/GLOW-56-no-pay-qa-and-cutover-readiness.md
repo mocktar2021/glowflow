@@ -7,6 +7,9 @@ rows and unapplied migrations are historical evidence. The final gate remains
 in `legacy` mode with `ever_v2 = false`; the later GLOW-27 migration remains
 unapplied. See the [gate rollout result](GLOW-56-gate-hosted-smoke-plan.md).
 This document does not authorize v2 activation or another hosted write.
+The November 8 numeric quota decision approves six 300-second-window limits
+for QA planning only; it does not authorize seeding policy rows. See the
+[capability budget](GLOW-56-capability-abuse-budget.md).
 
 Status: runbook only. Adapted from the documentation-only draft PR #201 at
 `d54fdb7894fc57b0aeac31419a44f1bffa2c5308` after the consolidated
