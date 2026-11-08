@@ -18,13 +18,14 @@ that branch does not execute for `NULL`.
 
 This is intentionally conservative if timestamps disagree. A future opt-out
 blocks a current opt-in until another later effective consent is recorded.
-`claim_notification_delivery` deliberately returns an existing claim ID for a
-repeated idempotency key before running fresh eligibility checks. Therefore a
-successful return, especially a retry, is not permission to send. An eventual
-delivery worker must recheck effective consent and appointment state immediately
-before any send; claim-time protection alone cannot guard against a later
-opt-out. Changing the existing claim replay contract requires a separate
-worker-level design and test, not an unreviewed change in this migration.
+At the time of this GLOW-29 migration, `claim_notification_delivery` returns an
+existing claim ID for a repeated idempotency key before running fresh eligibility
+checks. Therefore a successful return, especially a retry, is not permission to
+send. An eventual delivery worker must recheck effective consent and appointment
+state immediately before any send; claim-time protection alone cannot guard
+against a later opt-out. This migration does not change the replay contract.
+The separate GLOW-27 claim-hardening candidate must review and test a replay
+guard before any worker is activated; see `GLOW-27-reminder-scheduling.md`.
 
 ## Verification and rollout gate
 
