@@ -1,5 +1,14 @@
 # GLOW-56 hosted migration preflight (read-only)
 
+**Historical predecessor baseline.** On November 7, 2026, the owner-approved
+intent and quota migrations (`20261104184112` and `20261104234445`) were applied
+to the named GlowFlow QA project with their exact repository history versions.
+The hosted ledger now has 43 rows. The 41-row and absent-intent/quota checks
+below document the *before* state and must not be reused as a current gate
+preflight. See [the proposed contract-gate rollout plan](GLOW-56-gate-hosted-smoke-plan.md)
+for the current read-only checks and the separate approval boundary. The final
+contract gate and later GLOW-27 migration remain unapplied.
+
 This is an evidence checklist, not authority to apply SQL. Its only target is
 Supabase organization `goutxcrujaxjjssbjfsn`, project
 `rfwhqutkiztxkagbhevp` (`glowflow`). It does not target MowFlow or the future
