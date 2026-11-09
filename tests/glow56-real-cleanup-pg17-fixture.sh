@@ -114,6 +114,37 @@ if [[ "$(psql_admin -c "select count(*) from cron.job_run_details where jobid in
   echo 'An inactive disposable candidate unexpectedly recorded a run.' >&2
   exit 1
 fi
+
+# A wrong target must not unschedule even a matching set of inactive jobs.
+# The database-local artifact cannot prove the hosted project ID, so keep this
+# check narrow and verify that rejection leaves all three disposable jobs.
+if psql_admin -v glow56_target_db='postgres' \
+  -v glow56_exact_approval='GLOW-56-INACTIVE-ONLY' \
+  -f ops/glow56-unstage-inactive-cron.psql >/dev/null 2>&1; then
+  echo 'Inactive unstage accepted the wrong target database.' >&2
+  exit 1
+fi
+if [[ "$(psql_admin -c "select count(*) from cron.job where jobname in ('$intent_name','$quota_name','$monitor_name')")" != '3' ]]; then
+  echo 'Wrong-target unstage removed a disposable candidate job.' >&2
+  exit 1
+fi
+
+# Simulate metadata drift without activating a job. Unstage must refuse the
+# whole transaction, and a later exact rollback must still remove only these
+# three IDs after the local fixture restores the original command.
+psql_admin -c "update cron.job set command = 'select 1;' where jobname = '$monitor_name' and active = false" >/dev/null
+if psql_admin -v glow56_target_db="$fixture_db" \
+  -v glow56_exact_approval='GLOW-56-INACTIVE-ONLY' \
+  -f ops/glow56-unstage-inactive-cron.psql >/dev/null 2>&1; then
+  echo 'Inactive unstage accepted modified job metadata.' >&2
+  exit 1
+fi
+if [[ "$(psql_admin -c "select count(*) from cron.job where jobname in ('$intent_name','$quota_name','$monitor_name')")" != '3' ]]; then
+  echo 'Changed-metadata unstage removed a disposable candidate job.' >&2
+  exit 1
+fi
+psql_admin -c "update cron.job set command = 'select private.glow56_cleanup_monitor_ready();' where jobname = '$monitor_name' and active = false" >/dev/null
+
 psql_admin -v glow56_target_db="$fixture_db" \
   -v glow56_exact_approval='GLOW-56-INACTIVE-ONLY' \
   -f ops/glow56-unstage-inactive-cron.psql
