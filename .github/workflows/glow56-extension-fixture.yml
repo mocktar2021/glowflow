@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/glow56-extension-fixture.yml
       - tests/glow56-extension-fixture.sh
+      - tests/glow56-inactive-cron-fixture.sh
   workflow_dispatch:
 
 permissions:
@@ -40,3 +41,7 @@ jobs:
         env:
           PGPASSWORD: local-ci-only
         run: bash tests/glow56-extension-fixture.sh
+      - name: Prove inactive pg_cron creation and collision behavior
+        env:
+          PGPASSWORD: local-ci-only
+        run: bash tests/glow56-inactive-cron-fixture.sh
