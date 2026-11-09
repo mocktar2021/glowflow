@@ -15,13 +15,13 @@ const { approvedStarterOffer } = loaded.exports;
 
 test("Starter has the exact owner-approved US and four euro-area launch markets", () => {
   assert.deepEqual(approvedStarterOffer("US"), {
-    countryCode: "US", currency: "USD", monthlyPriceBeforeTaxMinorUnits: 1999,
+    countryCode: "US", currency: "USD", monthlyPriceBeforeTaxMinorUnits: 2999,
     maxActivePeople: 3, trialCalendarMonths: 1,
     trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   });
   for (const countryCode of ["FR", "ES", "BE", "LU"]) {
     assert.deepEqual(approvedStarterOffer(countryCode), {
-      countryCode, currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
+      countryCode, currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 2499,
       maxActivePeople: 3, trialCalendarMonths: 1,
       trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
     });
@@ -39,5 +39,5 @@ test("approved offer data cannot be modified at runtime", () => {
   const us = approvedStarterOffer("US");
   assert.ok(Object.isFrozen(us));
   assert.throws(() => { us.monthlyPriceBeforeTaxMinorUnits = 1; }, TypeError);
-  assert.equal(approvedStarterOffer("US").monthlyPriceBeforeTaxMinorUnits, 1999);
+  assert.equal(approvedStarterOffer("US").monthlyPriceBeforeTaxMinorUnits, 2999);
 });
