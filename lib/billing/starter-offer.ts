@@ -8,29 +8,35 @@ export type StarterOffer = Readonly<{
   monthlyPriceBeforeTaxMinorUnits: number;
   maxActivePeople: 3;
   trialCalendarMonths: 1;
+  trialMissingDate: "last_day_of_next_month";
   paymentMethodRequiredBeforeTrial: true;
 }>;
 
 const offers: Readonly<Record<string, StarterOffer>> = Object.freeze({
   US: Object.freeze({
     countryCode: "US", currency: "USD", monthlyPriceBeforeTaxMinorUnits: 1999,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   }),
   FR: Object.freeze({
     countryCode: "FR", currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   }),
   ES: Object.freeze({
     countryCode: "ES", currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   }),
   BE: Object.freeze({
     countryCode: "BE", currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   }),
   LU: Object.freeze({
     countryCode: "LU", currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   }),
 });
 

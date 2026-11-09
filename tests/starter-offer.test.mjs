@@ -16,12 +16,14 @@ const { approvedStarterOffer } = loaded.exports;
 test("Starter has the exact owner-approved US and four euro-area launch markets", () => {
   assert.deepEqual(approvedStarterOffer("US"), {
     countryCode: "US", currency: "USD", monthlyPriceBeforeTaxMinorUnits: 1999,
-    maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+    maxActivePeople: 3, trialCalendarMonths: 1,
+    trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
   });
   for (const countryCode of ["FR", "ES", "BE", "LU"]) {
     assert.deepEqual(approvedStarterOffer(countryCode), {
       countryCode, currency: "EUR", monthlyPriceBeforeTaxMinorUnits: 1499,
-      maxActivePeople: 3, trialCalendarMonths: 1, paymentMethodRequiredBeforeTrial: true,
+      maxActivePeople: 3, trialCalendarMonths: 1,
+      trialMissingDate: "last_day_of_next_month", paymentMethodRequiredBeforeTrial: true,
     });
   }
 });
