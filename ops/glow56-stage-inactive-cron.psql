@@ -1,0 +1,111 @@
+-- GLOW-56 candidate operator artifact, NOT a Supabase migration.
+-- Never run on hosted GlowFlow without a separate exact-scope approval and
+-- external project/ledger/schema/cost preflight. It installs no extension,
+-- sends no HTTP request, and creates only inactive jobs if every check passes.
+-- Required psql variables: glow56_target_db, glow56_exact_approval.
+\set ON_ERROR_STOP on
+set role postgres;
+begin;
+set local lock_timeout = '3s';
+set local statement_timeout = '30s';
+select pg_catalog.set_config('glow56.target_db', :'glow56_target_db', true);
+select pg_catalog.set_config('glow56.exact_approval', :'glow56_exact_approval', true);
+
+do $$
+declare
+  target_db text := pg_catalog.current_setting('glow56.target_db');
+begin
+  if pg_catalog.current_database() <> 'postgres'
+     or current_user <> 'postgres'
+     or pg_catalog.current_setting('server_version_num') <> '170006'
+     or pg_catalog.current_setting('glow56.exact_approval') <> 'GLOW-56-INACTIVE-ONLY' then
+    raise exception 'GLOW-56 inactive stage context differs';
+  end if;
+  if target_db <> 'postgres'
+     and target_db !~ '^glowflow_sandbox_test[0-9_]+$' then
+    raise exception 'GLOW-56 target database is not the reviewed target';
+  end if;
+  if not exists (select 1 from pg_catalog.pg_database
+                 where datname = target_db and datallowconn) then
+    raise exception 'GLOW-56 target database is absent';
+  end if;
+  if not exists (
+    select 1 from pg_catalog.pg_extension as ext
+    join pg_catalog.pg_namespace as ns on ns.oid = ext.extnamespace
+    where ext.extname = 'pg_cron' and ext.extversion = '1.6.4'
+      and ns.nspname = 'pg_catalog')
+     or pg_catalog.to_regprocedure(
+       'cron.schedule_in_database(text,text,text,text,text,boolean)') is null
+     or not pg_catalog.has_schema_privilege('postgres','cron','USAGE')
+     or not pg_catalog.has_table_privilege('postgres','cron.job','SELECT')
+     or pg_catalog.has_table_privilege('postgres','cron.job',
+       'INSERT,UPDATE,DELETE')
+     or not pg_catalog.has_function_privilege('postgres',
+       'cron.schedule_in_database(text,text,text,text,text,boolean)',
+       'EXECUTE') then
+    raise exception 'GLOW-56 Cron version or restricted ACL differs';
+  end if;
+  if target_db = pg_catalog.current_database() and (
+       pg_catalog.to_regprocedure(
+         'public.sweep_public_booking_intents(integer)') is null
+       or pg_catalog.to_regprocedure(
+         'public.sweep_public_booking_quota_counters(integer)') is null
+       or pg_catalog.to_regprocedure(
+         'private.glow56_cleanup_monitor_ready()') is null
+       or not pg_catalog.has_function_privilege('postgres',
+         'public.sweep_public_booking_intents(integer)','EXECUTE')
+       or not pg_catalog.has_function_privilege('postgres',
+         'public.sweep_public_booking_quota_counters(integer)','EXECUTE')
+       or not pg_catalog.has_function_privilege('postgres',
+         'private.glow56_cleanup_monitor_ready()','EXECUTE')) then
+    raise exception 'GLOW-56 cleanup functions are absent or inaccessible';
+  end if;
+  -- A same-name upsert can preserve an existing active flag. Refuse any
+  -- collision before invoking the scheduling API, even an inactive row.
+  if exists (select 1 from cron.job where jobname in (
+      'glowflow_qa_booking_intent_sweep_v1',
+      'glowflow_qa_booking_quota_sweep_v1',
+      'glowflow_qa_booking_cleanup_monitor_v1')) then
+    raise exception 'GLOW-56 job-name collision';
+  end if;
+end;
+$$;
+
+select cron.schedule_in_database('glowflow_qa_booking_intent_sweep_v1',
+  '* * * * *', 'select public.sweep_public_booking_intents(100);',
+  pg_catalog.current_setting('glow56.target_db'), null, false);
+select cron.schedule_in_database('glowflow_qa_booking_quota_sweep_v1',
+  '* * * * *', 'select public.sweep_public_booking_quota_counters(1000);',
+  pg_catalog.current_setting('glow56.target_db'), null, false);
+select cron.schedule_in_database('glowflow_qa_booking_cleanup_monitor_v1',
+  '17,47 * * * *', 'select private.glow56_cleanup_monitor_ready();',
+  pg_catalog.current_setting('glow56.target_db'), null, false);
+
+do $$
+declare
+  valid_jobs integer;
+  all_named_jobs integer;
+begin
+  select pg_catalog.count(*) into valid_jobs from cron.job
+  where database = pg_catalog.current_setting('glow56.target_db')
+    and username = 'postgres' and active = false
+    and (
+      (jobname = 'glowflow_qa_booking_intent_sweep_v1'
+       and schedule = '* * * * *'
+       and command = 'select public.sweep_public_booking_intents(100);') or
+      (jobname = 'glowflow_qa_booking_quota_sweep_v1'
+       and schedule = '* * * * *'
+       and command = 'select public.sweep_public_booking_quota_counters(1000);') or
+      (jobname = 'glowflow_qa_booking_cleanup_monitor_v1'
+       and schedule = '17,47 * * * *'
+       and command = 'select private.glow56_cleanup_monitor_ready();'));
+  select pg_catalog.count(*) into all_named_jobs from cron.job
+  where jobname in ('glowflow_qa_booking_intent_sweep_v1',
+    'glowflow_qa_booking_quota_sweep_v1',
+    'glowflow_qa_booking_cleanup_monitor_v1');
+  if valid_jobs <> 3 or all_named_jobs <> 3 then
+    raise exception 'GLOW-56 staged jobs differ or are active';
+  end if;
+end;
+$$;
+commit;

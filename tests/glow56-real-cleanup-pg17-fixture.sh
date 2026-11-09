@@ -94,97 +94,29 @@ if [[ "$(psql_admin -c "select count(*) from cron.job where jobname in ('$intent
   exit 1
 fi
 
-# All three proposed commands are staged inactive in one transaction. A failed
-# postcondition rolls the entire transaction back before the scheduler can
-# observe any job. NULL username selects the invoking postgres role rather
-# than pg_cron's superuser-only explicit-username path.
-psql_admin -v fixture_db="$fixture_db" <<'SQL'
-set role postgres;
-begin;
-select set_config('glow56.fixture_db', :'fixture_db', true);
-do $$
-begin
-  if exists (select 1 from cron.job where jobname in (
-      'glowflow_qa_booking_intent_sweep_v1',
-      'glowflow_qa_booking_quota_sweep_v1',
-      'glowflow_qa_booking_cleanup_monitor_v1')) then
-    raise exception 'GlowFlow disposable job-name collision';
-  end if;
-end;
-$$;
-select cron.schedule_in_database('glowflow_qa_booking_intent_sweep_v1',
-  '* * * * *', 'select public.sweep_public_booking_intents(100);',
-  current_setting('glow56.fixture_db'), null, false);
-select cron.schedule_in_database('glowflow_qa_booking_quota_sweep_v1',
-  '* * * * *', 'select public.sweep_public_booking_quota_counters(1000);',
-  current_setting('glow56.fixture_db'), null, false);
-select cron.schedule_in_database('glowflow_qa_booking_cleanup_monitor_v1',
-  '17,47 * * * *', 'select private.glow56_cleanup_monitor_ready();',
-  current_setting('glow56.fixture_db'), null, false);
-do $$
-declare
-  valid_jobs integer;
-  total_jobs integer;
-begin
-  select count(*) into valid_jobs from cron.job
-  where database = current_setting('glow56.fixture_db')
-    and username = 'postgres' and active = false
-    and (
-      (jobname = 'glowflow_qa_booking_intent_sweep_v1'
-       and schedule = '* * * * *'
-       and command = 'select public.sweep_public_booking_intents(100);') or
-      (jobname = 'glowflow_qa_booking_quota_sweep_v1'
-       and schedule = '* * * * *'
-       and command = 'select public.sweep_public_booking_quota_counters(1000);') or
-      (jobname = 'glowflow_qa_booking_cleanup_monitor_v1'
-       and schedule = '17,47 * * * *'
-       and command = 'select private.glow56_cleanup_monitor_ready();'));
-  select count(*) into total_jobs from cron.job where jobname in (
-    'glowflow_qa_booking_intent_sweep_v1',
-    'glowflow_qa_booking_quota_sweep_v1',
-    'glowflow_qa_booking_cleanup_monitor_v1');
-  if valid_jobs <> 3 or total_jobs <> 3 then
-    raise exception 'GlowFlow disposable jobs differ or are active';
-  end if;
-end;
-$$;
-commit;
-SQL
-
-psql_admin -v fixture_db="$fixture_db" <<'SQL'
-set role postgres;
-begin;
-select set_config('glow56.fixture_db', :'fixture_db', true);
-do $$
-declare
-  job record;
-  removed integer := 0;
-begin
-  for job in select jobid, jobname, command from cron.job
-    where database = current_setting('glow56.fixture_db')
-      and username = 'postgres' and active = false
-      and jobname in ('glowflow_qa_booking_intent_sweep_v1',
-        'glowflow_qa_booking_quota_sweep_v1',
-        'glowflow_qa_booking_cleanup_monitor_v1')
-  loop
-    if (job.jobname = 'glowflow_qa_booking_intent_sweep_v1'
-        and job.command <> 'select public.sweep_public_booking_intents(100);') or
-       (job.jobname = 'glowflow_qa_booking_quota_sweep_v1'
-        and job.command <> 'select public.sweep_public_booking_quota_counters(1000);') or
-       (job.jobname = 'glowflow_qa_booking_cleanup_monitor_v1'
-        and job.command <> 'select private.glow56_cleanup_monitor_ready();') then
-      raise exception 'Refusing to unschedule an unexpected job';
-    end if;
-    perform cron.unschedule(job.jobid);
-    removed := removed + 1;
-  end loop;
-  if removed <> 3 then
-    raise exception 'Expected exactly three disposable inactive jobs';
-  end if;
-end;
-$$;
-commit;
-SQL
+# Execute the same reviewed SQL files proposed for a future exact-scope
+# operator action. This run is confined to a disposable CI service/database.
+# NULL username selects postgres; both scripts reject missing approval vars.
+if psql_admin -v glow56_target_db="$fixture_db" \
+  -v glow56_exact_approval='wrong-context' \
+  -f ops/glow56-stage-inactive-cron.psql >/dev/null 2>&1; then
+  echo 'Inactive staging accepted an incorrect approval context.' >&2
+  exit 1
+fi
+if [[ "$(psql_admin -c "select count(*) from cron.job where jobname in ('$intent_name','$quota_name','$monitor_name')")" != '0' ]]; then
+  echo 'Incorrect approval context left a disposable candidate job.' >&2
+  exit 1
+fi
+psql_admin -v glow56_target_db="$fixture_db" \
+  -v glow56_exact_approval='GLOW-56-INACTIVE-ONLY' \
+  -f ops/glow56-stage-inactive-cron.psql
+if [[ "$(psql_admin -c "select count(*) from cron.job_run_details where jobid in (select jobid from cron.job where jobname in ('$intent_name','$quota_name','$monitor_name'))")" != '0' ]]; then
+  echo 'An inactive disposable candidate unexpectedly recorded a run.' >&2
+  exit 1
+fi
+psql_admin -v glow56_target_db="$fixture_db" \
+  -v glow56_exact_approval='GLOW-56-INACTIVE-ONLY' \
+  -f ops/glow56-unstage-inactive-cron.psql
 
 if [[ "$(psql_admin -c "select count(*) from cron.job where jobname in ('$intent_name','$quota_name','$monitor_name')")" != '0' ]]; then
   echo 'Disposable candidate jobs remained after scoped cleanup.' >&2
