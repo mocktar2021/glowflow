@@ -1,5 +1,12 @@
 # GLOW-56 no-pay shared-backend cleanup schedule (dormant)
 
+The owner confirmed on November 9, 2026 that there is no separate GitHub
+reviewer for this repository. The protected-`master` review prerequisite
+below therefore cannot currently be met. Keep this GitHub schedule dormant,
+do not add a full Supabase service-role key or repository ACK, and review the
+code-only [database-local cleanup alternative](GLOW-56-database-local-cleanup-proposal.md)
+instead. This does not authorize installing `pg_cron` or activating v2.
+
 This is code only. [PR #224](https://github.com/mocktar2021/glowflow/pull/224)
 merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
 The GitHub Actions cleanup job is deliberately skipped
