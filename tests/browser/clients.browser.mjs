@@ -165,6 +165,20 @@ for (const [locale, identity, save, invalid] of [
   });
 }
 
+test("mobile client Save stays above the persistent workspace navigation", async () => {
+  const { context, page } = await pageFor("owner");
+  try {
+    await page.goto(`${origin}/en/dashboard/clients`);
+    await page.locator('textarea[name="notes"]').fill("Synthetic layout-only note");
+    const saveButton = page.getByRole("button", { name: "Save", exact: true });
+    await saveButton.scrollIntoViewIfNeeded();
+    const save = await saveButton.boundingBox();
+    const navigation = await page.getByRole("navigation", { name: "Salon management" }).boundingBox();
+    assert.ok(save && navigation && save.y + save.height <= navigation.y,
+      "the mobile action must remain fully above the fixed navigation");
+  } finally { await context.close(); }
+});
+
 test("invalid email reaches server validation without a client insert", async () => {
   const { context, page } = await pageFor("staff-no-insert");
   try {
