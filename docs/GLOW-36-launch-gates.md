@@ -7,6 +7,11 @@ commit and release scope. A supervised pilot and a public paid launch must not
 be treated as the same decision. Record any pilot exception explicitly; do not
 silently waive a paid-launch gate.
 
+The owner has designated `glowflow.mocktar.com` as the current development
+site and `glowflow.beauty` as the future public production domain. Historical
+deployments below use Vercel's `production` target for the development site;
+that platform label is not evidence of a `glowflow.beauty` launch or QA isolation.
+
 ## Verified 2026-11-01 20:14-20:15 UTC production checkpoint, not launch approval
 
 GitHub `mocktar2021/glowflow` `master` was
@@ -168,11 +173,11 @@ go/no-go decision. Do not carry this snapshot forward as standing approval.
 | Area | What the repository proves | What it does not prove |
 | --- | --- | --- |
 | Privacy, terms, support | `lib/legal-content.ts` has FR/EN/ES copy, a 2026-11-04 effective date, the public support address, and cancellation/deposit guidance. Localized routes and `tests/legal-support.test.mjs` cover presence and links. `docs/GLOW-35-release-readiness.md` records a September 24 production check. | A fresh legal review for every launch country, or that a salon has published its own applicable policy. The platform copy does not define a platform refund entitlement. |
-| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. A localized public notice now says when a salon has not published policy text; it does not supply cancellation or refund terms. `GLOW-24` remains Backlog. `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
+| Cancellation and money | The terms direct salon-service disputes to the salon and say an online deposit is due only when Stripe Checkout shows it. A localized public notice now says when a salon has not published policy text; it does not supply cancellation or refund terms. `GLOW-24` remains open (In Progress as of 2026-11-07). `docs/GLOW-35-release-readiness.md` records live deposits, refund rules, receipts, and reconciliation as incomplete. | Configurable cancellation windows, authorized live refunds, no-show handling, and a complete paid customer journey. |
 | Support and incident response | The public support address is `glowflow@mocktar.com`. `docs/GLOW-36-recovery-drill.md` records working incident-lead and database-owner roles and a 24-hour RPO and 4-hour RTO target. `docs/GLOW-34-observability-slice.md` documents safe booking error IDs. | A currently confirmed named primary and alternate, monitored support and alert destinations, an exercised escalation, or measured achievement of the recovery targets. `GLOW-34` remains In Progress. |
 | Database recovery | `tests/recovery-run.mjs` uses only guarded loopback PostgreSQL and synthetic records. `.github/workflows/security.yml` runs the logical backup/restore drill on disposable PostgreSQL 16. `docs/GLOW-36-recovery-drill.md` records a September 24 isolated hosted current-state clone, count/Auth/bucket comparison, synthetic Storage-file recovery, and a later signed-in owner journey. | A selected historical daily or PITR recovery point, full file-volume recovery, provider settings/secrets restoration, or a measured production-equivalent RTO. A database archive does not include Storage file contents. |
 | Security and quality | `.github/workflows/ci.yml`, `security.yml`, and `browser.yml` define build/unit, database authorization/recovery, and browser checks. | A green result for an arbitrary future release commit, a current Supabase advisor review, or hosted Auth/Storage behavior from local substitutes alone. |
-| Localization and domain | FR/EN/ES legal routes and tests exist. Prior release notes record localized production checks and the `glowflow.mocktar.com` domain. | Current exact-commit production rendering, TLS/canonical behavior, and complete booking/payment copy in each launch market. |
+| Localization and domain | FR/EN/ES legal routes and tests exist. Prior release notes record localized checks on the current development site, `glowflow.mocktar.com`. | A separate exact-commit `glowflow.beauty` production deployment, alias, TLS/canonical behavior, QA isolation, and complete booking/payment copy in each launch market. |
 
 The September recovery and release notes are dated historical evidence. Some
 paragraphs describe migrations or PRs that were pending at the time; do not
@@ -192,6 +197,8 @@ approval, policy coverage, or that the Vercel alias points to the exact GitHub
 commit.
 Record the separate GitHub/Vercel identity and runtime-error evidence alongside
 its result; a pass is not a launch approval.
+This probe targets only the current development site; a future
+`glowflow.beauty` release needs its own exact-origin checks.
 
 ## Historical production snapshot, not current status or launch approval
 
@@ -264,8 +271,10 @@ record.
 - [ ] Confirm production Vercel project, Supabase project, Stripe account,
       environment owners, least-privilege access, and rollback contacts without
       recording secrets. Confirm a READY production deployment at the exact SHA,
-      `glowflow.mocktar.com` alias and TLS, and FR/EN/ES discovery, booking,
-      sign-in, owner, and support flows appropriate to the launch scope.
+      `glowflow.beauty` alias and TLS, and FR/EN/ES discovery, booking,
+      sign-in, owner, and support flows appropriate to the launch scope. Record
+      separately whether `glowflow.mocktar.com` remains QA or redirects after
+      the owner-approved cutover.
 - [ ] Remove or retire public test services and disabled test staff fixtures
       where applicable, while preserving required payment and audit history.
 - [ ] Product owner records the final go/no-go, exceptions, rollback trigger,

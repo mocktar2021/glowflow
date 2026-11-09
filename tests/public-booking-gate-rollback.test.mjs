@@ -39,7 +39,15 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
   for (const name of readdirSync(new URL("supabase/migrations/", root))
     .filter(name => name.endsWith(".sql")
       && name !== "20261105124804_glow56_public_booking_contract_gate.sql").sort()) {
+    if (name === "20261104184112_glow56_private_public_booking_intents.sql") {
+      assert.equal(sql("select has_schema_privilege('service_role','private','USAGE')"), "f",
+        "pre-intent baseline must not expose the private schema to service_role");
+    }
     sql(readFileSync(new URL(`supabase/migrations/${name}`, root), "utf8"));
+    if (name === "20261104184112_glow56_private_public_booking_intents.sql") {
+      assert.equal(sql("select has_schema_privilege('service_role','private','USAGE')"), "t",
+        "intent rollout deliberately grants private schema usage to service_role");
+    }
   }
   sql(readFileSync(new URL("tests/schema-authorization.sql", root), "utf8"));
   const legacyDefinition = sql(`select md5(pg_get_functiondef(
@@ -136,4 +144,13 @@ test("GLOW-56 contract gate rollback preserves state and restores dormant v1", {
       'Gate Rollback',null,'gate-rollback@example.invalid','en',
       '33333333-3333-4333-8333-333333333333')`);
   assert.match(appointmentId, /^[0-9a-f-]{36}$/);
+
+  sql(quotaRollback);
+  assert.equal(sql("select has_schema_privilege('service_role','private','USAGE')"), "t",
+    "quota reversal alone must not remove the intent schema grant");
+  sql(intentRollback);
+  assert.equal(sql("select has_schema_privilege('service_role','private','USAGE')"), "f",
+    "full guarded reversal must restore the pre-intent schema privilege boundary");
+  assert.equal(sql("select to_regclass('private.public_booking_intents') is null"), "t");
+  assert.equal(sql("select to_regclass('private.public_booking_quota_policy') is null"), "t");
 });

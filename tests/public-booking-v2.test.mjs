@@ -599,6 +599,28 @@ test("an all-zero signing key cannot issue or validate browser capabilities", as
   }
 });
 
+test("reusing the quota HMAC key as the cookie signer fails closed", async () => {
+  const previousQuotaKey = process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+  const previousMaxAge = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  try {
+    process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = signingKey.toString("base64url");
+    process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
+    const { POST, calls, quotaCalls } = await harness();
+    const fresh = await post(POST, { action: "bootstrap" }, { cookie: null });
+    assert.equal(fresh.response.status, 503);
+    assert.equal(fresh.response.headers.get("set-cookie"), null);
+    assert.equal((await post(POST, { action: "bootstrap" })).response.status, 409);
+    assert.equal((await post(POST, { action: "reconcile", salonSlug: "browser-fixture", intentId })).response.status, 409);
+    assert.deepEqual(quotaCalls, []);
+    assert.deepEqual(calls, []);
+  } finally {
+    if (previousQuotaKey === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = previousQuotaKey;
+    if (previousMaxAge === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previousMaxAge;
+  }
+});
+
 test("removing cookie lifetime pauses new bookings while exact signed-cookie recovery remains available", async () => {
   const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
   try {

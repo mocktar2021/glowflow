@@ -1,5 +1,16 @@
 # GLOW-56 no-pay QA and cutover readiness
 
+**Status update (November 7, 2026):** all three GLOW-56 forward database
+migrations were applied individually to the named GlowFlow QA project with
+matching history, leaving 44 remote rows. References below to 41 or 43 hosted
+rows and unapplied migrations are historical evidence. The final gate remains
+in `legacy` mode with `ever_v2 = false`; the later GLOW-27 migration remains
+unapplied. See the [gate rollout result](GLOW-56-gate-hosted-smoke-plan.md).
+This document does not authorize v2 activation or another hosted write.
+The November 8 numeric quota decision approves six 300-second-window limits
+for QA planning only; it does not authorize seeding policy rows. See the
+[capability budget](GLOW-56-capability-abuse-budget.md).
+
 Status: runbook only. Adapted from the documentation-only draft PR #201 at
 `d54fdb7894fc57b0aeac31419a44f1bffa2c5308` after the consolidated
 recovery code in PR #218 merged to `master` as
