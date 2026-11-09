@@ -89,7 +89,7 @@ for (const locale of ["fr", "en", "es"]) {
     assert.deepEqual(calls, [
       { method: "createClient" },
       { method: "signUp", value: {
-        email: "owner@example.invalid", password: "synthetic-password-123",
+        email: "owner@example.invalid", password: "  synthetic-password-123  ",
         options: { emailRedirectTo: `${origin}/auth/callback?next=/${locale}/dashboard`, data: {
           full_name: "Fixture Owner", salon_name: "Salon Étoile & Co", salon_slug: "salon-etoile-co",
           locale, country_code: "FR", time_zone: "Europe/Paris",
@@ -128,7 +128,7 @@ for (const locale of ["fr", "en", "es"]) {
     const invalidRedirect = `/${locale}/login?error=${encodeURIComponent(authCopy[locale].notices.invalidCredentials)}`;
     await expectRedirect(() => invalid.actions.signIn(locale, form), invalidRedirect);
     assert.deepEqual(invalid.calls.map(call => call.method), ["createClient", "signInWithPassword"]);
-    assert.deepEqual(invalid.calls[1].value, { email: "owner@example.invalid", password: "synthetic-password-123" });
+    assert.deepEqual(invalid.calls[1].value, { email: "owner@example.invalid", password: "  synthetic-password-123  " });
     assert.ok(!invalidRedirect.includes(credentialError.message));
 
     const blocked = ownerActions({ workspaceError: "synthetic private database detail" });

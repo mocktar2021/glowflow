@@ -93,7 +93,7 @@ for (const locale of ["fr", "en", "es"]) {
       await expectRedirect(() => actions.updatePassword(locale, form), expected);
       assert.deepEqual(calls, [
         { method: "createClient" },
-        { method: "updateUser", value: { password: "synthetic-password-123" } },
+        { method: "updateUser", value: { password: "  synthetic-password-123  " } },
       ]);
       assert.ok(!expected.includes("synthetic provider detail"));
       assert.ok(!expected.includes("synthetic-password-123"));

@@ -10,6 +10,11 @@ function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function passwordValue(formData: FormData) {
+  // Passwords are exact secrets. Trimming changes a valid user's credential.
+  return String(formData.get("password") ?? "");
+}
+
 function authUrl(locale: string, path: string, key?: string, message?: string) {
   const url = `/${locale}/${path}`;
   return key && message ? `${url}?${key}=${encodeURIComponent(message)}` : url;
@@ -19,7 +24,7 @@ export async function signIn(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
   const notices = authCopy[locale].notices;
   const email = value(formData, "email");
-  const password = value(formData, "password");
+  const password = passwordValue(formData);
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -41,7 +46,7 @@ export async function signUp(localeValue: string, formData: FormData) {
   const fullName = value(formData, "full_name");
   const salonName = value(formData, "salon_name");
   const email = value(formData, "email");
-  const password = value(formData, "password");
+  const password = passwordValue(formData);
   const countryCode = value(formData, "country_code").toUpperCase();
   const timeZone = value(formData, "time_zone");
   const addressLine1 = value(formData, "address_line1");
@@ -118,7 +123,7 @@ export async function requestPasswordReset(localeValue: string, formData: FormDa
 export async function updatePassword(localeValue: string, formData: FormData) {
   const locale = safeLocale(localeValue);
   const notices = authCopy[locale].notices;
-  const password = value(formData, "password");
+  const password = passwordValue(formData);
 
   if (password.length < 8) {
     redirect(authUrl(locale, "update-password", "error", notices.passwordLength));
