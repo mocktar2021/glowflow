@@ -248,7 +248,7 @@ export default async function CalendarPage({
                           <span className="text-xs font-medium text-slate-500">{appointment.deposit_paid ? labels.paid : labels.unpaid}</span>
                         </div>
                       </div>
-                      {appointment.status === "canceled" && appointment.deposit_paid ? <p role="note" className="mt-3 text-xs text-amber-800 dark:text-amber-200">{labels.canceledPaidNotice}</p> : null}
+                      {appointment.status === "canceled" && appointment.deposit_paid ? <p role="note" className="mt-3 rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground">{labels.canceledPaidNotice}</p> : null}
                       {appointment.status === "confirmed" ? <div className="mt-4 grid gap-3 border-t border-[#eadfce] pt-4 sm:grid-cols-[1fr_auto] dark:border-white/10">
                         <form action={rescheduleAppointment.bind(null, locale)} className="flex flex-col gap-2 sm:flex-row">
                           <input type="hidden" name="appointment_id" value={appointment.id} /><input type="hidden" name="calendar_date" value={selected} /><input type="hidden" name="calendar_view" value={view} />
