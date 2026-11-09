@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { WorkspaceShell } from "@/components/glowflow/workspace-shell";
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
 import { formatMinorMoney } from "@/lib/markets";
@@ -87,8 +88,8 @@ const copy = {
   },
 } as const;
 
-const inputClass = "mt-2 h-11 w-full rounded-xl border border-[#dfd2c1] bg-[#fffdf9] px-3 outline-none focus:border-[#b77a42] focus:ring-2 focus:ring-[#b77a42]/20 dark:border-white/15 dark:bg-white/5";
-const cardClass = "rounded-[1.75rem] border border-[#e4d6c5] bg-white p-5 shadow-[0_12px_36px_rgba(48,32,18,0.06)] dark:border-white/10 dark:bg-[#17191e] sm:p-7";
+const inputClass = "mt-2 h-11 w-full rounded-xl border border-input bg-card px-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+const cardClass = "rounded-[1.75rem] border border-border bg-card p-5 shadow-sm sm:p-7";
 
 function validDate(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -192,16 +193,17 @@ export default async function CalendarPage({
   const errorMessage = query.error === "conflict" ? labels.conflict : query.error === "member_required" ? labels.member : labels.error;
 
   return (
-    <main className="min-h-screen bg-[#faf9f6] px-4 py-8 text-slate-950 dark:bg-[#101216] dark:text-stone-100 sm:px-6 lg:px-8">
+    <WorkspaceShell locale={locale} active="calendar">
+    <main className="min-h-screen bg-background px-4 pb-28 pt-8 text-foreground sm:px-6 lg:px-8 lg:pb-8">
       <div className="mx-auto max-w-7xl">
-        <Link href={`/${locale}/dashboard`} className="inline-flex items-center gap-2 text-sm font-semibold text-[#9a602d] hover:underline dark:text-[#efc992]">
+        <Link href={`/${locale}/dashboard`} className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
           <ArrowLeft className="size-4" />{labels.back}
         </Link>
 
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex items-start gap-3">
-            <span className="grid size-12 place-items-center rounded-2xl bg-[#f1dfc8] text-[#9a602d]"><CalendarDays className="size-6" /></span>
-            <div><h1 className="text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">{labels.title}</h1><p className="mt-2 text-slate-600 dark:text-stone-300">{labels.subtitle}</p><p className="mt-1 text-sm font-medium text-[#9a602d]">{labels.timeZone}: {tenant.time_zone}</p></div>
+            <span className="grid size-12 place-items-center rounded-2xl bg-secondary text-secondary-foreground"><CalendarDays className="size-6" /></span>
+            <div><h1 className="font-display text-4xl font-medium sm:text-5xl">{labels.title}</h1><p className="mt-2 text-muted-foreground">{labels.subtitle}</p><p className="mt-1 text-sm font-medium text-primary">{labels.timeZone}: {tenant.time_zone}</p></div>
           </div>
           <div className="flex rounded-full border border-[#dfd2c1] bg-white p-1 dark:border-white/15 dark:bg-white/5">
             {(["day", "week"] as const).map((option) => <Link key={option} href={`/${locale}/dashboard/calendar?date=${selected}&view=${option}`} className={`rounded-full px-5 py-2 text-sm font-semibold ${view === option ? "bg-slate-950 text-white dark:bg-[#e8bb82] dark:text-slate-950" : ""}`}>{labels[option]}</Link>)}
@@ -296,5 +298,6 @@ export default async function CalendarPage({
         </div>
       </div>
     </main>
+    </WorkspaceShell>
   );
 }
