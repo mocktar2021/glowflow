@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import manifest from "../app/manifest.ts";
+import { publicSiteOrigin } from "../lib/public-site-origin.ts";
 
 const publicFile = (name) => new URL(`../public/${name}`, import.meta.url);
 
@@ -26,6 +27,7 @@ async function layoutMetadata(environment) {
     if (name === "@/components/glowflow/legal-footer") return { LegalFooter: () => null };
     if (name === "@/components/glowflow/pwa-registration") return { PwaRegistration: () => null };
     if (name === "@/lib/i18n") return { isLocale: () => true, messages: {} };
+    if (name === "@/lib/public-site-origin") return { publicSiteOrigin: () => publicSiteOrigin(environment) };
     if (name === "react/jsx-runtime" || name === "../globals.css") return {};
     throw new Error(`Unexpected layout dependency: ${name}`);
   }, loaded.exports, { env: environment });
@@ -64,6 +66,8 @@ test("owner-approved vector artwork uses the Porcelain and Mulberry palette with
 test("metadata and manifest advertise all icon and social previews", async () => {
   const production = await layoutMetadata({ VERCEL_ENV: "production", VERCEL_URL: "preview.vercel.app" });
   assert.equal(production.metadataBase.href, "https://glowflow.mocktar.com/");
+  const beauty = await layoutMetadata({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" });
+  assert.equal(beauty.metadataBase.href, "https://glowflow.beauty/");
   assert.deepEqual(production.icons.icon.map(({ url }) => url), ["/favicon.svg", "/icon-32.png"]);
   assert.equal(production.icons.shortcut, "/favicon.ico");
   assert.equal(production.icons.apple[0].url, "/apple-touch-icon.png");
