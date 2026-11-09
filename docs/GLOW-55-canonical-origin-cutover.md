@@ -19,6 +19,14 @@ payments during preflight. Record a rollback target and confirm both origin
 settings and the domain alias can return to their previous values. This does
 not activate invitations, payments, or any hosted database migration.
 
+The owner has chosen a public paid launch, not a no-payment pilot. The beauty
+cutover therefore also requires proven separation of QA and production Stripe
+credentials and webhook destinations, subscription billing and salon-deposit
+approval, tax and refund policy, signed live-flow verification under an
+authorized plan, and active failure alerts. See GLOW-23, GLOW-24, GLOW-34,
+GLOW-35, GLOW-36, and GLOW-53. A READY page or correct SEO origin does not
+waive those paid-launch gates or authorize a real charge.
+
 The prior dashboard demonstration was removed during the workspace redesign,
 so this PR does not restore or alter that obsolete booking-link surface. The
 current `GLOWFLOW_APP_URL` Auth/join fallback still targets
