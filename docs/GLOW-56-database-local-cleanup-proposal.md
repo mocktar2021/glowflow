@@ -96,10 +96,11 @@ currently active or approved; verify provider defaults and storage impact
 before activation.
 
 Installing `pg_cron` alone is not enough. The alert design may also require
-separately reviewed `pg_net` and Vault configuration. A prior read-only check
-found `pg_cron` available but not installed; recheck every extension and
-privilege on the exact project before approval. Do not rely on a stale check
-or on presumed free-tier capacity.
+separately reviewed `pg_net` and Vault configuration. A November 9 read-only
+check of the exact GlowFlow project found `pg_cron` 1.6.4 and `pg_net` 0.20.4
+available but not installed, while Vault 0.3.1 was installed. Recheck every
+extension and privilege on the exact project before approval. Do not rely on
+this dated check or on presumed free-tier capacity.
 
 ## Staged approval and preflight
 

@@ -12,7 +12,7 @@ requiring its own owner approval and exact preflight.
 Use two separately named, one-call Supabase Cron jobs, each running once per
 minute in UTC:
 
-| Proposed job name | One command per invocation | Maximum batch candidates |
+| Proposed job name | One command per invocation | Maximum processed items |
 | --- | --- | ---: |
 | `glowflow_qa_booking_intent_sweep_v1` | `select public.sweep_public_booking_intents(100);` | 100 |
 | `glowflow_qa_booking_quota_sweep_v1` | `select public.sweep_public_booking_quota_counters(1000);` | 1,000 |
@@ -23,7 +23,8 @@ the next minute can continue. Both existing functions have advisory-lock and
 bounded-batch behavior. Do **not** loop many sweeps in one `DO` block or
 function called by one Cron job: a later error or timeout rolls back earlier
 passes, including privacy scrubs. One-minute cadence offers theoretical
-ceilings of 6,000 intent rows and 60,000 quota rows per hour, not a throughput
+ceilings of 6,000 intent items and 60,000 quota counter items processed per
+hour, not a throughput
 guarantee. Measure actual due backlog and worst-case runtime before activation.
 If either full-sweep heartbeat is stale, the existing v2 gate must keep new
 preparations closed; never treat a Cron run status of `succeeded` or a JSON
