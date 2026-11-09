@@ -7,6 +7,12 @@ on:
       - tests/glow56-extension-fixture.sh
       - tests/glow56-inactive-cron-fixture.sh
       - tests/glow56-pgnet-acl-fixture.sh
+      - tests/glow56-real-cleanup-pg17-fixture.sh
+      - tests/public-booking-cleanup-cadence.test.mjs
+      - tests/supabase-platform-fixture.sql
+      - tests/schema-authorization.sql
+      - supabase/schema.sql
+      - supabase/migrations/*glow56*.sql
   workflow_dispatch:
 
 permissions:
@@ -36,6 +42,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install --yes postgresql-client-16
       - name: Verify exact disposable extension availability
@@ -50,3 +59,7 @@ jobs:
         env:
           PGPASSWORD: local-ci-only
         run: bash tests/glow56-pgnet-acl-fixture.sh
+      - name: Replay real cleanup migrations and stage inactive candidates
+        env:
+          PGPASSWORD: local-ci-only
+        run: bash tests/glow56-real-cleanup-pg17-fixture.sh
