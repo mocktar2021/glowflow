@@ -38,4 +38,9 @@ drop table private.public_booking_browser_sessions;
 drop table private.public_booking_intent_policy;
 drop table private.public_booking_intent_cleanup_state;
 
+-- The forward intent migration is the only source of this schema grant in
+-- the reviewed baseline. Restore the original service-role boundary only
+-- after all intent objects and dependent quota/gate objects are gone.
+revoke usage on schema private from service_role;
+
 commit;

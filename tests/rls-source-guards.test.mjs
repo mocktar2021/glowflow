@@ -15,10 +15,12 @@ function codeFiles(folder, map = new Map()) {
   return map;
 }
 
-test('all declared public tables retain an RLS enable declaration', () => {
+test('all declared public and private tables retain an RLS enable declaration', () => {
   const files = ['supabase/schema.sql', ...readdirSync(path.join(root, 'supabase/migrations')).filter(name => name.endsWith('.sql')).sort().map(name => `supabase/migrations/${name}`)];
   const tables = assertRlsDeclarations(files.map(file => [file, readFileSync(path.join(root, file), 'utf8')]));
-  assert.ok(tables.includes('tenants') && tables.includes('stripe_sandbox_events'));
+  for (const table of ['public.tenants', 'public.stripe_sandbox_events', 'private.public_booking_intent_policy', 'private.public_booking_contract_gate']) {
+    assert.ok(tables.includes(table), `${table} must be checked`);
+  }
 });
 
 test('RLS declaration guard rejects missing and later disabled protection', () => {
@@ -32,9 +34,12 @@ test('RLS declaration guard rejects missing and later disabled protection', () =
 
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid,tenant_id uuid);']]), /private_clients/);
   assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' create table public.copied_clients as select * from public.private_clients;']]), /copied_clients/);
-  assert.deepEqual(assertRlsDeclarations([['safe.sql', protectedTable + ' create table public.copied_clients as select * from public.private_clients; alter table public.copied_clients enable row level security;']]), ['copied_clients', 'private_clients']);
+  assert.deepEqual(assertRlsDeclarations([['safe.sql', protectedTable + ' create table public.copied_clients as select * from public.private_clients; alter table public.copied_clients enable row level security;']]), ['public.copied_clients', 'public.private_clients']);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); alter table public.private_clients enable row level security; alter table public.private_clients disable row level security;']]), /private_clients/);
   assert.throws(() => assertRlsDeclarations([['bad.sql', 'create table public.private_clients(id uuid); -- alter table public.private_clients enable row level security;']]), /private_clients/);
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' create table private.singleton_policy(singleton boolean primary key);']]), /private\.singleton_policy/);
+  assert.throws(() => assertRlsDeclarations([['bad.sql', protectedTable + ' create table private.singleton_policy(singleton boolean primary key); alter table private.singleton_policy enable row level security; alter table private.singleton_policy disable row level security;']]), /private\.singleton_policy/);
+  assert.deepEqual(assertRlsDeclarations([['safe.sql', protectedTable + ' create table private.private_clients(id uuid); alter table private.private_clients enable row level security;']]), ['private.private_clients', 'public.private_clients']);
 });
 
 test('client import graph cannot reach the privileged Supabase client', () => {
