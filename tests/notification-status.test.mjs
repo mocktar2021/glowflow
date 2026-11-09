@@ -16,6 +16,14 @@ test("changed or missing appointment recipient is superseded even if generation 
   assert.equal(deriveNotificationStatus({ ...base, currentAppointmentClientId: "client-a" }), "ready");
 });
 
+test("unknown consent and current-recipient checks both fail closed on a retry", () => {
+  const retry = { event_type: "retryable", retry_after: "2030-01-01T11:55:00Z",
+    lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z" };
+  assert.equal(deriveNotificationStatus({ ...base, consentStatus: "unexpected_status", latestAttempt: retry }), "awaiting_consent");
+  assert.equal(deriveNotificationStatus({ ...base, consentStatus: "unexpected_status",
+    currentAppointmentClientId: "client-b", latestAttempt: retry }), "superseded");
+});
+
 test("status read model blocks missing consent, opt-out, and inactive appointments", () => {
   assert.equal(deriveNotificationStatus({ ...base, consentStatus: null }), "awaiting_consent");
   assert.equal(deriveNotificationStatus({ ...base, consentStatus: "opted_out" }), "opted_out");
