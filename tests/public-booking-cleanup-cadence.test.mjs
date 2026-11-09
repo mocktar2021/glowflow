@@ -247,4 +247,57 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
     assert.equal(marker('public_booking_intent_cleanup_state'), 't');
     assert.equal(marker('public_booking_quota_cleanup_state'), 't');
     await held;
+
+    // The proposed monitor must derive health from both completed sweep
+    // heartbeats, not from a pg_cron job's successful SQL exit or a busy
+    // response. These checks exercise only the migration's database-local
+    // predicate; pg_cron, pg_net, Vault, and alert delivery need later proof.
+    const monitor = () => sql('select private.glow56_cleanup_monitor_ready()');
+    const setMarkers = (intent, quota) => sql(`
+      update private.public_booking_intent_cleanup_state
+      set last_full_sweep_at=${intent} where singleton;
+      update private.public_booking_quota_cleanup_state
+      set last_full_sweep_at=${quota} where singleton;
+    `);
+    const fresh = "clock_timestamp()-interval '9 minutes'";
+    const stale = "clock_timestamp()-interval '11 minutes'";
+    const future = "clock_timestamp()+interval '1 minute'";
+    assert.equal(sql(`select count(*) from private.public_booking_intent_cleanup_state
+      where singleton`), '1');
+    assert.equal(sql(`select count(*) from private.public_booking_quota_cleanup_state
+      where singleton`), '1');
+    assert.equal(sql(`select prosecdef from pg_proc
+      where oid='private.glow56_cleanup_monitor_ready()'::regprocedure`), 'f',
+    'the monitor predicate must remain SECURITY INVOKER');
+    assert.equal(sql(`select proconfig @> array['search_path=""'] from pg_proc
+      where oid='private.glow56_cleanup_monitor_ready()'::regprocedure`), 't',
+    'the monitor predicate must use a fixed empty search_path');
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      assert.equal(sql(`select has_function_privilege('${role}',
+        'private.glow56_cleanup_monitor_ready()', 'execute')`), 'f',
+      `${role} must not be able to execute the private monitor predicate`);
+    }
+    assert.equal(sql(`select has_function_privilege('postgres',
+      'private.glow56_cleanup_monitor_ready()', 'execute')`), 't');
+
+    setMarkers('null', 'null');
+    assert.equal(monitor(), 'f', 'two missing full sweeps cannot signal health');
+    setMarkers(fresh, 'null');
+    assert.equal(monitor(), 'f', 'one completed sweep cannot signal health');
+    setMarkers('null', fresh);
+    assert.equal(monitor(), 'f', 'a partial intent sweep cannot signal health');
+    setMarkers(stale, fresh);
+    assert.equal(monitor(), 'f', 'an old intent sweep cannot signal health');
+    setMarkers(fresh, stale);
+    assert.equal(monitor(), 'f', 'an old quota sweep cannot signal health');
+    setMarkers(future, fresh);
+    assert.equal(monitor(), 'f', 'a future intent heartbeat cannot signal health');
+    setMarkers(fresh, future);
+    assert.equal(monitor(), 'f', 'a future quota heartbeat cannot signal health');
+    setMarkers(fresh, fresh);
+    assert.equal(monitor(), 't', 'two recent complete sweeps may signal health');
+    sql('delete from private.public_booking_quota_cleanup_state where singleton');
+    assert.equal(monitor(), 'f', 'a missing singleton row cannot signal health');
+    assert.throws(() => sql('set role anon; select private.glow56_cleanup_monitor_ready()'),
+      /permission denied/);
   });

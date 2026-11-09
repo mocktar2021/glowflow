@@ -4,15 +4,27 @@ This is a code-only design for a no-GitHub-service-role-key alternative to
 the dormant [GitHub cleanup schedule](GLOW-56-no-pay-QA-cleanup-schedule-draft.md).
 The owner confirmed on November 9, 2026 that there is no separate GitHub PR
 reviewer. Do not place a full GlowFlow Supabase service-role key in the
-unattended GitHub workflow or set its repository schedule ACK. This proposal
-does not install an extension, create a cron job or Vault secret, apply SQL,
-seed policy, activate booking v2, or change a hosted setting.
+unattended GitHub workflow or set its repository schedule ACK. Merging a
+code-only migration or this runbook does not apply SQL, install an extension,
+create a cron job or Vault secret, seed policy, activate booking v2, or change
+a hosted setting. Each hosted step needs its own exact approval.
 
 The candidate target is **not isolated QA**. Supabase organization
 `goutxcrujaxjjssbjfsn`, project `rfwhqutkiztxkagbhevp`, currently backs
 `glowflow.mocktar.com` and generic Preview. Scheduling cleanup there would
 mutate a shared live development backend. Never target MowFlow or assume that
 the future `glowflow.beauty` production project has the same state.
+
+The current first-stage, code-only migration is
+`20261109162926_glow56_cleanup_monitor_ready.sql`. It defines only the private,
+zero-argument `glow56_cleanup_monitor_ready()` boolean helper: one clock
+snapshot, two non-null full-sweep heartbeats, neither in the future, both less
+than 10 minutes old. It is `SECURITY INVOKER` with an empty search path and
+execution restricted to `postgres`. It does **not** install `pg_cron` or
+`pg_net`, read a Vault secret, create any job, send a ping, or run cleanup.
+It is not evidence that a scheduler is ready. An extension-capable disposable
+fixture matching the hosted PostgreSQL/Cron versions is still needed before
+any later inactive-job migration can be considered.
 
 ## Candidate execution contract
 
@@ -27,10 +39,10 @@ DEFINER`, while the quota sweep remains `SECURITY INVOKER`. Preserve their
 fixed search paths and restricted `EXECUTE` grants, and verify the proposed
 cron execution role can call both without granting them to `anon` or
 `authenticated`. No HTTP endpoint or application service-role key is needed
-to run the sweeps. The exact scheduling SQL, execution role,
-timeouts, permissions, and installation migration need their own reviewed
-proposal and disposable-PostgreSQL proof. Do not copy this paragraph into a
-SQL editor as an activation instruction.
+to run the sweeps. The exact scheduling SQL, execution role, timeouts,
+permissions, and installation migration need disposable-PostgreSQL proof and
+separate approval before hosted application. Do not copy this paragraph into
+a SQL editor as an activation instruction.
 
 Each invocation must commit its bounded progress. A partial pass is not a
 failure to roll back: its full-sweep heartbeat remains unset until that sweep
@@ -69,9 +81,18 @@ therefore be followed by a ping while both earlier full sweeps are still
 fresh. Persistent contention stops pings when freshness expires. This
 monitor detects recently completed sweeps, not every transient lock wait.
 
-The Healthchecks URL is a bearer secret. Store it in Supabase Vault, not in
-`cron.job.command`, source control, SQL logs, or response bodies. `pg_net`
-is asynchronous: a returned request ID proves only enqueueing; its HTTP
+The Healthchecks URL is a bearer secret. The candidate monitor looks it up
+at runtime by the fixed Vault name `glowflow_qa_booking_cleanup_ping_v1`;
+neither the URL nor its UUID may appear in `cron.job.command`, source control,
+SQL logs, or response bodies. A private, restricted monitor helper should
+return only non-secret status and reject a missing or malformed URL without
+printing it. Review access to `vault.decrypted_secrets`, the `pg_net` request
+queue, and Cron logs because the queued request may briefly contain the URL.
+The tagged `pg_net` 0.20.4 SQL grants PUBLIC access to its queue and response
+tables by default. Do not enqueue the bearer URL until the exact installed
+table grants have been inspected, restricted, and tested for `anon`,
+`authenticated`, and `service_role` as well as the intended execution role.
+`pg_net` is asynchronous: a returned request ID proves only enqueueing; its HTTP
 request starts after the database transaction commits. At activation,
 inspect the actual response and confirm the event appears in the intended
 Healthchecks check. Neither a sweep or monitor job marked `succeeded` nor
@@ -102,41 +123,62 @@ Installing `pg_cron` alone is not enough. The alert design may also require
 separately reviewed `pg_net` and Vault configuration. A November 9 read-only
 check of the exact GlowFlow project found `pg_cron` 1.6.4 and `pg_net` 0.20.4
 available but not installed, while Vault 0.3.1 was installed. Recheck every
-extension and privilege on the exact project before approval. Do not rely on
-this dated check or on presumed free-tier capacity.
+extension and privilege on the exact project before approval. A November 9
+read-only organization check reported `tier_pro`, not Free; that says nothing
+about incremental Cron, `pg_net`, or database-compute charges. The owner's
+no-new-payment limit still applies. Verify actual plan terms, project usage,
+disk headroom, and no incremental cost before any hosted installation or
+activation; do not upgrade, purchase, or change billing. Do not rely on
+either dated check.
 
 ## Staged approval and preflight
 
-1. Review the exact code-only migration and test evidence. In a disposable
-   local Postgres environment, prove role restrictions; bounded partial
-   progress; busy, error, and timeout handling; no false success signal;
-   repeated full sweeps; a monitor refusing stale or missing heartbeats;
-   missing Vault secret; and no anon/authenticated access to private cleanup
-   state. Include realistic backlog sizes and
-   cross-tenant fixtures. No live booking, payment, or notification is a
-   substitute for those tests.
+1. Review the first-stage helper migration and disposable tests of fresh,
+   stale, missing, and future heartbeats, plus role restrictions. Before any
+   later inactive-job or ping migration, prove bounded partial progress;
+   busy, error, and timeout handling; no false success signal; repeated full
+   sweeps; a monitor refusing stale or missing heartbeats; missing Vault
+   secret; and no anon/authenticated access to private cleanup state. Include
+   realistic backlog sizes and cross-tenant fixtures. No live booking,
+   payment, or notification is a substitute for those tests.
 2. Before *each* hosted change, freshly verify GlowFlow organization and
    project identity, the exact migration ledger and source hash, schema and
    function fingerprints, RLS/grants, gate mode, existing intent/quota policy
    and cleanup state, extension versions/ownership, existing `cron.job` names
    and commands, Vault/`pg_net` availability, and security/health advisories.
-   `cron.schedule` can overwrite an existing same-name job, so stop on any
-   unexplained difference or conflicting job. Do not run bulk
+   Record each existing Cron job's ID, name, schedule, command, database,
+   username, and active state; if `pg_cron` is absent, record that the catalog
+   is unavailable rather than assuming it is empty. `cron.schedule` can
+   overwrite an existing same-name job, so stop on any unexplained difference
+   or conflicting job. Do not run bulk
    `db push` or install into another project.
-3. Obtain explicit approval for the exact hosted extension/migration SQL,
-   matching history entry, Vault secret creation, job activation, and alert
-   configuration. A code merge is not that approval. Never place a
-   Healthchecks URL or database key in the approval record or logs.
-4. Stage jobs inactive only if the exact target version proves that creation
-   and deactivation are atomic; otherwise leave job creation out of the first
-   migration. Activate only the three reviewed jobs, with booking v2 still
-   off. Prove bounded partial passes eventually produce two fresh full-sweep
-   heartbeats;
+3. Obtain explicit approval for the exact hosted first-stage helper SQL and
+   matching history entry. A code merge is not that approval. The helper
+   migration installs no extension or job; verify its definition, owner,
+   search path, and restricted `EXECUTE` grants after any approved application.
+4. Obtain a **separate** approval for any later extension and inactive-job
+   migration. Stage jobs inactive only if an extension-capable disposable test
+   proves creation and deactivation are atomic on matching versions; otherwise
+   do not create jobs. After an approved inactive install, verify the three exact
+   names, IDs, commands, schedules, database, username, and `active = false`.
+   Wait past a scheduled interval and verify those IDs have no run history;
+   if anything ran, stop and use the scoped disable procedure below. Verify
+   booking v2 and the GitHub schedule remain off.
+5. Obtain separate explicit approval for Vault secret creation, job
+   activation, and alert configuration. Enter the Healthchecks bearer URL
+   through the Supabase Vault Dashboard UI under its fixed name, not as a
+   literal in a migration, SQL Editor query, terminal command, chat, or log.
+   Verify presence by name/ID and access controls without selecting or
+   displaying `decrypted_secret`; never put the URL or database key in an
+   approval record. If secret-safe entry or least-privilege access cannot be
+   verified, stop before activation.
+6. Activate only the three reviewed jobs, with booking v2 still off. Prove
+   bounded partial passes eventually produce two fresh full-sweep heartbeats;
    inspect `cron.job_run_details`, the `pg_net` response, and actual
    Healthchecks success and missed-ping delivery to both responders. Stop if
    backlog does not drain comfortably within the two-hour fence or if any
    signal is ambiguous.
-5. Only then consider separately approved quota/intent policy, gate
+7. Only then consider separately approved quota/intent policy, gate
    transition, application flag, and owner booking acceptance. Keep GLOW-56
    In Progress until the end-to-end hosted journey and rollback are verified.
 
@@ -144,8 +186,11 @@ this dated check or on presumed free-tier capacity.
 
 If a job is unsafe, stop new booking-v2 preparations using the reviewed
 contract-gate procedure and preserve existing-intent recovery. Unschedule
-**only** the exact GlowFlow job names after verifying their IDs and commands;
-wait for any in-flight invocation to finish and confirm no new runs. Never
+**only** the three exact GlowFlow jobs after matching each ID to its approved
+name, command, database, and username. First deactivate those IDs, wait for
+any in-flight invocation to finish, then unschedule by the supported ID or
+verified name and confirm those IDs have no new runs. Do not delete another
+job or its run history. Never
 `DROP EXTENSION pg_cron` as routine rollback: that can delete unrelated jobs.
 Do not clear policies, cleanup state, intent tombstones, or heartbeats just to
 make health checks green. If v2 has ever opened, do not return to the legacy
@@ -153,11 +198,15 @@ booking path; use the reviewed `v2_no_prepares` recovery-only mode. Every
 hosted disable or rollback requires its own scoped approval and fresh checks.
 
 References: [Supabase Cron](https://supabase.com/docs/guides/cron),
+[Cron job lifecycle](https://supabase.com/docs/guides/cron/quickstart),
 [Cron installation warning](https://supabase.com/docs/guides/cron/install),
 [pg_net asynchronous request behavior](https://supabase.com/docs/guides/database/extensions/pg_net),
+[pg_net 0.20.4 default grants](https://github.com/supabase/pg_net/blob/v0.20.4/sql/pg_net.sql),
+[Vault UI and secret guidance](https://supabase.com/docs/guides/database/vault),
 the existing GLOW-56 migration-defined sweep functions, and the
 [hosted gate evidence](GLOW-56-gate-hosted-smoke-plan.md). Provider behavior
 and plan limits must be rechecked at activation.
-The Supabase CLI was unavailable in the proposing workspace, so no migration
-filename was invented. Direct access to the Supabase changelog index was
-blocked; recheck current release notes before implementation.
+The Supabase CLI was unavailable during the prior design-only PR, so it did
+not invent a migration filename. Any new migration must be generated with the
+official CLI. Direct access to the Supabase changelog index was blocked;
+recheck current release notes before hosted implementation.
