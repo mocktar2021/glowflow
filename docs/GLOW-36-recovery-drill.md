@@ -12,7 +12,9 @@ The runner creates disposable source and restore databases, applies the Supabase
 - anonymous denial for client data and the intended public-profile column grants; and
 - the walk-in queue's Realtime publication membership.
 
-Both databases and the temporary archive are removed after success or failure. The ordinary unit suite tests that the runner fails closed for remote hosts, unexpected database names, and URL options.
+The runner also keeps a **separate synthetic Storage-file backup and checksum manifest** outside the database archive. After database restoration it confirms the file is absent from the restored file area, removes the source file, copies only from that separate backup, and checks that the restored bytes, size, bucket, object name, and ID match the restored database metadata and manifest. Unit tests reject a missing or tampered file, changed size/checksum, and mismatched bucket. This is a disposable local model of the two-source recovery contract, not a Supabase Storage API or historical hosted-file restore. It covers one synthetic object, not file-volume completeness or provider configuration.
+
+Both databases and the temporary archive and synthetic files are removed after success or failure. The ordinary unit suite also tests that the runner fails closed for remote hosts, unexpected database names, and URL options.
 
 Run it locally with PostgreSQL client tools matching the target server where possible:
 
@@ -22,7 +24,7 @@ $env:PSQL_BIN = 'C:\Program Files\PostgreSQL\14\bin\psql.exe'
 node tests/recovery-run.mjs
 ```
 
-The database-security workflow runs the same drill on PostgreSQL 16. When GitHub Actions minutes are unavailable, retain the local command output and record the PostgreSQL and client versions used.
+The database-security workflow runs the same drill on PostgreSQL 16. When GitHub Actions minutes are unavailable, retain the local command output and record the PostgreSQL and client versions used. A green result is not the historical database-plus-Storage exercise required for public paid launch; that remains a separate owner-reviewed gate.
 
 ## Hosted recovery runbook
 
