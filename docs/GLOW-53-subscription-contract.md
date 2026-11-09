@@ -12,9 +12,11 @@ browser request. A future server route must load the salon country, currency,
 and active team count from trusted tenant records and select a reviewed Price
 ID from its own nonempty catalog. Unknown fields, duplicate price mappings,
 market mismatches, and seat counts above the selected limit fail closed. The
-catalog contains no amounts: Stripe Prices, country-specific amounts, larger-team
-thresholds, message allowances, and any overage policy still need product-owner
-approval. No code currently calls the contract, so it cannot activate billing.
+future selector catalog maps reviewed Stripe Price IDs, not browser-supplied
+amounts. Approved Starter amounts are recorded separately below; larger-team
+thresholds and prices, message allowances, and any overage policy still need
+product-owner approval. No code currently calls the contract, so it cannot
+activate billing.
 
 ## Owner-approved Starter offer
 
