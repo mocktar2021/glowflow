@@ -16,6 +16,14 @@ test("changed or missing appointment recipient is superseded even if generation 
   assert.equal(deriveNotificationStatus({ ...base, currentAppointmentClientId: "client-a" }), "ready");
 });
 
+test("unknown consent and current-recipient checks both fail closed on a retry", () => {
+  const retry = { event_type: "retryable", retry_after: "2030-01-01T11:55:00Z",
+    lease_expires_at: null, occurred_at: "2030-01-01T11:00:00Z" };
+  assert.equal(deriveNotificationStatus({ ...base, consentStatus: "unexpected_status", latestAttempt: retry }), "awaiting_consent");
+  assert.equal(deriveNotificationStatus({ ...base, consentStatus: "unexpected_status",
+    currentAppointmentClientId: "client-b", latestAttempt: retry }), "superseded");
+});
+
 test("status read model blocks missing consent, opt-out, and inactive appointments", () => {
   assert.equal(deriveNotificationStatus({ ...base, consentStatus: null }), "awaiting_consent");
   assert.equal(deriveNotificationStatus({ ...base, consentStatus: "opted_out" }), "opted_out");
@@ -45,7 +53,7 @@ test("status read model distinguishes active, expired, retryable, and terminal a
   }
 });
 
-test("missing consent and opt-out take precedence over every nonterminal delivery state", () => {
+test("missing, unknown, and opted-out consent take precedence over every nonterminal delivery state", () => {
   const attempts = [
     null,
     { event_type: "claimed", retry_after: null, lease_expires_at: "2030-01-01T12:05:00Z", occurred_at: "2030-01-01T11:00:00Z" },
@@ -55,11 +63,11 @@ test("missing consent and opt-out take precedence over every nonterminal deliver
   ];
 
   for (const latestAttempt of attempts) {
-    for (const consentStatus of [null, "opted_out"]) {
+    for (const consentStatus of [null, "unexpected_status", "opted_out"]) {
       for (const scheduledFor of ["2030-01-01T11:00:00Z", "2030-01-01T13:00:00Z"]) {
         assert.equal(
           deriveNotificationStatus({ ...base, consentStatus, latestAttempt, scheduledFor }),
-          consentStatus === null ? "awaiting_consent" : "opted_out",
+          consentStatus === "opted_out" ? "opted_out" : "awaiting_consent",
           `${consentStatus ?? "missing consent"} must override ${latestAttempt?.event_type ?? "no attempt"} at ${scheduledFor}`,
         );
       }
