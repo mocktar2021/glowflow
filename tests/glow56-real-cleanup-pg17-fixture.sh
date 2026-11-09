@@ -48,6 +48,9 @@ trap cleanup EXIT
 # postgres role. The isolated database is owned by supabase_admin, so grant
 # CREATE explicitly rather than giving postgres superuser privileges.
 psql_admin -c "grant create on database \"$fixture_db\" to postgres" >/dev/null
+psql -X -w -v ON_ERROR_STOP=1 -At \
+  -h 127.0.0.1 -p 5432 -U supabase_admin -d "$fixture_db" \
+  -c 'grant create on schema public to postgres' >/dev/null
 
 if [[ "$(psql_test -c 'select current_user')" != 'postgres' ]]; then
   echo 'The migration test did not connect as postgres.' >&2
