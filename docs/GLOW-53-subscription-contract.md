@@ -46,24 +46,42 @@ activate billing.
 3. Define authoritative trial time-zone behavior, trial-ending
    notice, failed-payment grace period, downgrade/cancellation timing, service
    access during nonpayment, refunds, and support ownership.
-4. Determine the platform subscription seller, tax registrations, tax treatment,
-   invoice requirements, and applicable country-specific policy. The owner
-   reports adviser confirmation for North Carolina sales tax, but EU VAT
-   applicability is unknown and no registration is present. Do not enable
+4. Determine the platform subscription seller, tax registrations, invoice
+   requirements, and applicable country-specific policy. The owner reports
+   confirmation for North Carolina sales tax and intends reverse charge for
+   eligible EU business salons in France, Spain, Belgium, and Luxembourg. This
+   does not establish that every salon qualifies or settle seller establishment,
+   registration/OSS, or sales without a valid business VAT ID. Do not enable
    Stripe Tax merely by adding `automatic_tax`: it collects only where an active
    registration exists and must be verified with a sandbox calculation,
    including the taxability reason. Stripe Tax and automated filing may carry
-   fees, so obtain the owner's cost approval before enabling either.
+   fees, so verify pricing and obtain the owner's cost approval before enabling
+   either. The live and sandbox GlowFlow Stripe accounts were read-only checked
+   on 9 November 2026: both Tax Settings were `pending` without a head-office
+   address, and both had zero tax registrations, Products, and Prices.
 5. Before creating Stripe Products or Prices, confirm the correct product tax
-   code with the seller's tax adviser and set the monthly Prices to exclusive
-   tax behavior, matching the displayed before-tax amounts. Collect the salon's
-   billing location and, for EU business treatment, its VAT ID. [Stripe can
-   apply reverse charge](https://docs.stripe.com/tax/invoicing/tax-ids) to a
-   correctly formatted ID without verifying that it is valid; check EU IDs
-   through [VIES](https://europa.eu/youreurope/business/finance-and-tax/vat/check-vat-number-vies/index_en.htm)
-   and retain the result. Do not assume
-   that every salon qualifies for reverse charge or that a zero tax result means
-   tax setup succeeded.
+   code against the actual subscription delivery model and set the monthly
+   Prices to exclusive tax behavior, matching the displayed before-tax amounts.
+   A read-only [Stripe Tax Codes search](https://docs.stripe.com/tax/tax-codes)
+   returned `txcd_10103001`, SaaS for business use without a software download,
+   as a candidate for the current web subscription. This is not a legal
+   classification or an approved live Product; the owner must confirm the
+   product description before it is used. Collect the buyer's trusted billing
+   location, independently of the salon operating country, and, for EU
+   business treatment, its VAT ID. Stripe
+   [verifies EU VAT IDs with VIES asynchronously](https://docs.stripe.com/billing/customer/tax-ids),
+   but [Stripe Tax can apply reverse charge based on the ID's format even when
+   government verification is pending or unsuccessful](https://docs.stripe.com/tax/invoicing/tax-ids).
+   A future EU paid Checkout route must retrieve Stripe's tax-ID status and
+   require `verified` before applying GlowFlow's stricter reverse-charge path;
+   `pending`, `unverified`, `unavailable`, a missing ID, and duplicate
+   billing-country IDs fail closed. `lib/billing/eu-vat-evidence.ts` supplies
+   that inert server-side guard. Review name/address correspondence where VIES
+   returns it; Stripe does
+   not do that match for GlowFlow. Sandbox tax calculations must report
+   `taxability_reason: reverse_charge`; a zero amount or `not_collecting` is not
+   evidence of correct treatment. Neither this guard nor the owner's intended
+   reverse-charge policy determines legal eligibility for every sale.
 6. Review trial and automatic-renewal disclosures, a pre-charge reminder,
    accessible cancellation, and the invoice/receipt format for each market.
    Stripe Billing and Checkout can support these flows, but Stripe does not
