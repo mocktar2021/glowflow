@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { GlowFlowIntlProvider } from "@/components/glowflow/i18n-provider";
 import { LegalFooter } from "@/components/glowflow/legal-footer";
+import { PwaRegistration } from "@/components/glowflow/pwa-registration";
 import { isLocale, messages } from "@/lib/i18n";
 import { publicSiteOrigin } from "@/lib/public-site-origin";
 import "../globals.css";
@@ -55,7 +56,7 @@ export default async function LocaleLayout({
     <html lang={locale}>
       <body className="min-h-screen antialiased">
         <GlowFlowIntlProvider locale={locale} messages={messages[locale]}>
-          {children}<LegalFooter locale={locale} />
+          <PwaRegistration />{children}<LegalFooter locale={locale} />
         </GlowFlowIntlProvider>
       </body>
     </html>
