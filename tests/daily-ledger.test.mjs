@@ -114,6 +114,15 @@ test("rejects nonexistent source calendar dates instead of shifting payments int
   assert.equal(aggregateDailyLedger({ ...scope, entries: [row("2028-02-29T12:00:00Z", 100)] }).status, "ready");
 });
 
+test("rejects source hour 24 instead of silently moving a payment to the next day", () => {
+  for (const timestamp of ["2026-03-08T24:00:00Z", "2026-03-08T24:00:00-05:00"]) {
+    assert.deepEqual(aggregateDailyLedger({ ...scope, entries: [row(timestamp, 100)] }), {
+      status: "invalid", reason: "invalid_entry",
+    });
+  }
+  assert.equal(aggregateDailyLedger({ ...scope, entries: [row("2026-03-08T23:59:59Z", 100)] }).status, "ready");
+});
+
 test("rejects invalid scope, unbounded sets, and integer overflow", () => {
   assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: " \t ", entries: [] }), { status: "invalid", reason: "invalid_scope" });
   assert.deepEqual(aggregateDailyLedger({ ...scope, tenantId: 42, entries: [] }), { status: "invalid", reason: "invalid_scope" });
