@@ -70,8 +70,8 @@ $$;
 rollback;
 SQL
 
-collision_count="$(psql_fixture -v fixture_name="$collision_name" -c \
-  "select count(*) from cron.job where jobname = :'fixture_name'")"
+collision_count="$(psql_fixture -v fixture_name="$collision_name" <<< \
+  "select count(*) from cron.job where jobname = :'fixture_name';")"
 if [[ "$collision_count" != '0' ]]; then
   echo "Rolled-back collision job became visible." >&2
   exit 1
@@ -112,8 +112,8 @@ $$;
 commit;
 SQL
 
-job_id="$(psql_fixture -v fixture_name="$inactive_name" -c \
-  "select jobid from cron.job where jobname = :'fixture_name' and username = current_user")"
+job_id="$(psql_fixture -v fixture_name="$inactive_name" <<< \
+  "select jobid from cron.job where jobname = :'fixture_name' and username = current_user;")"
 if [[ ! "$job_id" =~ ^[0-9]+$ ]]; then
   echo "Expected one disposable inactive job ID." >&2
   exit 1
@@ -122,10 +122,10 @@ fi
 # Two five-second intervals are enough to catch accidental activation. This
 # is a CI observation, not proof of hosted scheduler or alert delivery.
 sleep 12
-active="$(psql_fixture -v fixture_id="$job_id" -c \
-  "select active from cron.job where jobid = :'fixture_id'::bigint")"
-run_count="$(psql_fixture -v fixture_id="$job_id" -c \
-  "select count(*) from cron.job_run_details where jobid = :'fixture_id'::bigint")"
+active="$(psql_fixture -v fixture_id="$job_id" <<< \
+  "select active from cron.job where jobid = :'fixture_id'::bigint;")"
+run_count="$(psql_fixture -v fixture_id="$job_id" <<< \
+  "select count(*) from cron.job_run_details where jobid = :'fixture_id'::bigint;")"
 if [[ "$active" != 'f' ]] || [[ "$run_count" != '0' ]]; then
   echo "Disposable inactive job activated or recorded a run." >&2
   exit 1
@@ -156,8 +156,8 @@ $$;
 commit;
 SQL
 
-remaining="$(psql_fixture -v fixture_id="$job_id" -c \
-  "select count(*) from cron.job where jobid = :'fixture_id'::bigint")"
+remaining="$(psql_fixture -v fixture_id="$job_id" <<< \
+  "select count(*) from cron.job where jobid = :'fixture_id'::bigint;")"
 if [[ "$remaining" != '0' ]]; then
   echo "Disposable inactive job remained after scoped cleanup." >&2
   exit 1
