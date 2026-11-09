@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 
@@ -22,6 +22,28 @@ function sql(input) {
     throw new Error(message.slice(0, 2500));
   }
   return result.stdout.trim().split('\n').at(-1);
+}
+
+function asyncSql(input) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(psql, ['-X', '-w', '-v', 'ON_ERROR_STOP=1', '-At', '-d', connection], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', value => { stdout += value; });
+    child.stderr.setEncoding('utf8').on('data', value => { stderr += value; });
+    child.on('error', reject);
+    child.on('close', code => {
+      if (code === 0) return resolve(stdout.trim().split('\n').at(-1));
+      let message = stderr || 'Local PostgreSQL command failed';
+      for (const value of [connection, connection && new URL(connection).password]) {
+        if (value) message = message.replaceAll(value, '[redacted]');
+      }
+      return reject(new Error(message.slice(0, 2500)));
+    });
+    child.stdin.end(input);
+  });
 }
 
 const state = input => JSON.parse(sql(input));
@@ -48,7 +70,7 @@ function drain(name, limit, maxCalls = 10) {
 }
 
 test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
-  { skip: !connection, timeout: 120_000 }, () => {
+  { skip: !connection, timeout: 120_000 }, async () => {
     const url = new URL(connection);
     assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
     assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname));
@@ -64,6 +86,15 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
       catch (error) { throw new Error(`Migration ${migration} failed: ${error.message}`); }
     }
     sql(readFileSync(new URL('tests/schema-authorization.sql', root), 'utf8'));
+    assert.equal(sql('select current_user'), 'postgres');
+    for (const signature of [
+      'sweep_public_booking_intents(integer)',
+      'sweep_public_booking_quota_counters(integer)',
+    ]) {
+      assert.equal(sql(`select has_function_privilege('postgres',
+        'public.${signature}','execute')`), 't',
+      'the proposed postgres-owned Cron job must be able to call the sweep RPC');
+    }
     sql(`insert into private.public_booking_intent_policy
       (prepared_ttl,retention_ttl,configured_at)
       values (interval '2 hours',interval '3 days',clock_timestamp());
@@ -126,6 +157,10 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
         now()-interval '25 hours',1,now()-interval '1 hour')`);
     const partialQuota = sweep('sweep_public_booking_quota_counters', 1);
     assert.equal(partialQuota.complete, false);
+    assert.equal(partialQuota.removed, 1);
+    assert.equal(sql(`select count(*) from private.public_booking_quota_counters
+      where expires_at <= clock_timestamp()`), '1',
+    'a separate single-call scheduler invocation must commit its bounded deletion');
     assert.equal(marker('public_booking_quota_cleanup_state'), 'f');
     assert.throws(() => bootstrap('0'), /booking_quota_cleanup_stale/);
     assert.ok(drain('sweep_public_booking_quota_counters', 1) <= 10);
@@ -138,6 +173,12 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
     const partialIntent = sweep('sweep_public_booking_intents', 1);
     assert.equal(partialIntent.complete, false);
     assert.equal(partialIntent.scrubbed, 1);
+    assert.equal(sql(`select count(*) from private.public_booking_intents
+      where id in ('${first.intent_id}','${second.intent_id}') and state='expired'
+        and client_full_name is null and client_phone is null and client_email is null`), '1',
+    'an incomplete single-call invocation must persist the first PII scrub');
+    assert.equal(sql(`select count(*) from private.public_booking_intents
+      where id in ('${first.intent_id}','${second.intent_id}') and state='prepared'`), '1');
     assert.equal(marker('public_booking_intent_cleanup_state'), 'f');
     assert.throws(() => prepare('c', starts[0]), /booking_intent_cleanup_stale/);
     assert.ok(drain('sweep_public_booking_intents', 1) <= 10);
@@ -147,4 +188,63 @@ test('GLOW-56 local cleanup cadence and missed-run fail-closed contract',
         and client_full_name is null and client_phone is null and client_email is null`), '2');
     assert.equal(prepare('c', starts[0]).state, 'prepared',
       'fresh completed sweeps reopen new preparations');
+
+    // The proposed pg_cron schedule calls each existing sweep once per job,
+    // in a separate committed transaction. Verify the production quota batch
+    // bound also makes progress across invocations without falsely refreshing
+    // the full-sweep heartbeat on its first, incomplete pass.
+    sql(`insert into private.public_booking_quota_counters
+      (action_bucket,scope,tenant_id,key_digest,window_start,hits,expires_at)
+      select 'bootstrap','ip','00000000-0000-0000-0000-000000000000',
+        repeat(md5('cron-quota-' || sequence_number::text),2),
+        now()-interval '25 hours',1,now()-interval '1 hour'
+      from generate_series(1,1001) as sequence_number`);
+    assert.equal(sql(`select count(*) from private.public_booking_quota_counters
+      where expires_at <= clock_timestamp()`), '1001');
+    const firstCronQuota = sweep('sweep_public_booking_quota_counters', 1000);
+    assert.equal(firstCronQuota.removed, 1000);
+    assert.equal(firstCronQuota.complete, false);
+    assert.equal(sql(`select count(*) from private.public_booking_quota_counters
+      where expires_at <= clock_timestamp()`), '1');
+    assert.equal(marker('public_booking_quota_cleanup_state'), 'f');
+    assert.throws(() => bootstrap('d'), /booking_quota_cleanup_stale/);
+    const secondCronQuota = sweep('sweep_public_booking_quota_counters', 1000);
+    assert.equal(secondCronQuota.removed, 1);
+    assert.equal(secondCronQuota.complete, true);
+    assert.equal(marker('public_booking_quota_cleanup_state'), 't');
+    assert.equal(state('select public.sweep_public_booking_quota_counters(1000)').complete, true,
+      'the postgres Cron job owner must be able to run the quota sweep itself');
+    assert.equal(state('select public.sweep_public_booking_intents(100)').complete, true,
+      'the postgres Cron job owner must be able to run the intent sweep itself');
+
+    // Overlapping Cron invocations must observe the existing advisory lock and
+    // leave a completed heartbeat unchanged rather than claim another sweep.
+    const held = asyncSql(`begin;
+      set application_name = 'glow56_cron_cleanup_hold';
+      select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+        'glowflow:public-booking-intent-cleanup', 0));
+      select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+        'glowflow:public-booking-quota-cleanup', 0));
+      select pg_catalog.pg_sleep(3); commit;`);
+    const waitForHold = async () => {
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        if (sql(`select count(*) from pg_stat_activity where datname=current_database()
+          and application_name='glow56_cron_cleanup_hold' and state='active'
+          and query like '%pg_sleep(3)%'`) === '1') return;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error('Cron cleanup fixture did not hold both advisory locks');
+    };
+    await Promise.race([waitForHold(), held.then(() => {
+      throw new Error('Cron cleanup fixture released both locks too soon');
+    })]);
+    const busyIntent = state('select public.sweep_public_booking_intents(100)');
+    const busyQuota = state('select public.sweep_public_booking_quota_counters(1000)');
+    assert.equal(busyIntent.busy, true);
+    assert.equal(busyIntent.complete, false);
+    assert.equal(busyQuota.busy, true);
+    assert.equal(busyQuota.complete, false);
+    assert.equal(marker('public_booking_intent_cleanup_state'), 't');
+    assert.equal(marker('public_booking_quota_cleanup_state'), 't');
+    await held;
   });
