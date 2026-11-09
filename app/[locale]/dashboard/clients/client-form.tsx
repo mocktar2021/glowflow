@@ -34,7 +34,7 @@ export function ClientForm({ locale, client }: { locale: Locale; client?: Client
       </label>
       {state.error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.error === "invalid" ? labels.invalid : labels.failed}</p>}
       {state.saved && <p role="status" className="text-sm text-green-800 dark:text-green-300">{labels.saved}</p>}
-      <button disabled={pending} className="min-h-11 rounded-xl bg-slate-950 px-5 font-semibold text-white disabled:opacity-60 dark:bg-[#e8bb82] dark:text-slate-950">{pending ? labels.saving : labels.save}</button>
+      <button disabled={pending} className="min-h-11 rounded-xl bg-primary px-5 font-semibold text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60">{pending ? labels.saving : labels.save}</button>
     </form>
   </section>;
 }

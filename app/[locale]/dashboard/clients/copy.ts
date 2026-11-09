@@ -37,5 +37,5 @@ export const copy = {
   },
 } as const;
 
-export const cardClass = "rounded-3xl border border-[#e4d6c5] bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#17191e] sm:p-7";
-export const inputClass = "mt-2 min-h-11 w-full rounded-xl border border-[#c9b8a4] bg-[#fffdf9] px-3 py-2 text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a56d37] dark:border-white/30 dark:bg-[#22252b] dark:text-white";
+export const cardClass = "rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-7";
+export const inputClass = "mt-2 min-h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-foreground focus-visible:outline-2 focus-visible:outline-primary";
