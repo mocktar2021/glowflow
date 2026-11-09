@@ -59,10 +59,12 @@ export async function createClient() {
           // The notification RPC's synthetic appointment is intentionally not
           // part of calendar/payment fixtures, but must exist for the status
           // page's independent current-recipient lookup.
+          const matchingRows = rows.filter((row) => values.includes(row[field]));
           if (table === "appointments" && field === "id" && values.includes("appointment-fixture")
               && rows.some((row) => row.tenant_id === "tenant-a")) {
-            rows = [{ id: "appointment-fixture", tenant_id: "tenant-a", client_id: "client-a" }];
-          } else rows = rows.filter((row) => values.includes(row[field]));
+            matchingRows.push({ id: "appointment-fixture", tenant_id: "tenant-a", client_id: "client-a" });
+          }
+          rows = matchingRows;
           return this;
         },
         order(field, { ascending = true } = {}) { rows.sort((a, b) => ascending ? String(a[field]).localeCompare(String(b[field])) : String(b[field]).localeCompare(String(a[field]))); return this; },
