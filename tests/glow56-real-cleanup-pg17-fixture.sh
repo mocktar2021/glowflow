@@ -44,6 +44,10 @@ cleanup() {
   psql_admin -c "drop database \"$fixture_db\" with (force)" >/dev/null
 }
 trap cleanup EXIT
+# The platform fixture creates schemas and trusted pgcrypto as the hosted
+# postgres role. The isolated database is owned by supabase_admin, so grant
+# CREATE explicitly rather than giving postgres superuser privileges.
+psql_admin -c "grant create on database \"$fixture_db\" to postgres" >/dev/null
 
 if [[ "$(psql_test -c 'select current_user')" != 'postgres' ]]; then
   echo 'The migration test did not connect as postgres.' >&2
