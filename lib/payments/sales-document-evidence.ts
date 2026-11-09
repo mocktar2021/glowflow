@@ -7,6 +7,7 @@ export type SalesDocumentEvidenceGap =
   | "seller_snapshot_missing"
   | "client_snapshot_missing"
   | "service_snapshot_missing"
+  | "adjustment_snapshot_missing"
   | "currency_missing"
   | "payment_snapshot_missing"
   | "tax_evidence_missing"
@@ -38,6 +39,7 @@ export function inspectSalesDocumentEvidence(input: unknown): {
   const client = record(candidate.client);
   const documentCurrency = candidate.currency;
   const services = candidate.services;
+  const adjustments = record(candidate.adjustments);
   const payment = record(candidate.payment);
   const tax = record(candidate.tax);
 
@@ -52,6 +54,12 @@ export function inspectSalesDocumentEvidence(input: unknown): {
     return !name(line.description) || !amount(line.amountMinor)
       || !currency(line.currency) || line.currency !== documentCurrency;
   })) gaps.push("service_snapshot_missing");
+  // Zero is a valid documented adjustment. An absent value is not evidence
+  // that no discount or tip applied to the underlying sale.
+  if (!amount(adjustments.discountMinor) || !amount(adjustments.tipMinor)
+    || !currency(adjustments.currency) || adjustments.currency !== documentCurrency) {
+    gaps.push("adjustment_snapshot_missing");
+  }
 
   const entries = payment.entries;
   const paymentDocumented = payment.status === "unpaid" ||

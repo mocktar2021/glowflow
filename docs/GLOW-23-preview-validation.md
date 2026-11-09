@@ -2,6 +2,8 @@
 
 This candidate provides an owner-only sandbox simulation. It does not enable real customer deposits or complete GLOW-23. Existing public booking behavior remains separate. Sandbox reservations do not appear in the salon calendar and cannot prevent real bookings.
 
+Sandbox Connect onboarding and deposits are both code-gated to a Vercel Preview using the QA Supabase project `rfwhqutkiztxkagbhevp`. Copying their flags or test key to a Production deployment, or pointing the Preview at another Supabase project, leaves both unavailable. This is a fail-closed code boundary, not a substitute for separate live Stripe credentials, production data, domain, tax, webhook, and operational approvals before a paid launch.
+
 ## Prepared configuration
 
 Keep production settings unchanged. On one protected Vercel preview only, provision:

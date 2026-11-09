@@ -1,5 +1,8 @@
 export function sandboxConfiguration(env: Record<string, string | undefined>) {
   if (env.GLOWFLOW_STRIPE_SANDBOX_ONBOARDING !== "true") return null;
+  // A copied sandbox flag must never expose test Connect onboarding in the paid app.
+  if (env.VERCEL_ENV !== "preview" ||
+      env.NEXT_PUBLIC_SUPABASE_URL !== "https://rfwhqutkiztxkagbhevp.supabase.co") return null;
   if (!/^rk_test_\S+$/.test(env.STRIPE_RESTRICTED_KEY ?? "")) return null;
   if (env.STRIPE_SANDBOX_ACCOUNT_ID !== "acct_1UCiSZDNDjGEQe6f") return null;
   try {

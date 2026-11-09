@@ -39,6 +39,16 @@ test("paid-deposit cancellation warns staff in each locale without promising a r
     "the notice must appear beside the cancel action only when a deposit was paid");
 });
 
+test("canceled paid-deposit cards keep a factual refund caveat after the cancel action disappears", async () => {
+  const page = await read("app/[locale]/dashboard/calendar/page.tsx");
+  for (const message of [
+    "L’annulation du rendez-vous n’a pas, à elle seule, remboursé l’acompte. Vérifiez tout remboursement séparément.",
+    "Canceling the appointment did not itself refund the deposit. Verify any refund separately.",
+    "Cancelar la cita no reembolsó por sí solo el depósito. Verifica cualquier reembolso por separado.",
+  ]) assert.ok(page.includes(message), `Missing localized canceled-deposit caveat: ${message}`);
+  assert.match(page, /appointment\.status === "canceled" && appointment\.deposit_paid \? <p role="note"[^>]*>\{labels\.canceledPaidNotice\}<\/p> : null/);
+});
+
 test("sandbox webhook does not mistake a refund event for a settled booking", async () => {
   const source = await read("lib/stripe-deposit-events.ts");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;

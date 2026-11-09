@@ -8,6 +8,8 @@ The `public.appointments` trigger runs in the same transaction as insertion or a
 
 The existing generation bump invalidates pending entries when start time or status changes. History is preserved for audit. The request key is the UUID form of `md5('glowflow:g27:email:' || appointment_id || ':' || generation)` and is stable across retries. The pre-existing service-role `schedule_appointment_notifications` RPC remains available, but manual callers replaying an automatically scheduled revision must use this key. The RPC intentionally rejects a different key for the same revision. The trigger does not change its semantics or silently replace its entries.
 
+The read-only salon notification page also compares each outbox recipient with the appointment's current client. A client reassignment without a generation bump displays the old message as superseded, not ready or retryable. If the tenant-scoped appointment lookup is unavailable or omits a referenced appointment, the page hides delivery statuses rather than guessing. This display check is not delivery authorization and does not enable a sender.
+
 The trigger is an internal `SECURITY DEFINER` function with an empty search path, table/operation guard, and no direct execute grant for public, anonymous, authenticated, or service roles. The existing appointment mutation path remains the authorization boundary. Existing outbox row-level security and delivery-eligibility checks remain in force.
 
 ## Review and rollout

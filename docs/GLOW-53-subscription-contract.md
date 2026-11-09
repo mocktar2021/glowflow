@@ -12,18 +12,25 @@ browser request. A future server route must load the salon country, currency,
 and active team count from trusted tenant records and select a reviewed Price
 ID from its own nonempty catalog. Unknown fields, duplicate price mappings,
 market mismatches, and seat counts above the selected limit fail closed. The
-catalog contains no amounts: Stripe Prices, country-specific amounts, larger-team
-thresholds, message allowances, and any overage policy still need product-owner
-approval. No code currently calls the contract, so it cannot activate billing.
+future selector catalog maps reviewed Stripe Price IDs, not browser-supplied
+amounts. Approved Starter amounts are recorded separately below; larger-team
+thresholds and prices, message allowances, and any overage policy still need
+product-owner approval. No code currently calls the contract, so it cannot
+activate billing.
 
 ## Owner-approved Starter offer
 
 - One month free, with a payment method collected at signup and automatic
   monthly billing after the trial. The trial ends on the same calendar date in
-  the following month, not after a fixed 30 days.
+  the following month, not after a fixed 30 days. When that date does not exist
+  next month (for example, January 31), use the last day of the next month.
 - Starter costs USD 19.99 per month for US salons, or EUR 14.99 per month for
-  salons in supported euro-area countries. Both displayed prices are before
-  applicable tax. Larger-team prices are not approved.
+  salons in exactly France, Spain, Belgium, and Luxembourg. Both displayed
+  prices are before applicable tax. Larger-team prices are not approved.
+- `lib/billing/starter-offer.ts` records only those five country/price pairs,
+  the three-person cap, and the one-calendar-month trial/month-end rule. Unsupported
+  markets return no offer. This pure module is not connected to Checkout,
+  Stripe Prices, tax calculation, or any production route.
 - Starter permits one owner plus two active staff, three active people total.
   The owner counts toward the limit. Pending invitation treatment still needs
   a rule before the team-size read model is implemented.
@@ -32,15 +39,17 @@ approval. No code currently calls the contract, so it cannot activate billing.
 
 ## Required decisions before a billing implementation
 
-1. Confirm exact supported euro-area launch countries, larger-team tiers and
-   prices, and how pending invitations reserve or do not reserve Starter seats.
+1. Define larger-team tiers and prices, and how pending invitations reserve or
+   do not reserve Starter seats.
 2. Define included SMS/WhatsApp quantities and whether excess usage is blocked,
    prepaid, or billed. Do not assume metered billing or new paid tooling.
-3. Define calendar-month end-of-month and time-zone behavior, trial-ending
+3. Define authoritative trial time-zone behavior, trial-ending
    notice, failed-payment grace period, downgrade/cancellation timing, service
    access during nonpayment, refunds, and support ownership.
 4. Determine the platform subscription seller, tax registrations, tax treatment,
-   invoice requirements, and applicable country-specific policy. Do not enable
+   invoice requirements, and applicable country-specific policy. The owner
+   reports adviser confirmation for North Carolina sales tax, but EU VAT
+   applicability is unknown and no registration is present. Do not enable
    Stripe Tax merely by adding `automatic_tax`: it collects only where an active
    registration exists and must be verified with a test calculation.
 
