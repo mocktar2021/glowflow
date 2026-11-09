@@ -88,6 +88,10 @@ SQL logs, or response bodies. A private, restricted monitor helper should
 return only non-secret status and reject a missing or malformed URL without
 printing it. Review access to `vault.decrypted_secrets`, the `pg_net` request
 queue, and Cron logs because the queued request may briefly contain the URL.
+The tagged `pg_net` 0.20.4 SQL grants PUBLIC access to its queue and response
+tables by default. Do not enqueue the bearer URL until the exact installed
+table grants have been inspected, restricted, and tested for `anon`,
+`authenticated`, and `service_role` as well as the intended execution role.
 `pg_net` is asynchronous: a returned request ID proves only enqueueing; its HTTP
 request starts after the database transaction commits. At activation,
 inspect the actual response and confirm the event appears in the intended
@@ -197,6 +201,7 @@ References: [Supabase Cron](https://supabase.com/docs/guides/cron),
 [Cron job lifecycle](https://supabase.com/docs/guides/cron/quickstart),
 [Cron installation warning](https://supabase.com/docs/guides/cron/install),
 [pg_net asynchronous request behavior](https://supabase.com/docs/guides/database/extensions/pg_net),
+[pg_net 0.20.4 default grants](https://github.com/supabase/pg_net/blob/v0.20.4/sql/pg_net.sql),
 [Vault UI and secret guidance](https://supabase.com/docs/guides/database/vault),
 the existing GLOW-56 migration-defined sweep functions, and the
 [hosted gate evidence](GLOW-56-gate-hosted-smoke-plan.md). Provider behavior
