@@ -3,6 +3,9 @@
 This code-only preparation does not switch the live domain. Until a separately
 approved cutover, Production public metadata and JSON-LD keep
 `https://glowflow.mocktar.com`. Preview continues to use its own Vercel URL.
+Production invitation delivery now refuses to compose links unless its explicit
+`GLOWFLOW_APP_URL` matches that same approved public origin. This is a dormant
+code guard, not permission to enable sending.
 
 At the beauty release window, the operator must verify the exact Vercel project,
 READY deployment, DNS/TLS, Auth redirect allowlist, and isolated production
