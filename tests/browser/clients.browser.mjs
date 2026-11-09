@@ -170,7 +170,9 @@ test("mobile client Save stays above the persistent workspace navigation", async
   try {
     await page.goto(`${origin}/en/dashboard/clients`);
     await page.locator('textarea[name="notes"]').fill("Synthetic layout-only note");
-    const save = await page.getByRole("button", { name: "Save", exact: true }).boundingBox();
+    const saveButton = page.getByRole("button", { name: "Save", exact: true });
+    await saveButton.scrollIntoViewIfNeeded();
+    const save = await saveButton.boundingBox();
     const navigation = await page.getByRole("navigation", { name: "Salon management" }).boundingBox();
     assert.ok(save && navigation && save.y + save.height <= navigation.y,
       "the mobile action must remain fully above the fixed navigation");

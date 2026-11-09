@@ -105,7 +105,7 @@ export async function WorkspaceShell({
       <div className="mt-auto border-t border-border pt-5 text-sm text-muted-foreground">{profile.full_name}</div>
     </aside>
 
-    <div className="min-w-0">
+    <div className="flex h-dvh min-w-0 flex-col lg:block lg:h-auto">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-5 py-4 sm:px-8">
         <Link href={`/${locale}/dashboard`} className="inline-flex items-center text-foreground lg:hidden" aria-label="GlowFlow">
           <BrandLogo className="h-9 w-32" />
@@ -118,8 +118,8 @@ export async function WorkspaceShell({
           </button></form>
         </div>
       </header>
-      {children}
-      <nav aria-label={labels.navigation} className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-card/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-20px_rgba(42,33,41,0.25)] backdrop-blur lg:hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-visible">{children}</div>
+      <nav aria-label={labels.navigation} className="z-30 grid grid-cols-4 border-t border-border bg-card/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-20px_rgba(42,33,41,0.25)] backdrop-blur lg:hidden">
         {mobileLinks.map(({ route, title, icon: Icon, current }) => <Link key={route} href={`/${locale}/dashboard${route ? `/${route}` : ""}`}
           aria-current={current ? "page" : undefined}
           className={`flex min-h-16 flex-col items-center justify-center gap-1 text-xs focus-visible:outline-2 focus-visible:outline-primary ${current ? "font-semibold text-primary" : "text-muted-foreground"}`}>
