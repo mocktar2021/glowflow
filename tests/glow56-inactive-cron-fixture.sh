@@ -47,9 +47,9 @@ begin
 end;
 $$;
 select cron.schedule_in_database(current_setting('glow56.fixture_name'), '5 seconds',
-  'select 1 /* glow56_disposable_collision */', current_database(), current_user, true);
+  'select 1 /* glow56_disposable_collision */', current_database(), null, true);
 select cron.schedule_in_database(current_setting('glow56.fixture_name'), '5 seconds',
-  'select 2 /* glow56_disposable_collision */', current_database(), current_user, false);
+  'select 2 /* glow56_disposable_collision */', current_database(), null, false);
 do $$
 declare
   found_job record;
@@ -90,7 +90,7 @@ begin
 end;
 $$;
 select cron.schedule_in_database(current_setting('glow56.fixture_name'), '5 seconds',
-  'select 1 /* glow56_disposable_inactive */', current_database(), current_user, false);
+  'select 1 /* glow56_disposable_inactive */', current_database(), null, false);
 do $$
 declare
   found_job record;
