@@ -45,6 +45,9 @@ database run succeeds. Supabase currently recommends no more than eight
 concurrent Cron jobs and no job longer than 10 minutes; these proposed
 minute-level jobs also need a measured runtime comfortably below one minute
 so their own runs do not accumulate.
+At the proposed limits, one-minute runs have theoretical ceilings of 6,000
+intent items and 60,000 quota counter items processed per hour, not a
+throughput guarantee or a bound on every SQL row touched.
 
 The database's existing new-admission fence requires fresh *complete* intent
 and quota sweeps within two hours. Keep that fail-closed behavior. The job
@@ -117,14 +120,18 @@ this dated check or on presumed free-tier capacity.
    function fingerprints, RLS/grants, gate mode, existing intent/quota policy
    and cleanup state, extension versions/ownership, existing `cron.job` names
    and commands, Vault/`pg_net` availability, and security/health advisories.
-   Stop on any unexplained difference or conflicting job. Do not run bulk
+   `cron.schedule` can overwrite an existing same-name job, so stop on any
+   unexplained difference or conflicting job. Do not run bulk
    `db push` or install into another project.
 3. Obtain explicit approval for the exact hosted extension/migration SQL,
    matching history entry, Vault secret creation, job activation, and alert
    configuration. A code merge is not that approval. Never place a
    Healthchecks URL or database key in the approval record or logs.
-4. Activate only the three reviewed jobs, with booking v2 still off. Prove
-   bounded partial passes eventually produce two fresh full-sweep heartbeats;
+4. Stage jobs inactive only if the exact target version proves that creation
+   and deactivation are atomic; otherwise leave job creation out of the first
+   migration. Activate only the three reviewed jobs, with booking v2 still
+   off. Prove bounded partial passes eventually produce two fresh full-sweep
+   heartbeats;
    inspect `cron.job_run_details`, the `pg_net` response, and actual
    Healthchecks success and missed-ping delivery to both responders. Stop if
    backlog does not drain comfortably within the two-hour fence or if any
@@ -151,3 +158,6 @@ References: [Supabase Cron](https://supabase.com/docs/guides/cron),
 the existing GLOW-56 migration-defined sweep functions, and the
 [hosted gate evidence](GLOW-56-gate-hosted-smoke-plan.md). Provider behavior
 and plan limits must be rechecked at activation.
+The Supabase CLI was unavailable in the proposing workspace, so no migration
+filename was invented. Direct access to the Supabase changelog index was
+blocked; recheck current release notes before implementation.
