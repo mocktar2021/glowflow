@@ -99,7 +99,9 @@ function configuredCookieMaxAge(): number | null {
 
 function cookieSigningKey(): Buffer | null {
   const encoded = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY;
-  if (!encoded || !keyPattern.test(encoded)) return null;
+  // A single leaked key must not grant both cookie signing and quota reset.
+  if (!encoded || !keyPattern.test(encoded)
+    || encoded === process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY) return null;
   const key = Buffer.from(encoded, "base64url");
   return key.length === 32 && key.toString("base64url") === encoded
     && !key.equals(Buffer.alloc(32)) ? key : null;

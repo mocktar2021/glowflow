@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const connection = process.env.GLOWFLOW_SANDBOX_TEST_DATABASE_URL;
 const psql = process.env.PSQL_BIN || "psql";
 const root = new URL("../", import.meta.url);
-const digest = letter => letter.repeat(64);
+const digest = label => /^[0-9a-f]$/.test(label) ? label.repeat(64)
+  : createHash("sha256").update(`local-qa-quota:${label}`).digest("hex");
 const capabilityDigest = label => createHmac("sha256", "local-test-only-capability-key")
   .update(label).digest("hex");
 const browserCapabilityDigest = browser => capabilityDigest(`browser:${browser}`);
@@ -62,6 +63,14 @@ test("capability quota fixtures are valid, domain-separated HMACs", () => {
   assert.match(intent, /^[0-9a-f]{64}$/);
   assert.notEqual(browser, intent);
   assert.notEqual(intent, intentCapabilityDigest("g", "i"));
+});
+
+test("approved QA quota fixture labels are valid 64-character hex digests", () => {
+  for (const label of ["q", "r", "s", "t", "u", "v", "w",
+    "prepare-full", "reconcile-full"]) {
+    assert.match(digest(label), /^[0-9a-f]{64}$/);
+  }
+  assert.notEqual(digest("q"), digest("r"));
 });
 
 test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !connection, timeout: 120_000 }, async () => {
@@ -270,6 +279,91 @@ test("GLOW-56 dormant quota is tenant-scoped, atomic, and bounded", { skip: !con
     "the bounded sweep must also remove expired capability counters");
   assert.equal(state(consume("bootstrap", "8")).allowed, true,
     "full sweep restores admission after a stale gate");
+
+  // Exercise the owner-approved QA-only values on this disposable database.
+  // The earlier tiny limits test race behavior; these check the actual cutover
+  // proposal without seeding any hosted policy or changing application code.
+  const secondsToApprovedWindowEnd = Number(sql(`select 300 -
+    (floor(extract(epoch from clock_timestamp()))::bigint % 300)`));
+  if (secondsToApprovedWindowEnd <= 45) {
+    await new Promise(resolve => setTimeout(resolve, (secondsToApprovedWindowEnd + 1) * 1000));
+  }
+  sql("delete from private.public_booking_quota_counters; delete from private.public_booking_quota_policy");
+  sql(`insert into private.public_booking_quota_policy
+    (action_bucket,window_seconds,ip_limit,browser_tenant_limit,intent_limit,configured_at)
+    values ('bootstrap',300,60,null,null,clock_timestamp()),
+      ('prepare',300,120,8,null,clock_timestamp()),
+      ('reconcile',300,240,30,null,clock_timestamp()),
+      ('commit',300,null,20,6,clock_timestamp()),
+      ('cancel',300,null,20,6,clock_timestamp()),
+      ('acknowledge',300,null,20,6,clock_timestamp())`);
+  assert.deepEqual(state(`select json_agg(json_build_array(action_bucket,window_seconds,
+    ip_limit,browser_tenant_limit,intent_limit) order by action_bucket)
+    from private.public_booking_quota_policy`), [
+    ["acknowledge", 300, null, 20, 6], ["bootstrap", 300, 60, null, null],
+    ["cancel", 300, null, 20, 6], ["commit", 300, null, 20, 6],
+    ["prepare", 300, 120, 8, null], ["reconcile", 300, 240, 30, null],
+  ]);
+  const seedApprovedCounter = (action, scope, key, hits) => sql(`with quota_window as (
+    select to_timestamp(floor(extract(epoch from statement_timestamp()) / 300) * 300) as starts_at
+  ) insert into private.public_booking_quota_counters
+    (action_bucket,scope,tenant_id,key_digest,window_start,hits,expires_at)
+    select '${action}','${scope}',${scope === "ip"
+      ? "'00000000-0000-0000-0000-000000000000'::uuid"
+      : "(select id from public.tenants where slug='fixture-a')"},
+      '${key}',starts_at,${hits},starts_at + interval '24 hours' from quota_window`);
+  const approvedHits = (action, scope, key) => Number(sql(`select coalesce(sum(hits),0)
+    from private.public_booking_quota_counters where action_bucket='${action}'
+      and scope='${scope}' and key_digest='${key}'`));
+  const deniedForApprovedWindow = result => {
+    assert.equal(result.allowed, false);
+    assert.ok(result.retry_after >= 1 && result.retry_after <= 300,
+      "the QA fixed window must bound the 429 Retry-After to five minutes");
+  };
+
+  seedApprovedCounter("bootstrap", "ip", digest("q"), 59);
+  assert.equal(state(consume("bootstrap", "q")).allowed, true);
+  deniedForApprovedWindow(state(consume("bootstrap", "q")));
+  assert.equal(approvedHits("bootstrap", "ip", digest("q")), 60);
+
+  for (const [action, ipCap, browserCap, ip, browser] of [
+    ["prepare", 120, 8, "r", "s"], ["reconcile", 240, 30, "t", "u"],
+  ]) {
+    seedApprovedCounter(action, "ip", digest(ip), ipCap - 1);
+    seedApprovedCounter(action, "browser_tenant", digest(browser), browserCap - 1);
+    assert.equal(state(consume(action, ip, browser, "fixture-a")).allowed, true);
+    deniedForApprovedWindow(state(consume(action, ip, browser, "fixture-a")));
+    assert.equal(approvedHits(action, "ip", digest(ip)), ipCap);
+    assert.equal(approvedHits(action, "browser_tenant", digest(browser)), browserCap);
+    deniedForApprovedWindow(state(consume(action, ip, "v", "fixture-a")));
+    assert.equal(approvedHits(action, "browser_tenant", digest("v")), 0,
+      "an exhausted shared IP must not partially burn a fresh browser bucket");
+    seedApprovedCounter(action, "browser_tenant", digest(`${action}-full`), browserCap);
+    deniedForApprovedWindow(state(consume(action, "w", `${action}-full`, "fixture-a")));
+    assert.equal(approvedHits(action, "ip", digest("w")), 0,
+      "an exhausted browser bucket must not partially burn shared IP capacity");
+  }
+
+  for (const action of ["commit", "cancel", "acknowledge"]) {
+    const browser = `${action}-browser`;
+    const intent = `${action}-intent`;
+    seedApprovedCounter(action, "browser_tenant", browserCapabilityDigest(browser), 19);
+    seedApprovedCounter(action, "intent_capability", intentCapabilityDigest(browser, intent), 5);
+    assert.equal(state(consumeCapability(action, browser, intent)).allowed, true);
+    deniedForApprovedWindow(state(consumeCapability(action, browser, intent)));
+    assert.equal(approvedHits(action, "browser_tenant", browserCapabilityDigest(browser)), 20);
+    assert.equal(approvedHits(action, "intent_capability", intentCapabilityDigest(browser, intent)), 6);
+    deniedForApprovedWindow(state(consumeCapability(action, browser, "fresh-intent")));
+    assert.equal(approvedHits(action, "intent_capability",
+      intentCapabilityDigest(browser, "fresh-intent")), 0,
+    "an exhausted browser bucket must not partially burn a fresh intent bucket");
+    const freshBrowser = `${action}-fresh-browser`;
+    const fullIntent = intentCapabilityDigest(freshBrowser, "full-intent");
+    seedApprovedCounter(action, "intent_capability", fullIntent, 6);
+    deniedForApprovedWindow(state(consumeCapability(action, freshBrowser, "full-intent")));
+    assert.equal(approvedHits(action, "browser_tenant", browserCapabilityDigest(freshBrowser)), 0,
+      "an exhausted intent bucket must not partially burn a fresh browser bucket");
+  }
 
   const rollback = readFileSync(new URL("supabase/rollbacks/20261104234445_drop_public_booking_quota.sql", root), "utf8");
   assert.throws(() => sql(rollback), /booking_quota_rows_present_preserve_limit/,

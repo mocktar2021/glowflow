@@ -1,21 +1,31 @@
 # GLOW-56 no-pay shared-backend cleanup schedule (dormant)
 
+The owner confirmed on November 9, 2026 that there is no separate GitHub
+reviewer for this repository. The protected-`master` review prerequisite
+below therefore cannot currently be met. Keep this GitHub schedule dormant,
+do not add a full Supabase service-role key or repository ACK, and review the
+code-only [database-local cleanup alternative](GLOW-56-database-local-cleanup-proposal.md)
+instead. This does not authorize installing `pg_cron` or activating v2.
+
 This is code only. [PR #224](https://github.com/mocktar2021/glowflow/pull/224)
 merged as `e53701510030db033155190b759858ad2b0f9d60` on November 5, 2026.
 The GitHub Actions cleanup job is deliberately skipped
 unless the **repository Actions variable** `GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK` is exactly
 `enable-glow56-qa-cleanup-20261105`.
-At merge, the owner's GitHub Settings screenshots showed no repository Actions
-variables, no variables or secrets in the `glowflow-qa-booking-cleanup`
-Environment, and no organization scope because `mocktar2021` is a personal
-account. This is a dated observation, not a continuing guarantee. There is no
-manual-dispatch trigger. The job remains skipped while the repository opt-in is
-absent. Before any activation, recheck the repository variable and Environment
-secret state;
-this connected workspace cannot read GitHub Actions variables. A code merge
-alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to Vercel, send a
-Healthchecks ping, or contact a customer. Do not set the variable until the
-steps below are separately reviewed and approved.
+At code merge, the owner's GitHub Settings screenshot showed no repository
+Actions variables; it did not show the dedicated cleanup Environment. A later
+owner screenshot showed a `glowflow-qa-booking-cleanup` Environment limited to
+`master`, with required reviewers and wait timer off and no Environment
+secrets or variables. The owner subsequently reported turning administrator
+bypass off. These are dated, owner-provided observations, not independent
+verification of the current settings. This connected workspace cannot read
+GitHub Actions variables or Environment protection settings. There is no manual-dispatch
+trigger. The job remains skipped while the repository opt-in is absent.
+Before any activation, recheck the repository variable, branch restriction,
+bypass control, and Environment secret state. A code merge
+alone does not apply SQL, seed a policy, turn on v2, deploy a scheduler to
+Vercel, send a Healthchecks ping, or contact a customer. Do not set the
+variable until the steps below are separately reviewed and approved.
 
 **This target is not isolated QA.** The fixed Supabase project
 `rfwhqutkiztxkagbhevp` backs the current live
@@ -86,13 +96,22 @@ two-hour deadline. Use a separate credential owner and backup for the GitHub
 Environment and Healthchecks account. Keep Healthchecks UUID URLs private:
 they are bearer credentials that can falsely mark a check healthy if leaked.
 
-The same owner screenshots show that the Environment permits administrators
-to bypass its protection rules and has no deployment-branch restriction. Do
-not add a service-role secret or opt in while either condition remains. Before
-storing the key, require reviewed changes to protected `master` and an
-Environment that permits only `master` with non-bypassable human approval.
-If this account cannot enforce those controls, do not store the key or opt in.
-Recheck the actual protection settings rather than relying on these screenshots.
+Scheduled cleanup must run unattended every 30 minutes. Do not require a
+human reviewer or wait timer on each Environment deployment: either would
+hold scheduled jobs and risk breaching the two-hour freshness fence. Instead,
+require an enforceable `master` ruleset before it can execute with the
+service-role secret: mandatory PR review and required CI/security checks,
+no direct or force pushes or branch deletion, and no administrator bypass.
+Keep the Environment restricted to `master` with its bypass control off.
+With no per-run reviewers, turning off Environment administrator bypass alone
+is not an approval gate or a substitute for protected `master`. Independently
+verify both sets of current GitHub settings before storing a key or opting in;
+the owner's report that Environment bypass was turned off is not verification.
+If the required branch rules or Environment restriction cannot be enforced,
+do not store the key or opt in.
+No secret or repository ACK is authorized by this runbook correction. The
+unattended schedule also requires tested Healthchecks failure and missed-ping
+alerts with named responders before activation.
 
 Before opt-in, verify the existing shared GlowFlow project identity and migration
 ledger, apply only separately approved hosted migrations, approve quota and

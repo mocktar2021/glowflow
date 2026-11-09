@@ -1,11 +1,13 @@
 # GLOW-56 capability action abuse budget
 
-Status: dormant draft implementation and activation design for same-browser v2
-booking. PR #197 now includes unseeded SQL buckets for `commit`, `cancel`, and
-`acknowledge`; the route must consume them before any action RPC. No policy,
-schedule, environment variable, or hosted state is activated. Action limits
-still need owner approval. A signed cookie and exact intent UUID authorize an
-operation, but do not limit how many times it can be attempted.
+Status: dormant implementation and activation design for same-browser v2
+booking. The SQL includes unseeded buckets for `commit`, `cancel`, and
+`acknowledge`; the route consumes them before each action RPC. On November 8,
+the owner approved the six numeric limits below for **QA planning only**
+([Jira GLOW-56 comment 12318](https://mocktarltd.atlassian.net/browse/GLOW-56)).
+No policy row, schedule, environment variable, or v2 mode is activated by
+that decision. A signed cookie and exact intent UUID authorize an operation,
+but do not limit how many times it can be attempted.
 
 ## Threat and safety boundary
 
@@ -36,8 +38,8 @@ separation for the browser and intent scopes and a distinct server-only quota
 key. Never store the raw cookie, IP, intent UUID, contact values, or an
 attacker-supplied slug in the counter key. The database row may carry the
 tenant ID and action. Preserve RLS, revoked anonymous/authenticated grants,
-service-role-only `SECURITY INVOKER` execution, and an unseeded policy until
-limits are approved.
+service-role-only `SECURITY INVOKER` execution, and an unseeded policy until a
+separate exact hosted policy change is approved.
 
 Use transaction-scoped advisory locks in a deterministic order: browser bucket
 then intent bucket. If combined with PR #197's IP bucket in a single function,
@@ -75,14 +77,34 @@ bounded counters, and an operational cleanup alert; missing action policy
 still fails closed. The approved 24-hour cookie, 2-hour prepared intent, and
 3-day terminal retention remain separate contracts, not quota defaults.
 
-## Decisions and verification before activation
+## Approved QA-only planning limits
 
-The owner must approve each action's browser and intent ceilings, window, and
-expected `Retry-After` UX. Review shared-device retries, two-tab concurrency,
-mobile network loss, and the risk of a compromised cookie exhausting its own
-budget. The cleanup cadence, lag threshold, alerts, secret rotation, and free
-plan firewall layer also need an operator plan. Do not seed limits or enable
-the v2 flag from this document.
+Each action has its own policy row and a 300-second fixed window. Blank cells
+mean that scope is not applicable to that action, not an unlimited bucket.
+
+| Action | Shared IP | Browser + salon | Browser + exact intent |
+| --- | ---: | ---: | ---: |
+| `bootstrap` | 60 | | |
+| `prepare` | 120 | 8 | |
+| `reconcile` | 240 | 30 | |
+| `commit` | | 20 | 6 |
+| `cancel` | | 20 | 6 |
+| `acknowledge` | | 20 | 6 |
+
+A denied request returns an integer `Retry-After` of at most 300 seconds. The
+browser must preserve the pending intent and changed-booking lock throughout
+that delay. The higher reconcile budget protects recovery relative to new
+booking attempts. Before any hosted seeding, validate realistic shared-network
+traffic, fixed-window bursts, shared-device and two-tab retries, mobile network
+loss, and the locked-booking 429 experience. A compromised cookie can still
+exhaust its own budget.
+
+These figures are **not production limits** for `glowflow.beauty`. Approval for
+QA planning does **not** authorize inserting policy rows, executing hosted SQL,
+changing Vercel or GitHub settings, starting cleanup, or enabling v2. Each
+hosted change needs its own fresh preflight and exact approval. The cleanup
+cadence, alerts, secret rotation, and free-plan firewall layer still need an
+operator plan.
 
 Required deterministic tests, with no live bookings or payments:
 

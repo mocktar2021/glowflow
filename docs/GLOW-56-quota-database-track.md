@@ -1,10 +1,18 @@
 # GLOW-56 dormant public-booking quota database track
 
-This draft stacks on the unmerged private-intent cleanup migration. It creates
-private RLS-protected policy, counter, and cleanup-state tables and three
-service-role-only RPCs. It seeds no quota policy, installs no schedule, and
-does not wire any route or feature flag. With no policy rows, consumption fails
-closed. No hosted Supabase change is authorized by this draft.
+**Current status (November 8, 2026):** the versioned GLOW-56 quota migration
+was applied to the named GlowFlow QA database with matching history as part of
+the 44-row ledger. The contract gate remains `legacy`, `ever_v2 = false`.
+The six numeric policy limits are owner-approved for **QA planning only** in
+[GLOW-56 comment 12318](https://mocktarltd.atlassian.net/browse/GLOW-56)
+and recorded in the [capability budget](GLOW-56-capability-abuse-budget.md).
+No quota policy row has been seeded, and the cleanup schedule and v2 remain
+inactive. This document authorizes no hosted SQL, policy seed, or activation.
+
+The migration creates private RLS-protected policy, counter, and cleanup-state
+tables and three service-role-only RPCs. With no policy rows, consumption fails
+closed. References below to a future route or draft activation are historical
+design context, not the current hosted state.
 
 The consumer resolves a salon slug inside PostgreSQL, accepts only 64-character
 lowercase HMAC digests supplied by a future trusted server route, and stores no
@@ -23,8 +31,8 @@ browser+tenant+intent bucket, locked in that order. Both buckets must have
 capacity before either increments; an exhausted intent bucket never burns
 browser capacity. The server must supply separate domain-separated HMACs for
 the browser and exact browser+intent pair. Raw cookie, intent UUID, and IP
-must not enter counter keys. These action policies remain unseeded until
-production ceilings receive separate approval.
+must not enter counter keys. These action policies remain unseeded; future
+production ceilings and any hosted QA seed each require separate approval.
 
 `bootstrap` and `prepare` require a full quota sweep within two hours. The
 bounded sweep handles 1–1000 expired rows per call and refreshes the signal

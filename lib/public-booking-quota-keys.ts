@@ -11,7 +11,9 @@ const intentPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function hmacKey(env: NodeJS.ProcessEnv): Buffer | null {
   const encoded = env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY;
-  if (!encoded || !keyPattern.test(encoded)) return null;
+  // Distinct purposes require distinct secrets, including during recovery.
+  if (!encoded || !keyPattern.test(encoded)
+    || encoded === env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY) return null;
   const key = Buffer.from(encoded, "base64url");
   return key.length === 32 && key.toString("base64url") === encoded
     && !key.equals(Buffer.alloc(32)) ? key : null;

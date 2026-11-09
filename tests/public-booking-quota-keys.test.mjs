@@ -41,6 +41,11 @@ test("untrusted runtime, missing key, and invalid key fail closed", () => {
   }
   assert.equal(publicBookingQuotaKeys(request("192.0.2.1"), "", env), null);
   assert.equal(publicBookingQuotaKeys(request("192.0.2.1"), "x".repeat(257), env), null);
+  assert.equal(publicBookingQuotaKeys(request("192.0.2.1"), null,
+    { ...env, GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY: encodedKey }), null);
+  assert.equal(publicBookingCapabilityQuotaKeys("signed-browser-cookie",
+    "11111111-1111-4111-8111-111111111111",
+    { ...env, GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_SIGNING_KEY: encodedKey }), null);
 });
 
 test("missing, malformed, chained, and conflicting forwarded IPs fail closed", () => {
