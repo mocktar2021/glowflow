@@ -10,6 +10,7 @@ const requiredTables = [
   'station_working_hours', 'stripe_sandbox_connections', 'stripe_sandbox_events',
   'stripe_sandbox_reservations', 'tenants', 'users', 'walk_in_queue',
 ];
+const glowflowSourceRef = 'rfwhqutkiztxkagbhevp';
 
 function exactKeys(value, keys, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
@@ -113,7 +114,8 @@ export function verifyHistoricalRestoreEvidence(expected, observed) {
   ref(expected.sourceProjectRef, 'Source project');
   ref(observed.sourceProjectRef, 'Observed source project');
   ref(observed.recoveryProjectRef, 'Recovery project');
-  if (expected.sourceProjectRef !== observed.sourceProjectRef
+  if (expected.sourceProjectRef !== glowflowSourceRef
+      || expected.sourceProjectRef !== observed.sourceProjectRef
       || expected.sourceProjectRef === observed.recoveryProjectRef) {
     throw new Error('Source and isolated recovery project identity mismatch.');
   }

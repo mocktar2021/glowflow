@@ -49,6 +49,7 @@ test('isolated historical-point aggregate and complete file manifest match', () 
 
 test('historical evidence rejects identity or recovery-point drift', () => {
   for (const mutate of [
+    x => { x.expected.sourceProjectRef = 'abcdefghijklmnopqrst'; x.observed.sourceProjectRef = 'abcdefghijklmnopqrst'; },
     x => { x.observed.recoveryProjectRef = x.expected.sourceProjectRef; },
     x => { x.observed.sourceProjectRef = 'abcdefghijklmnopqrst'; },
     x => { x.observed.recoveryPoint = '2026-11-02T12:00:00Z'; },
