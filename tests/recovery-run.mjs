@@ -1,11 +1,30 @@
 import { execFileSync } from 'node:child_process';
-import { randomInt } from 'node:crypto';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { createHash, randomInt } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
+const storageObject = {
+  id: '50000000-0000-4000-8000-000000000001',
+  bucket_id: 'salon-public-media',
+  name: '20000000-0000-4000-8000-000000000001/recovery.png',
+};
+const syntheticPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+
+export function verifyStorageSnapshotEntry(manifest, metadata, filePath) {
+  if (!manifest || !metadata || !filePath || !/^[a-f0-9]{64}$/.test(manifest.sha256)
+      || !Number.isSafeInteger(manifest.size) || manifest.size < 1
+      || ['id', 'bucket_id', 'name'].some(field => !manifest[field] || metadata[field] !== manifest[field])) {
+    throw new Error('Storage snapshot manifest or restored metadata does not match.');
+  }
+  const bytes = readFileSync(filePath);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  if (bytes.length !== manifest.size || sha256 !== manifest.sha256) {
+    throw new Error('Restored Storage object size or checksum does not match the separate backup.');
+  }
+}
 
 export function parseLoopbackAdminUrl(supplied) {
   if (!supplied) throw new Error('GLOWFLOW_RLS_ADMIN_DATABASE_URL is required; recovery tests must not skip.');
@@ -65,12 +84,27 @@ function main() {
   const urls = [admin, source, restored];
   const work = mkdtempSync(join(tmpdir(), 'glowflow-recovery-'));
   const archive = join(work, 'glowflow.dump');
+  const sourceObject = join(work, 'source', 'recovery.png');
+  const backupObject = join(work, 'storage-backup', 'recovery.png');
+  const backupManifest = join(work, 'storage-backup', 'manifest.json');
+  const restoredObject = join(work, 'restored', 'recovery.png');
   const created = [];
 
   const sql = (url, input) => run(psql, ['-X', '-w', '-v', 'ON_ERROR_STOP=1', '-At', '-d', url.href], urls, { input });
   const adminSql = query => run(psql, ['-X', '-w', '-v', 'ON_ERROR_STOP=1', '-At', '-d', admin.href, '-c', query], urls);
 
   try {
+    for (const directory of ['source', 'storage-backup', 'restored']) mkdirSync(join(work, directory));
+    writeFileSync(sourceObject, syntheticPng);
+    copyFileSync(sourceObject, backupObject);
+    const storageManifest = {
+      ...storageObject,
+      size: syntheticPng.length,
+      sha256: createHash('sha256').update(syntheticPng).digest('hex'),
+    };
+    writeFileSync(backupManifest, JSON.stringify(storageManifest));
+    verifyStorageSnapshotEntry(storageManifest, storageObject, backupObject);
+
     for (const name of [sourceName, restoredName]) {
       adminSql(`CREATE DATABASE "${name}"`);
       created.push(name);
@@ -94,7 +128,7 @@ function main() {
       values ('40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '{"fr":"Test restauration","en":"Recovery test","es":"Prueba de recuperación"}', 60, 10, 7500, 2500, 'hair', true, 'USD');
       insert into storage.buckets (id, name, public) values ('salon-public-media', 'salon-public-media', true)
       on conflict (id) do nothing;
-      insert into storage.objects (id, bucket_id, name) values ('50000000-0000-4000-8000-000000000001', 'salon-public-media', '20000000-0000-4000-8000-000000000001/recovery.jpg');
+      insert into storage.objects (id, bucket_id, name) values ('50000000-0000-4000-8000-000000000001', 'salon-public-media', '20000000-0000-4000-8000-000000000001/recovery.png');
     `);
 
     // Preserve grants because role boundaries are part of the recovered application.
@@ -116,7 +150,7 @@ function main() {
         if (select count(*) from public.clients where email = 'recovery-client@example.invalid') <> 1 then raise exception 'client row was not restored'; end if;
         if (select count(*) from public.services where id = '40000000-0000-4000-8000-000000000001') <> 1 then raise exception 'service row was not restored'; end if;
         if (select count(*) from storage.buckets where id = 'salon-public-media' and name = 'salon-public-media' and public) <> 1 then raise exception 'storage bucket definition was not restored'; end if;
-        if (select count(*) from storage.objects where name like '%/recovery.jpg') <> 1 then raise exception 'storage metadata was not restored'; end if;
+        if (select count(*) from storage.objects where id = '50000000-0000-4000-8000-000000000001' and bucket_id = 'salon-public-media' and name = '20000000-0000-4000-8000-000000000001/recovery.png') <> 1 then raise exception 'storage metadata was not restored'; end if;
         if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'clients' and policyname = 'clients_tenant_select') then raise exception 'critical tenant policy was not restored'; end if;
         if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'is_tenant_member') then raise exception 'authorization function was not restored'; end if;
         if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'walk_in_queue') then raise exception 'Realtime publication membership was not restored'; end if;
@@ -129,7 +163,16 @@ function main() {
     if (verification.replaceAll('\r', '') !== 'DO\nrecovery verification passed') {
       throw new Error(`Unexpected recovery verification output: ${verification}`);
     }
-    console.log('GlowFlow logical backup and restore drill passed with synthetic data.');
+    const metadata = JSON.parse(sql(restored, `
+      select row_to_json(object_row)
+      from (select id::text, bucket_id, name from storage.objects
+            where id = '${storageObject.id}') object_row;
+    `));
+    if (existsSync(restoredObject)) throw new Error('Restored Storage object unexpectedly existed before separate file recovery.');
+    rmSync(sourceObject);
+    copyFileSync(backupObject, restoredObject);
+    verifyStorageSnapshotEntry(JSON.parse(readFileSync(backupManifest, 'utf8')), metadata, restoredObject);
+    console.log('GlowFlow logical database and separate synthetic Storage file restore drill passed.');
   } finally {
     for (const name of created.reverse()) {
       try { adminSql(`DROP DATABASE "${name}" WITH (FORCE)`); } catch (error) { console.error(error.message); process.exitCode = 1; }
