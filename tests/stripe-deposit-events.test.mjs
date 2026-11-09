@@ -124,6 +124,58 @@ test("disabled preview configuration rejects processing and ignores unrelated si
   assert.equal((await POST(request(event("payment_intent.succeeded")))).status, 200);
   assert.equal(calls.length, 0);
 });
+test("signed malformed GlowFlow booking events retry and alert without leaking fields", async () => {
+  process.env.STRIPE_SANDBOX_WEBHOOK_SECRET = secret;
+  calls = [];
+  const logs = []; const original = console.error;
+  console.error = (...values) => logs.push(values);
+  try {
+    const changes = [
+      value => delete value.data.object.metadata.reservation_id,
+      value => delete value.data.object.metadata.appointment_id,
+      value => delete value.account,
+      value => delete value.data.object.object,
+      value => delete value.data.object.mode,
+      value => value.data.object.amount_total = 0,
+      value => value.data.object.payment_intent = null,
+    ];
+    for (const change of changes) {
+      const value = event(); change(value);
+      const response = await POST(request(value));
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { error: "event_processing_failed" });
+    }
+    assert.equal(calls.length, 0, "malformed events must never reach the settlement RPC");
+    assert.deepEqual(logs.map(([line]) => JSON.parse(line)), changes.map(() => ({
+      event: "glowflow_payment_failure", environment: "sandbox", stage: "webhook_event", code: "invalid_booking_fields",
+    })));
+    for (const values of logs) {
+      assert.equal(values.length, 1);
+      assert.ok(!values[0].includes(id), "booking IDs must not appear in diagnostics");
+      assert.ok(!values[0].includes("cs_test_fixture"), "Stripe IDs must not appear in diagnostics");
+    }
+
+    logs.length = 0;
+    const unpaid = event();
+    unpaid.data.object.payment_status = "unpaid";
+    unpaid.data.object.payment_intent = null;
+    assert.equal((await POST(request(unpaid))).status, 200, "valid delayed settlement is expected");
+    assert.equal(calls.length, 0);
+    assert.deepEqual(logs, []);
+
+    delete unpaid.data.object.metadata.reservation_id;
+    assert.equal((await POST(request(unpaid))).status, 503, "unpaid does not excuse missing correlation");
+    assert.equal(logs.length, 1);
+
+    logs.length = 0;
+    const unrelated = event(); unrelated.data.object.metadata.product = "other";
+    assert.equal((await POST(request(unrelated))).status, 200);
+    const subscription = event(); subscription.data.object.mode = "subscription";
+    assert.equal((await POST(request(subscription))).status, 200);
+    assert.equal(calls.length, 0);
+    assert.deepEqual(logs, [], "unrelated signed events do not create false alerts");
+  } finally { console.error = original; }
+});
 test("database failure and correlation rejection are retryable and never acknowledged", async () => {
   for (const failure of [{ error: { code: "08006", message: "private database details" } }, { error: { code: "22023" } }, new Error("private server details")]) {
     result = failure;

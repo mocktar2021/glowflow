@@ -2,7 +2,7 @@ import { reportPaymentFailure } from "@/lib/payment-diagnostics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createStripeClient } from "@/lib/stripe";
 import { sandboxDepositConfiguration } from "@/lib/stripe-deposits-config";
-import { sandboxDepositEventArguments } from "@/lib/stripe-deposit-events";
+import { retryMalformedSandboxDepositEvent, sandboxDepositEventArguments } from "@/lib/stripe-deposit-events";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_signature" }, { status: 400 });
   }
   const args = sandboxDepositEventArguments(event);
-  if (!args) return Response.json({ received: true });
+  if (!args) {
+    if (retryMalformedSandboxDepositEvent(event)) {
+      reportPaymentFailure("webhook_event", "invalid_booking_fields");
+      // This was signed and clearly belongs to this product. Retry and alert
+      // instead of silently losing a booking settlement event.
+      return Response.json({ error: "event_processing_failed" }, { status: 503 });
+    }
+    return Response.json({ received: true });
+  }
   try {
     // PostgreSQL locks the reservation and atomically validates correlation,
     // deduplicates delivery and applies monotonic settlement/reconciliation.
