@@ -39,7 +39,7 @@ test("status read model distinguishes active, expired, retryable, and terminal a
   }
 });
 
-test("missing consent and opt-out take precedence over every nonterminal delivery state", () => {
+test("missing, unknown, and opted-out consent take precedence over every nonterminal delivery state", () => {
   const attempts = [
     null,
     { event_type: "claimed", retry_after: null, lease_expires_at: "2030-01-01T12:05:00Z", occurred_at: "2030-01-01T11:00:00Z" },
@@ -49,11 +49,11 @@ test("missing consent and opt-out take precedence over every nonterminal deliver
   ];
 
   for (const latestAttempt of attempts) {
-    for (const consentStatus of [null, "opted_out"]) {
+    for (const consentStatus of [null, "unexpected_status", "opted_out"]) {
       for (const scheduledFor of ["2030-01-01T11:00:00Z", "2030-01-01T13:00:00Z"]) {
         assert.equal(
           deriveNotificationStatus({ ...base, consentStatus, latestAttempt, scheduledFor }),
-          consentStatus === null ? "awaiting_consent" : "opted_out",
+          consentStatus === "opted_out" ? "opted_out" : "awaiting_consent",
           `${consentStatus ?? "missing consent"} must override ${latestAttempt?.event_type ?? "no attempt"} at ${scheduledFor}`,
         );
       }

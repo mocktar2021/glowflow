@@ -107,7 +107,7 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
       scheduleGeneration: Number(row.schedule_generation),
       currentScheduleGeneration: row.current_schedule_generation === null ? null : Number(row.current_schedule_generation),
       appointmentStatus: row.appointment_status,
-      consentStatus: row.consent_status as "consented" | "opted_out" | null,
+      consentStatus: row.consent_status,
       latestAttempt: row.latest_event_type ? {
         event_type: row.latest_event_type,
         retry_after: row.latest_retry_after,
