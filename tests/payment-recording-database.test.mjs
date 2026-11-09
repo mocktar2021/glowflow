@@ -135,4 +135,86 @@ test("manual recording is idempotent and cannot concurrently exceed the appointm
     set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
     select public.cancel_calendar_appointment('50000000-0000-0000-0000-000000000001');
   `), /appointment_not_cancelable/);
+
+  // A previously settled provider deposit must reduce the balance collected
+  // at the salon. This exercises the full-schema ledger and owner RPC, not a
+  // live Stripe charge or a client-facing checkout screen.
+  sql(`
+    update public.tenants set stripe_account_id='acct_fixture'
+    where id='10000000-0000-0000-0000-000000000001';
+    insert into public.appointments(id,tenant_id,client_id,service_id,staff_id,start_time,end_time)
+    values(
+      '50000000-0000-0000-0000-000000000003',
+      '10000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      now()+interval '3 days',now()+interval '3 days 30 minutes'
+    );
+  `);
+  assert.equal(sql(`select service_deposit_amount from public.appointments
+    where id='50000000-0000-0000-0000-000000000003'`), '1000');
+  assert.throws(() => sql(`
+    set role service_role;
+    insert into public.payment_entries(
+      tenant_id,appointment_id,entry_type,payment_method,amount,currency,
+      provider_account_id,provider_payment_id,idempotency_key
+    ) values(
+      '10000000-0000-0000-0000-000000000001',
+      '50000000-0000-0000-0000-000000000003',
+      'payment','stripe',1000,'USD','acct_other','pi_fixture_deposit',
+      '66000000-0000-0000-0000-000000000005'
+    );
+  `), /payment_provider_account_mismatch/);
+  sql(`
+    set role service_role;
+    insert into public.payment_entries(
+      tenant_id,appointment_id,entry_type,payment_method,amount,currency,
+      provider_account_id,provider_payment_id,idempotency_key
+    ) values(
+      '10000000-0000-0000-0000-000000000001',
+      '50000000-0000-0000-0000-000000000003',
+      'payment','stripe',1000,'USD','acct_fixture','pi_fixture_deposit',
+      '66000000-0000-0000-0000-000000000005'
+    );
+  `);
+  assert.equal(sql(`select net_paid_amount from public.get_appointment_payment_summary(
+    '50000000-0000-0000-0000-000000000003')`), '1000');
+
+  const splitPayment = (method, amount, key) => sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select public.record_manual_appointment_payment(
+      '50000000-0000-0000-0000-000000000003',
+      '${method}',${amount},'${key}'
+    );
+  `).split('\n').at(-1);
+  const cashKey = '66000000-0000-0000-0000-000000000006';
+  const cardKey = '66000000-0000-0000-0000-000000000007';
+  const cashEntry = splitPayment('cash', 2500, cashKey);
+  assert.equal(splitPayment('cash', 2500, cashKey), cashEntry,
+    'an unchanged cash retry must not collect twice');
+  assert.throws(() => splitPayment('external_card', 1501, cardKey),
+    /payment_exceeds_outstanding_balance/);
+  assert.match(splitPayment('external_card', 1500, cardKey), /^[0-9a-f-]{36}$/);
+  assert.equal(sql(`select string_agg(payment_method || ':' || amount, ',' order by payment_method)
+    from public.payment_entries
+    where appointment_id='50000000-0000-0000-0000-000000000003'`),
+  'cash:2500,external_card:1500,stripe:1000');
+  assert.equal(sql(`select net_paid_amount from public.get_appointment_payment_summary(
+    '50000000-0000-0000-0000-000000000003')`), '5000');
+  assert.throws(() => splitPayment('cash', 1, '66000000-0000-0000-0000-000000000008'),
+    /payment_exceeds_outstanding_balance/);
+
+  sql(`
+    set role authenticated;
+    set request.jwt.claim.sub='20000000-0000-0000-0000-000000000001';
+    select public.cancel_calendar_appointment('50000000-0000-0000-0000-000000000003');
+  `);
+  assert.equal(sql(`select net_paid_amount from public.get_appointment_payment_summary(
+    '50000000-0000-0000-0000-000000000003')`), '5000',
+  'cancellation must not manufacture a provider refund');
+  assert.equal(sql(`select count(*) from public.payment_entries
+    where appointment_id='50000000-0000-0000-0000-000000000003'
+      and entry_type='refund'`), '0');
 });
