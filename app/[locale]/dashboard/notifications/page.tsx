@@ -66,6 +66,11 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
   const consentRows = consentResult.data as ConsentRow[] | null;
   const attemptRows = attemptResult.data as AttemptRow[] | null;
   const historyUnavailable = Boolean(consentResult.error || attemptResult.error || !consentRows || !attemptRows);
+  const appointmentIds = [...new Set((statusRows ?? []).map((row) => row.appointment_id))];
+  const { data: appointments, error: appointmentError } = appointmentIds.length
+    ? await supabase.from("appointments").select("id,client_id").eq("tenant_id", member.tenant_id).in("id", appointmentIds)
+    : { data: [], error: null };
+  const appointmentClients = new Map((appointments ?? []).map((appointment) => [appointment.id, appointment.client_id]));
   const clientIds = [...new Set([
     ...(statusRows ?? []).map((row) => row.client_id),
     ...(consentRows ?? []).map((row) => row.client_id),
@@ -75,6 +80,9 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
     : { data: [], error: null };
   const clientNames = new Map((clients ?? []).map((client) => [client.id, client.full_name]));
   if (clientError || !clients || clientIds.some((id) => !clientNames.has(id))) {
+    return <NotificationTemplatePreview locale={locale} statusUnavailable historyUnavailable />;
+  }
+  if (appointmentError || !appointments || appointmentIds.some((id) => !appointmentClients.has(id))) {
     return <NotificationTemplatePreview locale={locale} statusUnavailable historyUnavailable />;
   }
   const consents: NotificationConsentRecord[] = (consentRows ?? []).map((row) => ({
@@ -102,6 +110,8 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
     scheduledFor: row.scheduled_for,
     status: deriveNotificationStatus({
       scheduledFor: row.scheduled_for,
+      clientId: row.client_id,
+      currentAppointmentClientId: appointmentClients.get(row.appointment_id) ?? null,
       appointmentStartTime: row.appointment_start_time,
       currentAppointmentStartTime: row.current_appointment_start_time,
       scheduleGeneration: Number(row.schedule_generation),

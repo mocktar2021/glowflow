@@ -72,6 +72,7 @@ test("staff history maps a recorded opt-out and audit events without a send oper
     client_notification_consent_events: [{ id: "consent-2", client_id: "client-1", channel: "email", consent_status: "opted_out", occurred_at: "2030-06-14T12:00:00Z" }],
     notification_delivery_attempts: [{ id: "attempt-1", outbox_id: "outbox-1", event_type: "retryable", attempt_number: 1, occurred_at: "2030-06-14T11:00:00Z", error_code: "temporary_unavailable" }],
     clients: [{ id: "client-1", full_name: "Synthetic Client" }],
+    appointments: [{ id: "appointment-1", client_id: "client-1" }],
   };
   const query = (table) => ({
     select() { return this; },
@@ -102,10 +103,50 @@ test("staff history maps a recorded opt-out and audit events without a send oper
   assert.deepEqual(result.props.consents, [{ id: "consent-2", clientName: "Synthetic Client", channel: "email", status: "opted_out", occurredAt: "2030-06-14T12:00:00Z" }]);
   assert.deepEqual(result.props.attempts, [{ id: "attempt-1", outboxId: "outbox-1", eventType: "retryable", attemptNumber: 1, occurredAt: "2030-06-14T11:00:00Z", errorCode: "temporary_unavailable" }]);
   assert.deepEqual(calls.filter((call) => call[0] === "rpc"), [["rpc", "get_notification_status_rows", { target_tenant_id: "own-tenant", row_limit: 100 }]]);
-  for (const table of ["client_notification_consent_events", "notification_delivery_attempts", "clients"]) {
+  for (const table of ["client_notification_consent_events", "notification_delivery_attempts", "clients", "appointments"]) {
     assert.ok(calls.some((call) => call[0] === "eq" && call[1] === table && call[2] === "tenant_id" && call[3] === "own-tenant"));
   }
-  assert.deepEqual(calls.find((call) => call[0] === "in"), ["in", "clients", "id", ["client-1"]]);
+  assert.deepEqual(calls.find((call) => call[0] === "in" && call[1] === "clients"), ["in", "clients", "id", ["client-1"]]);
+  assert.ok(calls.some((call) => call[0] === "in" && call[1] === "appointments" && call[2] === "id" && call[3][0] === "appointment-1"));
+});
+
+test("notification page shows a former recipient as superseded and fails closed when recipient lookup fails", async () => {
+  const { deriveNotificationStatus } = await load("../lib/notifications/status.ts");
+  const row = { id: "outbox-1", appointment_id: "appointment-1", client_id: "former-client",
+    appointment_start_time: "2030-06-15T12:00:00Z", schedule_generation: 1,
+    notification_kind: "confirmation", channel: "email", scheduled_for: "2030-06-14T12:00:00Z",
+    appointment_status: "confirmed", current_appointment_start_time: "2030-06-15T12:00:00Z",
+    current_schedule_generation: 1, consent_status: "consented", latest_event_type: null,
+    latest_retry_after: null, latest_lease_expires_at: null, latest_occurred_at: null, attempt_count: 0 };
+  for (const recipientLookupError of [false, true]) {
+    const builder = (table) => ({
+      select() { return this; }, eq() { return this; }, in() { return this; }, order() { return this; }, limit() { return this; },
+      async single() { return { data: { tenant_id: "tenant-a", role: "owner" }, error: null }; },
+      then(resolve, reject) {
+        const data = table === "clients" ? [{ id: "former-client", full_name: "Former Client" }]
+          : table === "appointments" ? [{ id: "appointment-1", client_id: "new-client" }] : [];
+        return Promise.resolve({ data: recipientLookupError && table === "appointments" ? null : data,
+          error: recipientLookupError && table === "appointments" ? new Error("private diagnostic") : null }).then(resolve, reject);
+      },
+    });
+    const { default: Page } = await load("../app/[locale]/dashboard/notifications/page.tsx", {
+      "next/navigation": { notFound() { throw new Error("not-found"); }, redirect(path) { throw new Error(`redirect:${path}`); } },
+      "@/lib/i18n": { isLocale: () => true },
+      "@/lib/auth": { async requireUser() { return { userId: "owner", supabase: {
+        from(table) { return builder(table); }, async rpc() { return { data: [row], error: null }; },
+      } }; } },
+      "@/components/glowflow/notification-template-preview": { NotificationTemplatePreview: "preview" },
+      "@/lib/notifications/status": { deriveNotificationStatus },
+    });
+    const result = await Page({ params: Promise.resolve({ locale: "en" }) });
+    if (recipientLookupError) {
+      assert.equal(result.props.statusUnavailable, true);
+      assert.ok(!JSON.stringify(result.props).includes("private diagnostic"));
+    } else {
+      assert.equal(result.props.records[0].status, "superseded");
+      assert.equal(result.props.records[0].clientName, "Former Client");
+    }
+  }
 });
 
 test("preview identifies fictitious data in all interface languages and escapes template text", async () => {
@@ -148,6 +189,11 @@ test("read-only status and audit history are truthful, localized, and contain no
   assert.ok(html.includes("Consent history"));
   assert.ok(html.includes("Opt-out recorded"));
   assert.ok(html.includes("Delivery attempts"));
+  const superseded = renderToStaticMarkup(NotificationTemplatePreview({
+    locale: "en", records: [{ id: "stale", appointmentId: "appointment-a", clientName: "Former Client",
+      kind: "confirmation", channel: "email", scheduledFor: "2030-06-15T12:00:00Z", status: "superseded", attemptCount: 0 }],
+  }));
+  assert.ok(superseded.includes("Superseded after appointment change"));
   assert.ok(html.includes("temporary_unavailable"));
   assert.ok(html.includes("consent-a") && html.includes("attempt-a"));
   assert.ok(html.includes("The consent source is not yet recorded."));
