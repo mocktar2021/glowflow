@@ -11,6 +11,7 @@ const candidate = Object.freeze({
   seller: Object.freeze({ name: "Fixture salon" }),
   client: Object.freeze({ name: "Fixture client" }),
   services: Object.freeze([Object.freeze({ description: "Fixture service", amountMinor: 4200, currency: "EUR" })]),
+  adjustments: Object.freeze({ discountMinor: 0, tipMinor: 0, currency: "EUR" }),
   currency: "EUR",
   payment: Object.freeze({ status: "recorded", entries: Object.freeze([
     Object.freeze({ type: "payment", method: "cash", amountMinor: 2000, currency: "EUR" }),
@@ -27,10 +28,10 @@ test("a structurally populated candidate remains blocked from issuance", () => {
   assert.equal("invoiceNumber" in inspectSalesDocumentEvidence(candidate), false);
 });
 
-test("missing seller, client, service, currency, payment, tax and total fail closed", () => {
+test("missing seller, client, service, adjustments, currency, payment, tax and total fail closed", () => {
   assert.deepEqual(inspectSalesDocumentEvidence({}).gaps, [
     "issuance_policy_unapproved", "seller_snapshot_missing", "client_snapshot_missing",
-    "currency_missing", "service_snapshot_missing", "payment_snapshot_missing",
+    "currency_missing", "service_snapshot_missing", "adjustment_snapshot_missing", "payment_snapshot_missing",
     "tax_evidence_missing", "total_missing",
   ]);
   assert.deepEqual(inspectSalesDocumentEvidence(null).gaps, inspectSalesDocumentEvidence({}).gaps);
@@ -53,6 +54,18 @@ test("empty snapshots, unresolved tax and absent payment entries are not inferre
 test("an explicitly unpaid candidate needs no invented payment transaction", () => {
   assert.deepEqual(inspectSalesDocumentEvidence({ ...candidate, payment: { status: "unpaid" } }).gaps,
     ["issuance_policy_unapproved"]);
+});
+
+test("missing adjustments are not silently inferred as zero", () => {
+  for (const adjustments of [undefined, {}, { discountMinor: 0 },
+    { discountMinor: 0, tipMinor: -1, currency: "EUR" },
+    { discountMinor: 0.5, tipMinor: 0, currency: "EUR" },
+    { discountMinor: 0, tipMinor: 0, currency: "USD" }]) {
+    assert.ok(inspectSalesDocumentEvidence({ ...candidate, adjustments }).gaps.includes("adjustment_snapshot_missing"));
+  }
+  assert.deepEqual(inspectSalesDocumentEvidence({ ...candidate,
+    adjustments: { discountMinor: 200, tipMinor: 100, currency: "EUR" },
+  }).gaps, ["issuance_policy_unapproved"]);
 });
 
 test("mixed currencies and invalid amounts cannot satisfy the evidence inventory", () => {

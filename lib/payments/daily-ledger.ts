@@ -85,7 +85,7 @@ export function aggregateDailyLedger(input: {
     if ((entry.entry_type !== "payment" && entry.entry_type !== "refund")
       || !["cash", "external_card", "stripe"].includes(entry.payment_method)
       || !Number.isSafeInteger(entry.amount) || entry.amount <= 0
-      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(entry.occurred_at)
+      || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(entry.occurred_at)
       || !isIsoDate(entry.occurred_at.slice(0, 10))) {
       return { status: "invalid", reason: "invalid_entry" };
     }

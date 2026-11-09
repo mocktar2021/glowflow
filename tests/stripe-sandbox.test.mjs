@@ -6,7 +6,7 @@ import ts from "typescript";
 const source = await readFile(new URL("../lib/stripe-sandbox-config.ts", import.meta.url), "utf8");
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
 const { sandboxConfiguration, creationWindowOpen } = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
-const env = { GLOWFLOW_STRIPE_SANDBOX_ONBOARDING: "true", STRIPE_RESTRICTED_KEY: "rk_test_fixture", STRIPE_SANDBOX_ACCOUNT_ID: "acct_1UCiSZDNDjGEQe6f", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" };
+const env = { GLOWFLOW_STRIPE_SANDBOX_ONBOARDING: "true", VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_URL: "https://rfwhqutkiztxkagbhevp.supabase.co", STRIPE_RESTRICTED_KEY: "rk_test_fixture", STRIPE_SANDBOX_ACCOUNT_ID: "acct_1UCiSZDNDjGEQe6f", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" };
 
 test("sandbox onboarding requires explicit activation and the dedicated platform", () => {
   assert.equal(sandboxConfiguration({}), null);
@@ -18,6 +18,15 @@ test("live, unrestricted and missing keys cannot activate sandbox onboarding", (
   for (const key of ["rk_live_fixture", "sk_live_fixture", "sk_test_fixture", "", undefined]) {
     assert.equal(sandboxConfiguration({ ...env, STRIPE_RESTRICTED_KEY: key }), null);
   }
+});
+test("sandbox onboarding fails closed outside the dedicated QA preview", () => {
+  for (const patch of [
+    { VERCEL_ENV: "production" },
+    { VERCEL_ENV: "development" },
+    { VERCEL_ENV: undefined },
+    { NEXT_PUBLIC_SUPABASE_URL: "https://other.supabase.co" },
+    { NEXT_PUBLIC_SUPABASE_URL: undefined },
+  ]) assert.equal(sandboxConfiguration({ ...env, ...patch }), null);
 });
 test("callback origin rejects credentials, paths and insecure URLs", () => {
   for (const origin of ["http://example.com", "https://user:pass@example.com", "https://example.com/path", "https://example.com/?next=evil", "https://example.com/#fragment", "invalid"]) {

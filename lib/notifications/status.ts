@@ -21,12 +21,15 @@ export type NotificationAttempt = {
 
 export type NotificationStatusInput = {
   scheduledFor: string;
+  clientId: string;
+  currentAppointmentClientId: string | null;
   appointmentStartTime: string;
   currentAppointmentStartTime: string | null;
   scheduleGeneration: number;
   currentScheduleGeneration: number | null;
   appointmentStatus: string | null;
-  consentStatus: "consented" | "opted_out" | null;
+  // Status rows cross a database boundary; unknown values must remain unapproved.
+  consentStatus: string | null;
   latestAttempt: NotificationAttempt | null;
   now?: Date;
 };
@@ -46,6 +49,7 @@ export function deriveNotificationStatus(input: NotificationStatusInput): Notifi
   if (attempt?.event_type === "failed") return "failed";
   if (attempt?.event_type === "canceled") return "canceled";
   if (input.appointmentStatus !== "confirmed") return "appointment_inactive";
+  if (!input.currentAppointmentClientId || input.clientId !== input.currentAppointmentClientId) return "superseded";
   const originalStart = time(input.appointmentStartTime);
   const currentStart = time(input.currentAppointmentStartTime);
   if (input.scheduleGeneration !== input.currentScheduleGeneration

@@ -26,8 +26,9 @@ test("FR/EN/ES explain benefits and distinguish planned Starter prices from live
       assert.ok(copy[key].length > 0, `${locale}.${key} must be present`);
     }
     assert.ok(copy.accountBenefit.length > 20 && copy.salonBenefit.length > 20);
-    assert.match(copy.pricingPreview, /19[,.]99/);
-    assert.match(copy.pricingPreview, /14[,.]99/);
+    assert.match(copy.pricingPreview, /29[,.]99/);
+    assert.match(copy.pricingPreview, /24[,.]99/);
+    assert.doesNotMatch(copy.pricingPreview, /(?:19|14)[,.]99/);
     assert.doesNotMatch(Object.values(copy).join(" "), /\u2014/);
   }
 });
