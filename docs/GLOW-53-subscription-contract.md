@@ -22,8 +22,12 @@ approval. No code currently calls the contract, so it cannot activate billing.
   monthly billing after the trial. The trial ends on the same calendar date in
   the following month, not after a fixed 30 days.
 - Starter costs USD 19.99 per month for US salons, or EUR 14.99 per month for
-  salons in supported euro-area countries. Both displayed prices are before
-  applicable tax. Larger-team prices are not approved.
+  salons in exactly France, Spain, Belgium, and Luxembourg. Both displayed
+  prices are before applicable tax. Larger-team prices are not approved.
+- `lib/billing/starter-offer.ts` records only those five country/price pairs,
+  the three-person cap, and the one-calendar-month trial rule. Unsupported
+  markets return no offer. This pure module is not connected to Checkout,
+  Stripe Prices, tax calculation, or any production route.
 - Starter permits one owner plus two active staff, three active people total.
   The owner counts toward the limit. Pending invitation treatment still needs
   a rule before the team-size read model is implemented.
@@ -32,8 +36,8 @@ approval. No code currently calls the contract, so it cannot activate billing.
 
 ## Required decisions before a billing implementation
 
-1. Confirm exact supported euro-area launch countries, larger-team tiers and
-   prices, and how pending invitations reserve or do not reserve Starter seats.
+1. Define larger-team tiers and prices, and how pending invitations reserve or
+   do not reserve Starter seats.
 2. Define included SMS/WhatsApp quantities and whether excess usage is blocked,
    prepaid, or billed. Do not assume metered billing or new paid tooling.
 3. Define calendar-month end-of-month and time-zone behavior, trial-ending
