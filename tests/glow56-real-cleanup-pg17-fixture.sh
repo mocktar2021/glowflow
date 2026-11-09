@@ -73,9 +73,14 @@ if [[ "$(psql_test -c 'select private.glow56_cleanup_monitor_ready()')" != 't' ]
   exit 1
 fi
 
-# Match Supabase's documented Cron installation grants, but only inside the
-# disposable database service. No extension or job is installed on GlowFlow.
-psql_admin -c 'grant usage on schema cron to postgres; grant all privileges on all tables in schema cron to postgres' >/dev/null
+# Use the pinned Supabase image's actual post-install Cron ACLs. In
+# particular, postgres must not need direct writes to cron.job; the supported
+# schedule_in_database API is the only path exercised below.
+cron_acl="$(psql_admin -c "select has_schema_privilege('postgres','cron','USAGE'), has_table_privilege('postgres','cron.job','SELECT'), has_table_privilege('postgres','cron.job','INSERT,UPDATE,DELETE')")"
+if [[ "$cron_acl" != 't|t|f' ]]; then
+  echo "Unexpected disposable Cron ACLs for postgres: $cron_acl" >&2
+  exit 1
+fi
 if [[ "$(psql_admin -c "select has_function_privilege('postgres', 'cron.schedule_in_database(text,text,text,text,text,boolean)', 'EXECUTE')")" != 't' ]]; then
   echo 'The intended postgres role cannot call the inactive scheduling API.' >&2
   exit 1
