@@ -57,7 +57,11 @@ activate billing.
 5. Before creating Stripe Products or Prices, confirm the correct product tax
    code with the seller's tax adviser and set the monthly Prices to exclusive
    tax behavior, matching the displayed before-tax amounts. Collect the salon's
-   billing location and, for EU business treatment, its VAT ID. Do not assume
+   billing location and, for EU business treatment, its VAT ID. [Stripe can
+   apply reverse charge](https://docs.stripe.com/tax/invoicing/tax-ids) to a
+   correctly formatted ID without verifying that it is valid; check EU IDs
+   through [VIES](https://europa.eu/youreurope/business/finance-and-tax/vat/check-vat-number-vies/index_en.htm)
+   and retain the result. Do not assume
    that every salon qualifies for reverse charge or that a zero tax result means
    tax setup succeeded.
 6. Review trial and automatic-renewal disclosures, a pre-charge reminder,
