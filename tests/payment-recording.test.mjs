@@ -52,6 +52,8 @@ test("migration enforces trusted snapshots, ownership, idempotency, and payment 
 
 test("payments page uses bounded grouped summaries and fails closed on query errors", async () => {
   const page = await readFile(new URL("../app/[locale]/dashboard/payments/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /from\("appointments"\)\s*\.select\("id,start_time,service_title_json,service_price,service_currency"\)\s*\.eq\("tenant_id", owner\.tenant\.id\)/,
+    "the owner payment list must explicitly scope appointments to the selected tenant in addition to RLS");
   assert.match(page, /rpc\("get_appointment_payment_summaries"/);
   assert.match(page, /target_appointment_ids: appointmentIds/);
   assert.doesNotMatch(page, /from\("payment_entries"\)/);
