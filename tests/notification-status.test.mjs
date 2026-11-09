@@ -8,7 +8,13 @@ const loaded = { exports: {} };
 new Function("module", "exports", ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(loaded, loaded.exports);
 const { deriveNotificationStatus } = loaded.exports;
 const now = new Date("2030-01-01T12:00:00Z");
-const base = { scheduledFor: "2030-01-01T11:00:00Z", appointmentStartTime: "2030-01-02T12:00:00Z", currentAppointmentStartTime: "2030-01-02T12:00:00Z", scheduleGeneration: 2, currentScheduleGeneration: 2, appointmentStatus: "confirmed", consentStatus: "consented", latestAttempt: null, now };
+const base = { scheduledFor: "2030-01-01T11:00:00Z", clientId: "client-a", currentAppointmentClientId: "client-a", appointmentStartTime: "2030-01-02T12:00:00Z", currentAppointmentStartTime: "2030-01-02T12:00:00Z", scheduleGeneration: 2, currentScheduleGeneration: 2, appointmentStatus: "confirmed", consentStatus: "consented", latestAttempt: null, now };
+
+test("changed or missing appointment recipient is superseded even if generation and time match", () => {
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentClientId: "client-b" }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentClientId: null }), "superseded");
+  assert.equal(deriveNotificationStatus({ ...base, currentAppointmentClientId: "client-a" }), "ready");
+});
 
 test("status read model blocks missing consent, opt-out, and inactive appointments", () => {
   assert.equal(deriveNotificationStatus({ ...base, consentStatus: null }), "awaiting_consent");

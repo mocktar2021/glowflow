@@ -55,7 +55,18 @@ export async function createClient() {
         gte(field, value) { rows = rows.filter((row) => String(row[field]) >= value); return this; },
         lt(field, value) { rows = rows.filter((row) => String(row[field]) < value); return this; },
         ilike(field, pattern) { const term = pattern.replace(/^%|%$/g, "").toLocaleLowerCase(); rows = rows.filter((row) => String(row[field] ?? "").toLocaleLowerCase().includes(term)); return this; },
-        in(field, values) { rows = rows.filter((row) => values.includes(row[field])); return this; },
+        in(field, values) {
+          // The notification RPC's synthetic appointment is intentionally not
+          // part of calendar/payment fixtures, but must exist for the status
+          // page's independent current-recipient lookup.
+          const matchingRows = rows.filter((row) => values.includes(row[field]));
+          if (table === "appointments" && field === "id" && values.includes("appointment-fixture")
+              && rows.some((row) => row.tenant_id === "tenant-a")) {
+            matchingRows.push({ id: "appointment-fixture", tenant_id: "tenant-a", client_id: "client-a" });
+          }
+          rows = matchingRows;
+          return this;
+        },
         order(field, { ascending = true } = {}) { rows.sort((a, b) => ascending ? String(a[field]).localeCompare(String(b[field])) : String(b[field]).localeCompare(String(a[field]))); return this; },
         limit(count) { rows = rows.slice(0, count); return this; },
         async single() {
