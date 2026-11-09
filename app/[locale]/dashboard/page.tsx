@@ -4,7 +4,6 @@ import {
   CalendarDays,
   CreditCard,
   Globe,
-  LogOut,
   MailPlus,
   Package,
   Scissors,
@@ -13,12 +12,10 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { BrandLogo } from "@/components/glowflow/brand-logo";
-import { LanguageSwitcher } from "@/components/glowflow/language-switcher";
+import { WorkspaceShell } from "@/components/glowflow/workspace-shell";
 import { requireUser } from "@/lib/auth";
 import { isLocale } from "@/lib/i18n";
 import { staffInvitationManagementEnabled } from "@/lib/staff-invitations";
-import { signOut } from "../auth-actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
@@ -85,30 +82,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const quickLinks = links.filter(({ route }) => ["calendar", "clients", "walk-ins", "public-profile"].includes(route));
 
   return (
-    <main className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[250px_minmax(0,1fr)]">
-      <aside className="hidden border-r border-border bg-muted px-4 py-6 lg:flex lg:flex-col" aria-label={labels.navigation}>
-        <Link href={`/${locale}/dashboard`} className="inline-flex min-h-12 items-center px-2 text-foreground focus-visible:outline-2 focus-visible:outline-primary">
-          <BrandLogo className="h-10 w-36" />
-        </Link>
-        <div className="mt-5 rounded-2xl border border-border bg-card p-3">
-          <p className="truncate text-sm font-semibold">{tenant.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{tenant.country_code} · {tenant.currency}</p>
-        </div>
-        <nav aria-label={labels.navigation} className="mt-6 space-y-1">
-          <Link href={`/${locale}/dashboard`} aria-current="page" className="flex min-h-11 items-center gap-3 rounded-xl bg-secondary px-3 text-sm font-semibold text-secondary-foreground"><CalendarClock className="size-4" aria-hidden="true" />{labels.today}</Link>
-          {links.map(({ route, title, icon: Icon }) => <Link key={route} href={`/${locale}/dashboard/${route}`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-foreground hover:bg-card focus-visible:outline-2 focus-visible:outline-primary"><Icon className="size-4 text-muted-foreground" strokeWidth={1.6} aria-hidden="true" />{title}</Link>)}
-        </nav>
-        <div className="mt-auto border-t border-border pt-5 text-sm text-muted-foreground">{profile.full_name}</div>
-      </aside>
-
-      <div className="min-w-0">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-5 py-4 sm:px-8">
-          <Link href={`/${locale}/dashboard`} className="inline-flex items-center text-foreground lg:hidden" aria-label="GlowFlow"><BrandLogo className="h-9 w-32" /></Link>
-          <span className="hidden text-sm font-medium text-muted-foreground lg:block">{tenant.name}</span>
-          <div className="flex items-center gap-2"><LanguageSwitcher locale={locale} /><form action={signOut.bind(null, locale)}><button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-input bg-card px-4 text-sm font-semibold hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary"><LogOut className="size-4" aria-hidden="true" /><span className="hidden sm:inline">{labels.signOut}</span></button></form></div>
-        </header>
-
-        <div className="mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-8 sm:pt-14 lg:pb-16">
+    <WorkspaceShell locale={locale} active="today">
+      <main className="mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-8 sm:pt-14 lg:pb-16">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-champagne-deep dark:text-[#d9b48f]">{labels.eyebrow}</p>
           <h1 className="mt-4 font-display text-5xl font-medium leading-tight sm:text-6xl">{labels.greeting}, <em className="font-normal text-primary">{firstName}</em></h1>
           <p className="mt-2 text-sm text-muted-foreground">{date} · {tenant.time_zone}</p>
@@ -123,15 +98,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
             </section>
             <section className="rounded-[1.75rem] border border-border bg-muted p-7 sm:p-9" aria-labelledby="quick-title"><h2 id="quick-title" className="font-display text-4xl font-medium">{labels.quickTitle}</h2><p className="mt-3 text-sm text-muted-foreground">{labels.quickBody}</p><div className="mt-7 grid gap-3">{quickLinks.map(({ route, title, icon: Icon }) => <Link key={route} href={`/${locale}/dashboard/${route}`} className="flex min-h-14 items-center gap-3 rounded-2xl border border-border bg-card px-4 text-sm font-semibold transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary"><Icon className="size-5 text-primary" strokeWidth={1.6} aria-hidden="true" />{title}</Link>)}</div></section>
           </div>
-        </div>
-
-        <nav aria-label={labels.navigation} className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-card/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-20px_rgba(42,33,41,0.25)] backdrop-blur lg:hidden">
-          <Link href={`/${locale}/dashboard`} aria-current="page" className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold text-primary"><CalendarClock className="size-5" aria-hidden="true" />{labels.today}</Link>
-          <Link href={`/${locale}/dashboard/calendar`} className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><CalendarDays className="size-5" aria-hidden="true" />{labels.calendar}</Link>
-          <Link href={`/${locale}/dashboard/clients`} className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><UsersRound className="size-5" aria-hidden="true" />{labels.clients}</Link>
-          <Link href={`/${locale}/dashboard/walk-ins`} className="flex min-h-16 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><Scissors className="size-5" aria-hidden="true" />{labels.walkIns}</Link>
-        </nav>
-      </div>
-    </main>
+      </main>
+    </WorkspaceShell>
   );
 }
