@@ -24,7 +24,7 @@ activate billing.
   monthly billing after the trial. The trial ends on the same calendar date in
   the following month, not after a fixed 30 days. When that date does not exist
   next month (for example, January 31), use the last day of the next month.
-- Starter costs USD 19.99 per month for US salons, or EUR 14.99 per month for
+- Starter costs USD 29.99 per month for US salons, or EUR 24.99 per month for
   salons in exactly France, Spain, Belgium, and Luxembourg. Both displayed
   prices are before applicable tax. Larger-team prices are not approved.
 - `lib/billing/starter-offer.ts` records only those five country/price pairs,
@@ -51,7 +51,23 @@ activate billing.
    reports adviser confirmation for North Carolina sales tax, but EU VAT
    applicability is unknown and no registration is present. Do not enable
    Stripe Tax merely by adding `automatic_tax`: it collects only where an active
-   registration exists and must be verified with a test calculation.
+   registration exists and must be verified with a sandbox calculation,
+   including the taxability reason. Stripe Tax and automated filing may carry
+   fees, so obtain the owner's cost approval before enabling either.
+5. Before creating Stripe Products or Prices, confirm the correct product tax
+   code with the seller's tax adviser and set the monthly Prices to exclusive
+   tax behavior, matching the displayed before-tax amounts. Collect the salon's
+   billing location and, for EU business treatment, its VAT ID. [Stripe can
+   apply reverse charge](https://docs.stripe.com/tax/invoicing/tax-ids) to a
+   correctly formatted ID without verifying that it is valid; check EU IDs
+   through [VIES](https://europa.eu/youreurope/business/finance-and-tax/vat/check-vat-number-vies/index_en.htm)
+   and retain the result. Do not assume
+   that every salon qualifies for reverse charge or that a zero tax result means
+   tax setup succeeded.
+6. Review trial and automatic-renewal disclosures, a pre-charge reminder,
+   accessible cancellation, and the invoice/receipt format for each market.
+   Stripe Billing and Checkout can support these flows, but Stripe does not
+   decide GlowFlow's legal tax obligations or eliminate required registrations.
 
 ## Subsequent reviewed slices
 
@@ -60,8 +76,10 @@ activate billing.
   file and hosted application need separate review and approval.
 - Add owner-only subscription Checkout and Customer Portal routes. Use Stripe
   Billing, a restricted platform key, a trusted Price ID, and no connected-salon
-  `stripeAccount` option or browser-supplied amount/Price ID. Keep release
-  activation disabled until pricing and operational gates are approved.
+  `stripeAccount` option or browser-supplied amount/Price ID. The planned
+  calendar-month trial needs an explicit `trial_end` timestamp rather than a
+  fixed 30-day trial. Keep release activation disabled until pricing and
+  operational gates are approved.
 - Add a separate signed platform webhook that reconciles subscription lifecycle,
   paid/failed invoices, disputes, refunds, and early-fraud warnings. Never infer
   active service from the Checkout success redirect alone.
