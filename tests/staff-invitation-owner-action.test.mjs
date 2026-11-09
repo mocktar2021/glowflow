@@ -15,14 +15,15 @@ const form = (email = "staff@example.invalid", key = requestKey) => {
   return data;
 };
 
-function fixture({ enabled = true, role = "owner", tenantOwner = "owner-fixture", queueStatus = "queued" } = {}) {
+function fixture({ enabled = true, role = "owner", tenantOwner = "owner-fixture", queueStatus = "queued",
+  membershipError = null, tenantError = null, tenantId = "tenant-fixture" } = {}) {
   const calls = [];
   const supabase = { from(table) {
     calls.push(["from", table]);
     return { select() { return { eq() { return { async single() {
       return { data: table === "users"
-        ? { tenant_id: "tenant-fixture", role }
-        : { owner_id: tenantOwner }, error: null };
+        ? { tenant_id: tenantId, role }
+        : { owner_id: tenantOwner }, error: table === "users" ? membershipError : tenantError };
     } }; } }; } };
   } };
   const dependencies = {
@@ -58,6 +59,19 @@ test("staff and mismatched tenant owner cannot queue through the action", async 
   for (const options of [{ role: "staff" }, { tenantOwner: "someone-else" }]) {
     const f = fixture(options);
     await assert.rejects(f.action("en", form()), error => error.code === 404);
+    assert.ok(!f.calls.some(call => Array.isArray(call) && call[0] === "queue"));
+  }
+});
+
+test("missing or failed tenant lookups fail closed before invitation delivery", async () => {
+  for (const options of [
+    { membershipError: new Error("synthetic membership lookup failed") },
+    { tenantId: null },
+    { tenantError: new Error("synthetic tenant lookup failed") },
+    { tenantOwner: null },
+  ]) {
+    const f = fixture(options);
+    await assert.rejects(f.action("fr", form()), error => error.code === 404);
     assert.ok(!f.calls.some(call => Array.isArray(call) && call[0] === "queue"));
   }
 });
