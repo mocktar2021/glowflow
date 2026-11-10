@@ -112,6 +112,18 @@ an enqueued request is proof of alert delivery. Avoid promising an explicit
 failure ping from a transaction that rethrows, because rollback can discard
 the queued request.
 
+The disposable `tests/glow56-pgnet-acl-fixture.sh` now proves that the pinned
+extension's PUBLIC queue, response, sequence, schema, and HTTP-function
+grants can be revoked in a rolled-back PostgreSQL 17 transaction while
+granting a narrow candidate path to `postgres`. This is **not** hosted ACL
+approval or an HTTP delivery test. The [pinned pg_net 0.20.4 worker source](https://github.com/supabase/pg_net/blob/v0.20.4/src/core.c)
+sets `CURLOPT_FOLLOWLOCATION` to true. Even with private queue tables, a
+redirect may forward the bearer ping URL to another destination. Do not
+enqueue a Healthchecks URL until redirect handling and destination controls
+are independently verified in a disposable environment, the exact hosted
+extension ACL/worker role is inspected, and both recipients have received a
+real missed-run alert. A successful ACL fixture alone is not this gate.
+
 A candidate check period of 60 minutes plus 15 minutes of grace should
 surface a missed monitor ping roughly 75 minutes after the last successful
 ping. A stopped sweep can leave a still-fresh heartbeat for up to 10 minutes,
