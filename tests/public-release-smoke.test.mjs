@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { probePublicRelease } from "./public-release-smoke.mjs";
+import { probePublicRelease, resolveSmokeOrigin } from "./public-release-smoke.mjs";
 
 const origin = "https://glowflow.mocktar.com";
+const productionOrigin = "https://glowflow.beauty";
 const locales = ["fr", "en", "es"];
 const publicPages = ["", "/salons", "/salons/locations/US", "/salons/locations/US/Greensboro", "/login", "/privacy", "/terms", "/support"];
 
@@ -42,6 +43,61 @@ test("public smoke uses only anonymous, exact-origin GETs and never follows redi
   for (const check of result.checks) {
     assert.ok(Number.isSafeInteger(check.duration_ms) && check.duration_ms >= 0,
       "Each successful route reports a nonnegative, rounded header latency sample");
+  }
+});
+
+test("the explicit beauty origin makes exactly 28 anonymous, same-origin GETs", async () => {
+  const requests = [];
+  const result = await probePublicRelease(async (url, options) => {
+    requests.push({ url, options });
+    const route = new URL(url).pathname;
+    if (route === "/") return new Response(null, { status: 308, headers: { location: `${productionOrigin}/fr` } });
+    if (route.endsWith("/dashboard/clients")) {
+      return new Response(null, { status: 307, headers: { location: `${productionOrigin}${route.slice(0, 3)}/login` } });
+    }
+    return successFor(url);
+  }, () => 1, productionOrigin);
+
+  assert.equal(result.origin, productionOrigin);
+  assert.equal(result.checks.length, 28);
+  assert.equal(requests.length, 28);
+  for (const { url, options } of requests) {
+    assert.equal(new URL(url).origin, productionOrigin);
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "manual");
+    assert.equal(options.credentials, "omit");
+    assert.equal(options.body, undefined);
+    assert.equal(options.headers, undefined);
+  }
+});
+
+test("public smoke refuses any origin other than the two exact HTTPS hosts before fetching", async () => {
+  assert.equal(resolveSmokeOrigin(), origin);
+  assert.equal(resolveSmokeOrigin(productionOrigin), productionOrigin);
+  for (const candidate of [
+    "", "http://glowflow.beauty", "https://glowflow.beauty/",
+    "https://glowflow.beauty:443", "https://user:secret@glowflow.beauty",
+    "https://glowflow.beauty.evil.example", "https://glowflow.beauty/login",
+    "https://glowflow.beauty?token=secret", "https://glowflow.beauty#secret",
+    "https://glowflow.mocktar.com/", "https://glowflow.mocktar.com.evil.example",
+  ]) {
+    let fetched = false;
+    await assert.rejects(
+      probePublicRelease(async () => { fetched = true; }, () => 0, candidate),
+      error => /explicitly allowed GlowFlow HTTPS origin/.test(error.message) && !error.message.includes("secret"),
+    );
+    assert.equal(fetched, false, `Rejected origin must not make a request: ${candidate}`);
+  }
+});
+
+test("beauty smoke rejects redirects to QA or any other origin", async () => {
+  for (const location of [`${origin}/fr`, "https://example.invalid/fr", `//glowflow.beauty/fr`]) {
+    await assert.rejects(
+      probePublicRelease(async url => new URL(url).pathname === "/"
+        ? new Response(null, { status: 307, headers: { location } })
+        : successFor(url), () => 0, productionOrigin),
+      /redirect did not stay on the expected GlowFlow route/,
+    );
   }
 });
 
