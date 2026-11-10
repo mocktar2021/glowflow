@@ -18,6 +18,20 @@ thresholds and prices, message allowances, and any overage policy still need
 product-owner approval. No code currently calls the contract, so it cannot
 activate billing.
 
+`lib/billing/starter-checkout-preflight.ts` is another inert server-only
+contract. It compares a future retrieved Stripe Price to the exact approved
+Starter amount and currency for the salon market, an explicitly configured
+Price ID, the expected sandbox/live mode, a one-month licensed recurring
+interval, and exclusive tax behavior. It rejects inactive, underpriced,
+inclusive-tax, wrong-mode, annual, or metered Prices. It also calculates the
+approved *local calendar date* one month after signup, clamping missing dates
+to month-end, including leap years. It deliberately does not turn that date
+into Stripe's UTC `trial_end`: the authoritative billing time zone has not yet
+been approved. Price evidence is not proof that a Product has the right tax
+code, that Stripe Tax is ready, or that a subscription may be created. No
+route calls this module, no Stripe Price is configured, and no hosted state
+changes from it.
+
 ## Owner-approved Starter offer
 
 - One month free, with a payment method collected at signup and automatic
