@@ -18,11 +18,22 @@ export type PlatformSubscriptionWebhookDecision =
       subscriptionId: string;
       status: string;
       livemode: boolean;
+    }>
+  | Readonly<{
+      kind: "invoice_event";
+      eventId: string;
+      eventType: "invoice.paid" | "invoice.payment_failed";
+      created: number;
+      invoiceId: string;
+      customerId: string;
+      subscriptionId: string;
+      livemode: boolean;
     }>;
 
 const subscriptionTypes = new Set([
   "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted",
 ]);
+const invoiceTypes = new Set(["invoice.paid", "invoice.payment_failed"]);
 
 const subscriptionStatuses = new Set([
   "incomplete", "incomplete_expired", "trialing", "active", "past_due",
@@ -61,20 +72,47 @@ export function inspectPlatformSubscriptionWebhook(
   if (!isRecord(event) || typeof event.type !== "string") return { kind: "retry", reason: "malformed_event" };
   if (event.account != null || event.livemode !== expectedLivemode)
     return { kind: "retry", reason: "identity_or_mode_mismatch" };
-  if (!/^evt_[A-Za-z0-9]+$/.test(event.id)
+  if (typeof event.id !== "string" || !/^evt_[A-Za-z0-9]+$/.test(event.id)
     || !Number.isSafeInteger(event.created) || event.created <= 0)
     return { kind: "retry", reason: "malformed_event" };
   // The dedicated billing endpoint must subscribe only to reviewed event
   // types. Any other signed delivery, including a new Stripe financial family
   // or an accidentally subscribed benign event, retries and alerts until a
   // handler or explicit acknowledgement policy is reviewed.
-  if (!subscriptionTypes.has(event.type))
+  if (!subscriptionTypes.has(event.type) && !invoiceTypes.has(event.type))
     return { kind: "retry", reason: "unhandled_event" };
+
+  if (invoiceTypes.has(event.type)) {
+    // Recent Stripe API versions place the first-class Subscription reference
+    // under parent.subscription_details. A one-off invoice, an expanded object,
+    // or a legacy invoice.subscription field is not enough to map a tenant.
+    const invoice: unknown = event.data?.object;
+    if (!isRecord(invoice) || invoice.object !== "invoice"
+      || typeof invoice.id !== "string" || !/^in_[A-Za-z0-9]+$/.test(invoice.id)
+      || typeof invoice.customer !== "string" || !/^cus_[A-Za-z0-9]+$/.test(invoice.customer)
+      || invoice.livemode !== expectedLivemode
+      || !isRecord(invoice.parent) || invoice.parent.type !== "subscription_details"
+      || !isRecord(invoice.parent.subscription_details)
+      || typeof invoice.parent.subscription_details.subscription !== "string"
+      || !/^sub_[A-Za-z0-9]+$/.test(invoice.parent.subscription_details.subscription))
+      return { kind: "retry", reason: "malformed_event" };
+
+    return Object.freeze({
+      kind: "invoice_event" as const,
+      eventId: event.id,
+      eventType: event.type as "invoice.paid" | "invoice.payment_failed",
+      created: event.created,
+      invoiceId: invoice.id,
+      customerId: invoice.customer,
+      subscriptionId: invoice.parent.subscription_details.subscription,
+      livemode: expectedLivemode,
+    });
+  }
 
   const subscription: unknown = event.data?.object;
   if (!isRecord(subscription) || subscription.object !== "subscription"
-    || !/^sub_[A-Za-z0-9]+$/.test(subscription.id as string)
-    || !/^cus_[A-Za-z0-9]+$/.test(subscription.customer as string)
+    || typeof subscription.id !== "string" || !/^sub_[A-Za-z0-9]+$/.test(subscription.id)
+    || typeof subscription.customer !== "string" || !/^cus_[A-Za-z0-9]+$/.test(subscription.customer)
     || subscription.livemode !== expectedLivemode
     || typeof subscription.status !== "string"
     || !subscriptionStatuses.has(subscription.status))
@@ -85,8 +123,8 @@ export function inspectPlatformSubscriptionWebhook(
     eventId: event.id,
     eventType: event.type as "customer.subscription.created" | "customer.subscription.updated" | "customer.subscription.deleted",
     created: event.created,
-    customerId: subscription.customer as string,
-    subscriptionId: subscription.id as string,
+    customerId: subscription.customer,
+    subscriptionId: subscription.id,
     status: subscription.status,
     livemode: expectedLivemode,
   });
