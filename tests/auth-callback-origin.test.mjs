@@ -30,6 +30,13 @@ test("explicit Production canonical requires an explicit matching Auth callback 
   assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.beauty/" }), "https://glowflow.beauty");
   assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), null);
   assert.equal(authCallbackOrigin(env), null);
+  assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.mocktar.com", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), "https://glowflow.mocktar.com");
+});
+
+test("invalid explicit Production canonical never falls back to a matching QA App URL", () => {
+  for (const canonical of ["", "not-a-url", "http://glowflow.mocktar.com", "https://glowflow.mocktar.com/path", "https://glowflow.mocktar.com?x=1", "https://glowflow.mocktar.com.evil.example"]) {
+    assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: canonical, GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), null, canonical);
+  }
 });
 
 test("explicit Production canonical rejects malformed callback URLs", () => {

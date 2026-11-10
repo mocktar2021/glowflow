@@ -18,6 +18,10 @@ export function authCallbackOrigin(env: NodeJS.ProcessEnv = process.env): string
   if (!env.GLOWFLOW_APP_URL || configured !== configured.trim()) return null;
   try {
     const canonical = publicSiteOrigin(env);
+    // Require the raw explicit value to be the validated origin too, even if
+    // publicSiteOrigin's default behavior changes in a future release.
+    if (env.GLOWFLOW_CANONICAL_ORIGIN !== canonical
+        && env.GLOWFLOW_CANONICAL_ORIGIN !== `${canonical}/`) return null;
     const url = new URL(configured);
     if (url.protocol !== "https:" || url.origin !== canonical || url.username || url.password
         || url.port || url.pathname !== "/" || url.search || url.hash
