@@ -1,7 +1,7 @@
 /** Server-only diagnostics: fixed vocabulary, never provider errors or customer data. */
-const stages = ["checkout_owner", "checkout_platform", "checkout_reserve", "checkout_merchant", "checkout_parameters", "checkout_session", "checkout_attach", "checkout_status", "webhook_client", "webhook_persist"] as const;
+const stages = ["checkout_owner", "checkout_platform", "checkout_reserve", "checkout_merchant", "checkout_parameters", "checkout_session", "checkout_attach", "checkout_status", "webhook_client", "webhook_event", "webhook_persist"] as const;
 export type PaymentStage = typeof stages[number];
-const codes = ["operation_failed", "identity_mismatch", "reservation_rejected", "slot_unavailable", "persistence_failed"] as const;
+const codes = ["operation_failed", "identity_mismatch", "reservation_rejected", "slot_unavailable", "persistence_failed", "invalid_booking_fields"] as const;
 export function reportPaymentFailure(stage: PaymentStage, code: typeof codes[number] = "operation_failed") {
   // Runtime allowlists also protect JavaScript callers; never serialize arbitrary arguments.
   const safeStage = stages.includes(stage) ? stage : "unknown";
