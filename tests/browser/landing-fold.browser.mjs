@@ -65,3 +65,29 @@ test("FR, EN, and ES landing actions fit within the first desktop viewport", asy
     }
   }
 }, { timeout: 120000 });
+
+test("FR, EN, and ES phone landing keeps navigation visible and respects reduced motion", async () => {
+  for (const locale of ["fr", "en", "es"]) {
+    for (const width of [360, 390]) {
+      const context = await browser.newContext({ viewport: { width, height: 844 }, reducedMotion: "reduce" });
+      try {
+        const page = await context.newPage();
+        const response = await page.goto(`${origin}/${locale}`);
+        assert.equal(response.status(), 200);
+        await page.evaluate(() => document.fonts.ready);
+        assert.equal(await page.locator("main video").count(), 0, `${locale} reduced motion renders posters, not video`);
+        assert.equal(await page.locator("#hero-title").evaluate(element => getComputedStyle(element).animationName), "none");
+
+        await page.evaluate(() => window.scrollTo(0, 650));
+        await page.waitForFunction(() => window.scrollY >= 600);
+        const header = page.locator("header");
+        const box = await header.boundingBox();
+        assert.ok(box && Math.abs(box.y) <= 1, `${locale} header stays at the viewport top at ${width}px`);
+        assert.equal(await header.locator(`a[href="/${locale}"]`).first().isVisible(), true);
+        assert.equal(await header.locator(`a[href="/${locale}/login"]`).isVisible(), true);
+        const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        assert.ok(horizontalOverflow <= 1, `${locale} has no page-wide horizontal overflow at ${width}px`);
+      } finally { await context.close(); }
+    }
+  }
+}, { timeout: 120000 });
