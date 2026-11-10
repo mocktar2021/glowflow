@@ -39,6 +39,37 @@ test("public smoke uses only anonymous, exact-origin GETs and never follows redi
     assert.equal(options.headers, undefined);
     assert.ok(options.signal instanceof AbortSignal, "Each GET has a bounded timeout");
   }
+  for (const check of result.checks) {
+    assert.ok(Number.isSafeInteger(check.duration_ms) && check.duration_ms >= 0,
+      "Each successful route reports a nonnegative, rounded header latency sample");
+  }
+});
+
+test("public smoke keeps per-route latency samples separate and does not claim a p95", async () => {
+  let tick = 0;
+  const result = await probePublicRelease(async url => {
+    tick += 7;
+    return successFor(url);
+  }, () => tick);
+  assert.deepEqual(result.checks.map(check => check.duration_ms), Array(28).fill(7));
+  assert.equal(Object.hasOwn(result, "p95"), false);
+});
+
+test("public smoke hides network exception details", async () => {
+  await assert.rejects(
+    probePublicRelease(async () => { throw new Error("token=private-secret"); }),
+    error => error.message === "/: anonymous GET failed" && !error.message.includes("private-secret"),
+  );
+});
+
+test("public smoke rejects invalid timing samples", async () => {
+  for (const samples of [[10, 9], [0, Number.NaN], [0, Number.POSITIVE_INFINITY]]) {
+    let index = 0;
+    await assert.rejects(
+      probePublicRelease(successFor, () => samples[index++]),
+      /\/: invalid probe clock/,
+    );
+  }
 });
 
 test("public smoke fails closed if anonymous clients are exposed", async () => {
