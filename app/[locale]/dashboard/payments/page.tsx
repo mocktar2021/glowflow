@@ -34,6 +34,7 @@ export default async function PaymentsPage({ params, searchParams }: {
   const depositConfig = sandboxDepositConfiguration(process.env);
   const { data: appointments, error: appointmentsError } = await owner.supabase.from("appointments")
     .select("id,start_time,service_title_json,service_price,service_currency")
+    .eq("tenant_id", owner.tenant.id)
     .neq("status", "canceled").order("start_time", { ascending: false }).limit(20);
   const appointmentIds = appointments?.map((appointment) => appointment.id) ?? [];
   const { data: summaries, error: summariesError } = appointmentIds.length
