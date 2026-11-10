@@ -92,6 +92,76 @@ begin
 end;
 $$;
 
+-- Prove the smallest candidate permission boundary in this disposable
+-- transaction only. pg_net 0.20.4 installs PUBLIC queue/response grants, so
+-- a Vault-backed ping URL would be readable until these are revoked. This
+-- does not prove HTTP redirect safety, that the worker
+-- can send a request, or that a hosted installation has identical grants.
+revoke all on schema net from public;
+revoke all on all tables in schema net from public;
+revoke all on all sequences in schema net from public;
+revoke all on all functions in schema net from public;
+revoke all on schema net from anon, authenticated, service_role;
+revoke all on all tables in schema net from anon, authenticated, service_role;
+revoke all on all sequences in schema net from anon, authenticated, service_role;
+revoke all on all functions in schema net from anon, authenticated, service_role;
+
+-- The intended Cron execution role, not an application role, needs only
+-- enough access to enqueue the monitor GET and inspect its response.
+grant usage on schema net to postgres;
+grant insert on net.http_request_queue to postgres;
+grant usage on sequence net.http_request_queue_id_seq to postgres;
+grant select on net._http_response to postgres;
+grant execute on function net.http_get(text,jsonb,jsonb,integer) to postgres;
+
+do $$
+declare
+  role_name text;
+  target oid;
+begin
+  foreach role_name in array array['anon', 'authenticated', 'service_role'] loop
+    if has_schema_privilege(role_name::name, 'net', 'USAGE')
+        or has_table_privilege(role_name::name, 'net.http_request_queue', 'SELECT')
+        or has_table_privilege(role_name::name, 'net.http_request_queue', 'INSERT')
+        or has_table_privilege(role_name::name, 'net._http_response', 'SELECT')
+        or has_sequence_privilege(role_name::name, 'net.http_request_queue_id_seq', 'USAGE')
+        or has_function_privilege(role_name::name,
+          'net.http_get(text,jsonb,jsonb,integer)', 'EXECUTE') then
+      raise exception 'GLOW-56 disposable pg_net role % retains a monitored path', role_name;
+    end if;
+  end loop;
+  if not has_schema_privilege('postgres', 'net', 'USAGE')
+      or not has_table_privilege('postgres', 'net.http_request_queue', 'INSERT')
+      or not has_sequence_privilege('postgres', 'net.http_request_queue_id_seq', 'USAGE')
+      or not has_table_privilege('postgres', 'net._http_response', 'SELECT')
+      or not has_function_privilege('postgres',
+        'net.http_get(text,jsonb,jsonb,integer)', 'EXECUTE') then
+    raise exception 'GLOW-56 disposable Cron execution role lacks the candidate minimum grants';
+  end if;
+  -- Check *all* tables and views in net, not just the two known tables. A
+  -- future extension object with an application grant must fail this fixture.
+  for target in select c.oid from pg_class c
+    where c.relnamespace = 'net'::regnamespace
+      and c.relkind in ('r', 'p', 'v', 'm') loop
+    foreach role_name in array array['anon', 'authenticated', 'service_role'] loop
+      if has_table_privilege(role_name::name, target, 'SELECT')
+          or has_table_privilege(role_name::name, target, 'INSERT') then
+        raise exception 'GLOW-56 disposable pg_net relation % grants role % access', target, role_name;
+      end if;
+    end loop;
+  end loop;
+  for target in select c.oid from pg_class c
+    where c.relnamespace = 'net'::regnamespace and c.relkind = 'S' loop
+    foreach role_name in array array['anon', 'authenticated', 'service_role'] loop
+      if has_sequence_privilege(role_name::name, target, 'USAGE')
+          or has_sequence_privilege(role_name::name, target, 'SELECT') then
+        raise exception 'GLOW-56 disposable pg_net sequence % grants role % access', target, role_name;
+      end if;
+    end loop;
+  end loop;
+end;
+$$;
+
 -- Catalog metadata only: never SELECT from the queue or decrypted view.
 select 'pg_net_owner=' || pg_get_userbyid(extowner)
   from pg_extension where extname = 'pg_net';
@@ -113,8 +183,9 @@ select 'vault_decrypted_view_authenticated_select=' ||
   has_table_privilege('authenticated', 'vault.decrypted_secrets', 'SELECT')::text;
 select 'vault_decrypted_view_service_role_select=' ||
   has_table_privilege('service_role', 'vault.decrypted_secrets', 'SELECT')::text;
-select 'pg_net_anon_http_get_execute=' ||
+select 'pg_net_anon_http_get_execute_after_revoke=' ||
   has_function_privilege(
     'anon', 'net.http_get(text,jsonb,jsonb,integer)', 'EXECUTE')::text;
-commit;
+-- Leave even the disposable service's extension and ACLs unchanged.
+rollback;
 SQL
