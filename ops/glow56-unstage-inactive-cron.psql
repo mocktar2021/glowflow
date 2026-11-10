@@ -1,0 +1,61 @@
+-- GLOW-56 candidate operator artifact, NOT a Supabase migration.
+-- Unschedules only the three exact inactive jobs after a separate approval.
+-- Never drop pg_cron: another tenant or feature may own other jobs.
+-- Required psql variables: glow56_target_db, glow56_exact_approval.
+\set ON_ERROR_STOP on
+set role postgres;
+begin;
+set local lock_timeout = '3s';
+set local statement_timeout = '30s';
+select pg_catalog.set_config('glow56.target_db', :'glow56_target_db', true);
+select pg_catalog.set_config('glow56.exact_approval', :'glow56_exact_approval', true);
+
+do $$
+declare
+  job record;
+  valid_jobs integer;
+  removed integer := 0;
+begin
+  if pg_catalog.current_database() <> 'postgres'
+     or current_user <> 'postgres'
+     or pg_catalog.current_setting('glow56.exact_approval') <> 'GLOW-56-INACTIVE-ONLY' then
+    raise exception 'GLOW-56 inactive unstage context differs';
+  end if;
+  select pg_catalog.count(*) into valid_jobs from cron.job
+  where database = pg_catalog.current_setting('glow56.target_db')
+    and username = 'postgres' and active = false
+    and (
+      (jobname = 'glowflow_qa_booking_intent_sweep_v1'
+       and schedule = '* * * * *'
+       and command = 'select public.sweep_public_booking_intents(100);') or
+      (jobname = 'glowflow_qa_booking_quota_sweep_v1'
+       and schedule = '* * * * *'
+       and command = 'select public.sweep_public_booking_quota_counters(1000);') or
+      (jobname = 'glowflow_qa_booking_cleanup_monitor_v1'
+       and schedule = '17,47 * * * *'
+       and command = 'select private.glow56_cleanup_monitor_ready();'));
+  if valid_jobs <> 3 or (
+      select pg_catalog.count(*) from cron.job where jobname in (
+        'glowflow_qa_booking_intent_sweep_v1',
+        'glowflow_qa_booking_quota_sweep_v1',
+        'glowflow_qa_booking_cleanup_monitor_v1')) <> 3 then
+    raise exception 'GLOW-56 inactive jobs differ; refusing unstage';
+  end if;
+  for job in select jobid from cron.job
+    where database = pg_catalog.current_setting('glow56.target_db')
+      and username = 'postgres' and active = false
+      and jobname in ('glowflow_qa_booking_intent_sweep_v1',
+        'glowflow_qa_booking_quota_sweep_v1',
+        'glowflow_qa_booking_cleanup_monitor_v1')
+  loop
+    if cron.unschedule(job.jobid) is distinct from true then
+      raise exception 'GLOW-56 scoped unschedule failed';
+    end if;
+    removed := removed + 1;
+  end loop;
+  if removed <> 3 then
+    raise exception 'GLOW-56 expected exactly three inactive jobs';
+  end if;
+end;
+$$;
+commit;

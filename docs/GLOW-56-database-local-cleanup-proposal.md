@@ -22,9 +22,19 @@ snapshot, two non-null full-sweep heartbeats, neither in the future, both less
 than 10 minutes old. It is `SECURITY INVOKER` with an empty search path and
 execution restricted to `postgres`. It does **not** install `pg_cron` or
 `pg_net`, read a Vault secret, create any job, send a ping, or run cleanup.
-It is not evidence that a scheduler is ready. An extension-capable disposable
-fixture matching the hosted PostgreSQL/Cron versions is still needed before
-any later inactive-job migration can be considered.
+It is not evidence that a hosted scheduler or failure alert is ready. The
+dedicated disposable PostgreSQL 17 fixture now checks the candidate inactive
+jobs and restricted Cron permissions, but hosted identity, cost, backlog,
+alert delivery, and separately approved application remain open.
+
+The exact candidate inactive-stage and scoped unstage SQL now live in
+[`ops/glow56-stage-inactive-cron.psql`](../ops/glow56-stage-inactive-cron.psql)
+and [`ops/glow56-unstage-inactive-cron.psql`](../ops/glow56-unstage-inactive-cron.psql).
+They are operator-review artifacts outside the normal migration chain, not
+hosted instructions or approval. The dedicated disposable PostgreSQL 17 CI
+fixture runs those same files. See the
+[operator artifact gate](GLOW-56-inactive-cron-operator-artifact.md) before
+proposing any hosted step.
 
 ## Candidate execution contract
 
@@ -39,9 +49,9 @@ DEFINER`, while the quota sweep remains `SECURITY INVOKER`. Preserve their
 fixed search paths and restricted `EXECUTE` grants, and verify the proposed
 cron execution role can call both without granting them to `anon` or
 `authenticated`. No HTTP endpoint or application service-role key is needed
-to run the sweeps. The exact scheduling SQL, execution role, timeouts,
-permissions, and installation migration need disposable-PostgreSQL proof and
-separate approval before hosted application. Do not copy this paragraph into
+to run the sweeps. The exact scheduling SQL, execution role, and timeouts
+now have disposable PostgreSQL 17 coverage; hosted permissions, cost, and
+installation still need separate approval. Do not copy this paragraph into
 a SQL editor as an activation instruction.
 
 Each invocation must commit its bounded progress. A partial pass is not a
@@ -73,8 +83,10 @@ and rollback modes have separate contracts in the
 The candidate alert design uses a separate `pg_cron` monitor job named
 `glowflow_qa_booking_cleanup_monitor_v1` at minutes 17 and 47. It checks
 that **both** `last_full_sweep_at` timestamps are non-null, not in the
-future, and within the last 10 minutes. Only then may it queue one success
-signal to an independent Healthchecks.io check. A partial sweep clears its
+future, and within the last 10 minutes. The currently staged command returns
+only a boolean and sends **no** success signal. A later separately reviewed
+alert path may queue a Healthchecks signal only when the predicate is true.
+A partial sweep clears its
 own heartbeat. A `busy` return is never itself evidence of health, but it
 leaves a prior complete heartbeat unchanged: a transient busy call can
 therefore be followed by a ping while both earlier full sweeps are still

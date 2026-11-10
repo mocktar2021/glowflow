@@ -8,6 +8,8 @@ on:
       - tests/glow56-inactive-cron-fixture.sh
       - tests/glow56-pgnet-acl-fixture.sh
       - tests/glow56-real-cleanup-pg17-fixture.sh
+      - ops/glow56-stage-inactive-cron.psql
+      - ops/glow56-unstage-inactive-cron.psql
       - tests/public-booking-cleanup-cadence.test.mjs
       - tests/supabase-platform-fixture.sql
       - tests/schema-authorization.sql
