@@ -32,6 +32,16 @@ code, that Stripe Tax is ready, or that a subscription may be created. No
 route calls this module, no Stripe Price is configured, and no hosted state
 changes from it.
 
+`lib/billing/owner-authorization.ts` is an uncalled, server-only authorization
+boundary for a future subscription Checkout or Portal route. It obtains the
+authenticated user from Supabase, verifies that user's `users` row has the
+`owner` role, and requires the same user to be the matching tenant's
+`owner_id`. It returns that tenant's operating country and currency, never a
+browser-supplied tenant, market, Price, or Stripe ID. Missing or inconsistent
+records and query failures fail closed. RLS is still required; this boundary
+does not establish a billing address, tax jurisdiction, seat count, or
+permission to create a Stripe session. No live route calls it.
+
 ## Owner-approved Starter offer
 
 - One month free, with a payment method collected at signup and automatic
