@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { ensureOwnerWorkspace, safeLocale } from "@/lib/auth";
+import { authCallbackOrigin } from "@/lib/auth-callback-origin";
 import { createClient } from "@/lib/supabase/server";
 import { authCopy } from "@/lib/auth-copy";
 
@@ -68,8 +69,9 @@ export async function signUp(localeValue: string, formData: FormData) {
     redirect(authUrl(locale, "register", "error", notices.completeFields));
   }
 
+  const origin = authCallbackOrigin();
+  if (!origin) redirect(authUrl(locale, "register", "error", notices.signupFailed));
   const supabase = await createClient();
-  const origin = process.env.GLOWFLOW_APP_URL ?? "https://glowflow.mocktar.com";
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -106,7 +108,8 @@ export async function requestPasswordReset(localeValue: string, formData: FormDa
   const locale = safeLocale(localeValue);
   const notices = authCopy[locale].notices;
   const email = value(formData, "email");
-  const origin = process.env.GLOWFLOW_APP_URL ?? "https://glowflow.mocktar.com";
+  const origin = authCallbackOrigin();
+  if (!origin) redirect(authUrl(locale, "forgot-password", "error", notices.resetUnavailable));
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/${locale}/update-password`,
