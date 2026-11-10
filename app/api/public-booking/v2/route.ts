@@ -40,6 +40,14 @@ type Result = {
   confirmation?: Record<string, unknown>;
 };
 
+const allowedResultStates: Record<Action, readonly Result["state"][]> = {
+  prepare: ["prepared", "confirmed", "not_committed", "unknown"],
+  reconcile: ["prepared", "confirmed", "not_committed", "unknown", "none"],
+  commit: ["confirmed", "not_committed", "unknown"],
+  cancel: ["confirmed", "not_committed", "unknown"],
+  acknowledge: ["unknown", "none"],
+};
+
 function json(value: Record<string, unknown>, status = 200, headers: Record<string, string> = {}) {
   return NextResponse.json(value, { status, headers: { "cache-control": "private, no-store", ...headers } });
 }
@@ -216,6 +224,9 @@ function validResult(value: unknown, action: Action, expectedIntentId: string | 
   const raw = value as Record<string, unknown>;
   if (!["prepared", "confirmed", "not_committed", "unknown", "none"].includes(String(raw.state))) return null;
   const state = raw.state as Result["state"];
+  // A syntactically valid response is not sufficient: a state that the called
+  // RPC cannot produce must not become browser recovery evidence.
+  if (!allowedResultStates[action].includes(state)) return null;
   if (state === "unknown") return { state: "unknown" };
   const generation = typeof raw.generation === "string" && uuid.safeParse(raw.generation).success ? raw.generation : undefined;
   if (raw.generation !== undefined && !generation) return null;
