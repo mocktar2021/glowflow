@@ -1,5 +1,6 @@
 import "server-only";
 
+import { publicSiteOrigin } from "@/lib/public-site-origin";
 import { staffJoinLanguageHref, validStaffInvitationToken } from "@/lib/staff-invitations";
 
 export type InvitationMessage = {
@@ -20,6 +21,9 @@ export function staffInvitationEmailOrigin(): string | null {
     const approvedHosts = ["glowflow.mocktar.com", "glowflow.beauty"];
     if (!approvedHosts.some(host => url.hostname === host || url.hostname.endsWith(`.${host}`))) return null;
     if (process.env.VERCEL_ENV === "preview" && approvedHosts.includes(url.hostname)) return null;
+    // A future beauty cutover must never send invitations back to the QA host,
+    // even if the sending flag is accidentally enabled before origins agree.
+    if (process.env.VERCEL_ENV === "production" && url.origin !== publicSiteOrigin(process.env)) return null;
     return url.origin;
   } catch {
     return null;
