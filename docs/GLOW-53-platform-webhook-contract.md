@@ -16,17 +16,18 @@ handler must map those IDs to a trusted salon subscription record in the
 database, then use an idempotent event ledger and monotonic state transition.
 The Checkout success redirect is not proof of active access.
 
-Known financial events without a handler, including paid/failed invoices,
-Checkout completion, disputes, refunds, and early fraud warnings, return a
-retry decision so a future route cannot accidentally acknowledge them as
-processed. The future route should return 503 and alert on this decision, not
-200. The list is not a complete live event subscription: before paid launch,
-review the Stripe API version and implement the full signed lifecycle, invoice,
-refund, dispute, and fraud reconciliation paths. Only truly unrelated signed
-event types can be acknowledged without processing.
+Every signed event outside the three reviewed subscription lifecycle types
+returns a retry decision. This strict allowlist prevents an unfamiliar
+invoice, Checkout, charge, refund, fraud, or future Stripe financial event
+from being silently acknowledged. Even an accidentally subscribed benign
+event retries until an explicit policy is reviewed. A future route should
+return 503 and alert on this decision, not 200. Before paid launch, review the
+Stripe API version and implement the full signed lifecycle, invoice, refund,
+dispute, and fraud reconciliation paths and configure the dedicated endpoint
+to subscribe only to intended types.
 
 Tests sign fixtures with Stripe's actual webhook helper and cover tampering,
 wrong secret, mode/account mismatch, malformed subscriptions, and unhandled
-financial events. They do not substitute for sandbox deliveries, Stripe
+events across current and future Stripe families. They do not substitute for sandbox deliveries, Stripe
 redelivery exercises, tenant isolation, historical ledger recovery, or live
 operator acceptance. Keep GLOW-53 In Progress and billing off.

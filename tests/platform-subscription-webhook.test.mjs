@@ -87,10 +87,15 @@ test("signed but malformed subscription events retry", () => {
   }
 });
 
-test("unimplemented signed financial events retry while unrelated types are ignored", () => {
-  for (const type of ["checkout.session.completed", "invoice.paid", "invoice.payment_failed",
-    "charge.dispute.created", "charge.refunded", "radar.early_fraud_warning.created"]) {
-    assert.deepEqual(signed(event({ type })), { kind: "retry", reason: "unhandled_financial_event" });
+test("every signed event outside the reviewed lifecycle allowlist retries", () => {
+  for (const type of [
+    "checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed",
+    "invoice.created", "invoice.finalized", "invoice.paid", "invoice.payment_failed",
+    "invoice.payment_action_required", "charge.dispute.created", "charge.dispute.closed",
+    "charge.refunded", "charge.failed", "refund.updated", "payment_intent.succeeded",
+    "radar.early_fraud_warning.created", "radar.early_fraud_warning.updated",
+    "customer.updated", "product.updated", "future.payment.event",
+  ]) {
+    assert.deepEqual(signed(event({ type })), { kind: "retry", reason: "unhandled_event" });
   }
-  assert.deepEqual(signed(event({ type: "product.updated" })), { kind: "ignored" });
 });

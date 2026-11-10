@@ -8,8 +8,7 @@ import type Stripe from "stripe";
 export type PlatformSubscriptionWebhookDecision =
   | Readonly<{ kind: "unavailable" }>
   | Readonly<{ kind: "invalid_signature" }>
-  | Readonly<{ kind: "ignored" }>
-  | Readonly<{ kind: "retry"; reason: "identity_or_mode_mismatch" | "malformed_event" | "unhandled_financial_event" }>
+  | Readonly<{ kind: "retry"; reason: "identity_or_mode_mismatch" | "malformed_event" | "unhandled_event" }>
   | Readonly<{
       kind: "subscription_event";
       eventId: string;
@@ -23,14 +22,6 @@ export type PlatformSubscriptionWebhookDecision =
 
 const subscriptionTypes = new Set([
   "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted",
-]);
-
-// These cannot be silently acknowledged before their own reviewed handlers
-// exist. This helper does not claim to reconcile invoices, refunds, or risk.
-const unhandledFinancialTypes = new Set([
-  "checkout.session.completed", "checkout.session.async_payment_succeeded",
-  "invoice.paid", "invoice.payment_failed", "invoice.payment_action_required",
-  "charge.dispute.created", "charge.refunded", "radar.early_fraud_warning.created",
 ]);
 
 const subscriptionStatuses = new Set([
@@ -68,15 +59,17 @@ export function inspectPlatformSubscriptionWebhook(
   }
 
   if (!isRecord(event) || typeof event.type !== "string") return { kind: "retry", reason: "malformed_event" };
-  const relevant = subscriptionTypes.has(event.type) || unhandledFinancialTypes.has(event.type);
-  if (!relevant) return { kind: "ignored" };
   if (event.account != null || event.livemode !== expectedLivemode)
     return { kind: "retry", reason: "identity_or_mode_mismatch" };
   if (!/^evt_[A-Za-z0-9]+$/.test(event.id)
     || !Number.isSafeInteger(event.created) || event.created <= 0)
     return { kind: "retry", reason: "malformed_event" };
-  if (unhandledFinancialTypes.has(event.type))
-    return { kind: "retry", reason: "unhandled_financial_event" };
+  // The dedicated billing endpoint must subscribe only to reviewed event
+  // types. Any other signed delivery, including a new Stripe financial family
+  // or an accidentally subscribed benign event, retries and alerts until a
+  // handler or explicit acknowledgement policy is reviewed.
+  if (!subscriptionTypes.has(event.type))
+    return { kind: "retry", reason: "unhandled_event" };
 
   const subscription: unknown = event.data?.object;
   if (!isRecord(subscription) || subscription.object !== "subscription"
