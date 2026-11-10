@@ -42,6 +42,19 @@ records and query failures fail closed. RLS is still required; this boundary
 does not establish a billing address, tax jurisdiction, seat count, or
 permission to create a Stripe session. No live route calls it.
 
+`lib/billing/platform-subscription-webhook.ts` is also uncalled. After
+verifying a dedicated platform signature and live/test mode, it classifies
+subscription lifecycle events and the `invoice.paid` and
+`invoice.payment_failed` events of subscription invoices. For current Stripe
+Invoice versions it requires the first-class ID at
+`parent.subscription_details.subscription`; it rejects one-off invoices,
+legacy or expanded references, and malformed records for operator retry. This
+classification does not grant access on `invoice.paid`, remove access on a
+failure, acknowledge delivery, or fetch Stripe objects. A future route must
+persist an idempotent event ledger and reconcile out-of-order events against
+the current Subscription before changing entitlements. Risk-side dispute,
+refund, and early-fraud-warning events still require reviewed handling.
+
 ## Owner-approved Starter offer
 
 - One month free, with a payment method collected at signup and automatic
