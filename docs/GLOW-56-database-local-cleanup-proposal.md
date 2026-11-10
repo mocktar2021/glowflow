@@ -1,5 +1,12 @@
 # GLOW-56 database-local cleanup proposal (not activated)
 
+This remains an inactive fallback. The newer [GitHub OIDC plus protected QA
+Vercel route candidate](GLOW-56-github-oidc-cleanup-candidate.md) avoids both
+`pg_cron` run-history growth and the `pg_net` bearer-URL redirect/queue
+problem. Do not install either extension or stage these jobs merely because
+the alternate candidate exists. The two approaches must never be active
+at the same time.
+
 This is a code-only design for a no-GitHub-service-role-key alternative to
 the dormant [GitHub cleanup schedule](GLOW-56-no-pay-QA-cleanup-schedule-draft.md).
 The owner confirmed on November 9, 2026 that there is no separate GitHub PR
