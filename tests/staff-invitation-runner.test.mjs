@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
+import { publicSiteOrigin } from "../lib/public-site-origin.ts";
+
 const root = new URL("../", import.meta.url);
 const sources = Object.fromEntries(await Promise.all([
   "lib/staff-invitation-runner.ts",
@@ -45,6 +47,8 @@ function fixture({
   claims = [claim],
   response = Response.json({ id: "provider-message-id" }),
   settleError = null,
+  vercelEnv = "preview",
+  canonicalOrigin,
 } = {}) {
   const calls = [];
   const logs = [];
@@ -57,7 +61,8 @@ function fixture({
     GLOWFLOW_RESEND_FROM_EMAIL: sender,
     GLOWFLOW_RESEND_REPLY_TO_EMAIL: "support@example.invalid",
     GLOWFLOW_APP_URL: origin,
-    VERCEL_ENV: "preview",
+    VERCEL_ENV: vercelEnv,
+    GLOWFLOW_CANONICAL_ORIGIN: canonicalOrigin,
   };
   const globals = {
     process: { env },
@@ -73,6 +78,7 @@ function fixture({
   const flagsModule = load("lib/staff-invitations.ts", {}, globals);
   const emailModule = load("lib/staff-invitation-email.ts", {
     "server-only": {},
+    "@/lib/public-site-origin": { publicSiteOrigin },
     "@/lib/staff-invitations": flagsModule,
   }, globals);
   const adapter = load("lib/staff-invitation-resend.ts", { "server-only": {} }, globals);
@@ -135,6 +141,13 @@ test("an empty outbox is idle and never calls Resend", async () => {
 
 test("a preview origin pointing at the live host cannot claim or send", async () => {
   const f = fixture({ origin: "https://glowflow.mocktar.com" });
+  assert.equal(await f.run(), "disabled");
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.logs, []);
+});
+
+test("production beauty cutover mismatch cannot claim or send an invitation", async () => {
+  const f = fixture({ vercelEnv: "production", canonicalOrigin: "https://glowflow.beauty", origin: "https://glowflow.mocktar.com" });
   assert.equal(await f.run(), "disabled");
   assert.deepEqual(f.calls, []);
   assert.deepEqual(f.logs, []);

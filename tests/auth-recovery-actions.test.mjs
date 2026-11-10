@@ -11,12 +11,13 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
 }).outputText;
 
-function recoveryActions({ resetError = null, updateError = null } = {}) {
+function recoveryActions({ resetError = null, updateError = null, callbackOrigin = origin } = {}) {
   const calls = [];
   const dependencies = {
     "next/navigation": { redirect(location) { throw Object.assign(new Error("redirect"), { location }); } },
     "@/lib/auth": { safeLocale: locale => ["fr", "en", "es"].includes(locale) ? locale : "fr" },
     "@/lib/auth-copy": { authCopy },
+    "@/lib/auth-callback-origin": { authCallbackOrigin: () => callbackOrigin },
     "@/lib/supabase/server": {
       async createClient() {
         calls.push({ method: "createClient" });
@@ -51,6 +52,15 @@ async function expectRedirect(action, expected) {
 }
 
 for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} reset refuses an unavailable callback before Supabase access`, async () => {
+    const { actions, calls } = recoveryActions({ callbackOrigin: null });
+    const form = new FormData();
+    form.set("email", "fixture@example.invalid");
+    await expectRedirect(() => actions.requestPasswordReset(locale, form),
+      `/${locale}/forgot-password?error=${encodeURIComponent(authCopy[locale].notices.resetUnavailable)}`);
+    assert.deepEqual(calls, []);
+  });
+
   test(`${locale} reset uses a localized same-origin callback and generic result`, async () => {
     const email = "fixture@example.invalid";
     const form = new FormData();

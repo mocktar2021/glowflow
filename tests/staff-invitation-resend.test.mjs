@@ -68,6 +68,27 @@ test("accepted send preserves idempotency, both email formats, fragment link, an
   assert.equal(calls, 1);
 });
 
+test("malformed recipient, invitation key, or signal cannot reach Resend", async () => {
+  let calls = 0;
+  const transport = fixture()(async () => {
+    calls += 1;
+    throw new Error("must not call network");
+  });
+  for (const invalid of [
+    { to: "staff@example.invalid\r\nBcc: other@example.invalid" },
+    { to: "staff@example.invalid<other@example.invalid>" },
+    { idempotencyKey: "" },
+    { idempotencyKey: "glowflow-staff-invite-forged" },
+    { idempotencyKey: `${message.idempotencyKey}\r\nOther: value` },
+    { signal: null },
+    { signal: AbortSignal.abort() },
+  ]) {
+    assert.deepEqual(await transport({ ...message, ...invalid }),
+      { kind: "not_sent", retryable: false });
+  }
+  assert.equal(calls, 0);
+});
+
 test("definite request rejection is not_sent; ambiguous outcomes stay unknown", async () => {
   for (const status of [400, 401, 403, 404, 422]) {
     const transport = fixture()(async () => new Response("rejected", { status }));
