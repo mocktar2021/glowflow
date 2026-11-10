@@ -186,11 +186,16 @@ database migration ledger, hosted settings, and production behavior before a
 go/no-go decision.
 
 For a repeatable read-only public route check, run
-`node tests/public-release-smoke.mjs` from the repository. It makes 22
-anonymous GET requests only to `https://glowflow.mocktar.com`. It checks the
-French root redirect and FR/EN/ES landing, salon, login, privacy, terms, and
-support pages. It verifies that each anonymous client-directory request
-redirects to the same-locale login. It does not send bookings or payments,
+`node tests/public-release-smoke.mjs` from the repository. The default target
+is `https://glowflow.mocktar.com`. After a separately approved production
+preflight confirms the exact project, deployment, alias, and release window,
+set `GLOWFLOW_RELEASE_SMOKE_ORIGIN=https://glowflow.beauty` to target the future
+production domain. Any other origin, including HTTP, credentials, extra paths,
+or lookalike hosts, fails before a request. The probe makes 28 anonymous GETs
+to the selected origin: the French root redirect; FR/EN/ES landing, salon,
+country/city discovery, login, privacy, terms, and support pages; and each
+anonymous client-directory redirect to the same-locale login. Redirects must
+remain on the selected origin. It does not send bookings or payments,
 read response bodies, authenticate, or verify a signed-in client workflow.
 A public HTML 200 confirms route availability, not legal accuracy, current
 approval, policy coverage, or that the Vercel alias points to the exact GitHub
