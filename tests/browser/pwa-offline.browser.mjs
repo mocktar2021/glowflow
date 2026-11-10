@@ -13,9 +13,16 @@ let server;
 let browser;
 let origin;
 let bookingPosts = 0;
+let networkDown = false;
 
 before(async () => {
   server = createServer((request, response) => {
+    // Playwright offline mode can still reach loopback on some Chromium builds.
+    // Tear down that connection too, so the worker sees a real fetch failure.
+    if (networkDown) {
+      request.socket.destroy();
+      return;
+    }
     if (request.url === "/sw.js") {
       response.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",
@@ -61,6 +68,7 @@ test("registered PWA worker recovers online without caching private pages or rep
     assert.match(await page.locator("main").innerText(), new RegExp(privateMarker));
     assert.deepEqual(await page.evaluate(() => caches.keys()), []);
 
+    networkDown = true;
     await context.setOffline(true);
     for (const [locale, expected] of [
       ["fr", "GlowFlow est hors ligne"],
@@ -79,8 +87,10 @@ test("registered PWA worker recovers online without caching private pages or rep
     }
 
     // A failed offline booking request must not be queued or replayed on reconnect.
+    networkDown = false;
     await context.setOffline(false);
     await page.goto(`${origin}/fr/salons`);
+    networkDown = true;
     await context.setOffline(true);
     const failedOfflinePost = await page.evaluate(async () => {
       try {
@@ -93,6 +103,7 @@ test("registered PWA worker recovers online without caching private pages or rep
     assert.equal(failedOfflinePost, true);
     assert.equal(bookingPosts, 0);
 
+    networkDown = false;
     await context.setOffline(false);
     const recovered = await page.goto(`${origin}/fr/salons`);
     assert.equal(recovered.status(), 200);
@@ -100,6 +111,7 @@ test("registered PWA worker recovers online without caching private pages or rep
     assert.deepEqual(await page.evaluate(() => caches.keys()), []);
     assert.equal(bookingPosts, 0);
   } finally {
+    networkDown = false;
     await context.close();
   }
 }, { timeout: 60000 });
