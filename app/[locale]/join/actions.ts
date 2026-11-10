@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { safeLocale } from "@/lib/auth";
+import { authCallbackOrigin } from "@/lib/auth-callback-origin";
 import { createClient } from "@/lib/supabase/server";
 import { staffInvitationsEnabled, validStaffInvitationToken } from "@/lib/staff-invitations";
 
@@ -83,7 +84,8 @@ export async function signUpToAcceptInvitation(
     return unavailable;
   }
 
-  const origin = process.env.GLOWFLOW_APP_URL ?? "https://glowflow.mocktar.com";
+  const origin = authCallbackOrigin();
+  if (!origin) return unavailable;
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,

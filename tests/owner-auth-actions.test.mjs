@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
 }).outputText;
 
-function ownerActions({ signInError = null, signUpError = null, session = null, workspaceError = null } = {}) {
+function ownerActions({ signInError = null, signUpError = null, session = null, workspaceError = null, callbackOrigin = origin } = {}) {
   const calls = [];
   const dependencies = {
     "next/navigation": { redirect(location) { throw Object.assign(new Error("redirect"), { location }); } },
@@ -23,6 +23,7 @@ function ownerActions({ signInError = null, signUpError = null, session = null, 
       },
     },
     "@/lib/auth-copy": { authCopy },
+    "@/lib/auth-callback-origin": { authCallbackOrigin: () => callbackOrigin },
     "@/lib/supabase/server": {
       async createClient() {
         calls.push({ method: "createClient" });
@@ -73,6 +74,13 @@ function ownerForm() {
 }
 
 for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} owner signup refuses an unavailable callback before Supabase access`, async () => {
+    const { actions, calls } = ownerActions({ callbackOrigin: null });
+    await expectRedirect(() => actions.signUp(locale, ownerForm()),
+      `/${locale}/register?error=${encodeURIComponent(authCopy[locale].notices.signupFailed)}`);
+    assert.deepEqual(calls, []);
+  });
+
   test(`${locale} owner signup rejects incomplete fields before Supabase access`, async () => {
     const { actions, calls } = ownerActions();
     const form = ownerForm();

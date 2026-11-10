@@ -32,9 +32,12 @@ waive those paid-launch gates or authorize a real charge.
 
 The prior dashboard demonstration was removed during the workspace redesign,
 so this PR does not restore or alter that obsolete booking-link surface. The
-current `GLOWFLOW_APP_URL` Auth/join fallback still targets
-`glowflow.mocktar.com` when the variable is absent; verify its exact
-Production value and callbacks before beauty launch. The Resend adapter still
+Auth signup, reset, and staff-join callbacks preserve the current QA/Preview
+behavior while Production has no explicit canonical setting. Once Production
+sets `GLOWFLOW_CANONICAL_ORIGIN`, these actions refuse to send Auth email unless
+`GLOWFLOW_APP_URL` is explicitly set to the same valid HTTPS origin. This does
+not configure Supabase's Auth redirect allowlist: verify that separately before
+beauty launch. The Resend adapter still
 names `email.glowflow.mocktar.com`; a dedicated verified beauty sending domain,
 monitored reply-to, restricted key, and separate approval remain GLOW-9/GLOW-55
 gates. This document does not activate or reconfigure the sender.
