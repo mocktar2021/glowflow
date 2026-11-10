@@ -49,6 +49,18 @@ test("canceled paid-deposit cards keep a factual refund caveat after the cancel 
   assert.match(page, /appointment\.status === "canceled" && appointment\.deposit_paid \? <p role="note"[^>]*>\{labels\.canceledPaidNotice\}<\/p> : null/);
 });
 
+test("calendar deposit labels describe recorded history without implying a debt or refund state", async () => {
+  const page = await read("app/[locale]/dashboard/calendar/page.tsx");
+  for (const label of [
+    "Paiement d’acompte enregistré", "Aucun acompte payé enregistré",
+    "Deposit payment recorded", "No paid deposit recorded",
+    "Pago de depósito registrado", "No se ha registrado ningún depósito pagado",
+  ]) assert.ok(page.includes(label), `Missing factual deposit label: ${label}`);
+  assert.match(page, /appointment\.deposit_paid \? labels\.paid : labels\.unpaid/);
+  assert.doesNotMatch(page, /paid: "Deposit paid", unpaid: "Deposit unpaid"/);
+  assert.doesNotMatch(page, /paid: "Depósito pagado", unpaid: "Depósito pendiente"/);
+});
+
 test("sandbox webhook does not mistake a refund event for a settled booking", async () => {
   const source = await read("lib/stripe-deposit-events.ts");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
