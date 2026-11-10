@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
+import { publicSiteOrigin } from "../lib/public-site-origin.ts";
+
 const source = await readFile(new URL("../lib/staff-invitation-email.ts", import.meta.url), "utf8");
 const js = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
@@ -11,6 +13,7 @@ const loaded = { exports: {} };
 const environment = { env: {} };
 new Function("require", "module", "exports", "process", js)(name => {
   if (name === "server-only") return {};
+  if (name === "@/lib/public-site-origin") return { publicSiteOrigin };
   if (name === "@/lib/staff-invitations") return {
     validStaffInvitationToken: token => /^[A-Za-z0-9_-]{43}$/.test(token),
     staffJoinLanguageHref: (locale, token) => `/${locale}/join#token=${token}`,
@@ -68,6 +71,28 @@ test("missing, malformed, and unapproved origins fail closed", () => {
   environment.env.VERCEL_ENV = "preview";
   assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
   environment.env.VERCEL_ENV = undefined;
+});
+
+test("production invitation origin must match the approved public origin", () => {
+  environment.env.VERCEL_ENV = "production";
+  environment.env.GLOWFLOW_CANONICAL_ORIGIN = undefined;
+  environment.env.GLOWFLOW_APP_URL = "https://glowflow.mocktar.com";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), "https://glowflow.mocktar.com");
+
+  environment.env.GLOWFLOW_APP_URL = "https://glowflow.beauty";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
+
+  environment.env.GLOWFLOW_CANONICAL_ORIGIN = "https://glowflow.beauty";
+  environment.env.GLOWFLOW_APP_URL = "https://glowflow.mocktar.com";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
+
+  environment.env.GLOWFLOW_APP_URL = "https://glowflow.beauty";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), "https://glowflow.beauty");
+
+  environment.env.GLOWFLOW_CANONICAL_ORIGIN = "https://unapproved.example";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
+  environment.env.VERCEL_ENV = undefined;
+  environment.env.GLOWFLOW_CANONICAL_ORIGIN = undefined;
 });
 
 test("malformed tokens never enter an email", () => {
