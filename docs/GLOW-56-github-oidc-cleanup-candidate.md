@@ -4,7 +4,8 @@ November 14 update: the owner-provided Vercel screenshot shows the existing
 team on Pro, not Hobby. GitHub's observed scheduled-run gaps make this
 candidate unsuitable for the two-hour freshness target. A separately gated,
 inactive [Vercel Pro adapter](GLOW-56-vercel-pro-cleanup-candidate.md) is now
-under review. Do not set this workflow's ACK while evaluating that adapter.
+under review. The routes now fail closed if both activation values are set.
+Do not set this workflow's ACK while evaluating that adapter.
 
 This is a **code-only, inactive** alternative to the earlier GitHub
 service-role-key draft and the database-local `pg_cron`/`pg_net` proposal.
