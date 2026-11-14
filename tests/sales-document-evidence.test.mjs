@@ -68,6 +68,28 @@ test("missing adjustments are not silently inferred as zero", () => {
   }).gaps, ["issuance_policy_unapproved"]);
 });
 
+test("payment snapshots cannot refund more than collected or exceed safe integers", () => {
+  for (const entries of [
+    [{ type: "payment", method: "cash", amountMinor: 2000, currency: "EUR" },
+      { type: "refund", method: "cash", amountMinor: 2001, currency: "EUR" }],
+    [{ type: "payment", method: "cash", amountMinor: Number.MAX_SAFE_INTEGER, currency: "EUR" },
+      { type: "payment", method: "external_card", amountMinor: 1, currency: "EUR" }],
+  ]) assert.ok(inspectSalesDocumentEvidence({ ...candidate,
+    payment: { status: "recorded", entries },
+  }).gaps.includes("payment_ledger_inconsistent"));
+  assert.deepEqual(inspectSalesDocumentEvidence({ ...candidate,
+    payment: { status: "recorded", entries: [
+      { type: "payment", method: "cash", amountMinor: 2000, currency: "EUR" },
+    ] },
+  }).gaps, ["issuance_policy_unapproved"]);
+  assert.ok(inspectSalesDocumentEvidence({ ...candidate,
+    payment: { status: "unpaid", entries: candidate.payment.entries },
+  }).gaps.includes("payment_snapshot_missing"));
+  assert.deepEqual(inspectSalesDocumentEvidence({ ...candidate,
+    payment: { status: "unpaid", entries: null },
+  }).gaps, ["issuance_policy_unapproved"]);
+});
+
 test("mixed currencies and invalid amounts cannot satisfy the evidence inventory", () => {
   const result = inspectSalesDocumentEvidence({
     ...candidate, currency: "EUR", totalMinor: Number.NaN,
