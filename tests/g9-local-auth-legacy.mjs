@@ -58,9 +58,9 @@ const client = () => createClient(api.origin, publicKey, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 });
 const email = `glow9-${randomUUID()}@example.invalid`;
-const legacyStored = randomBytes(18).toString("base64url");
+const legacyStored = `Gl0w!${randomBytes(16).toString("hex")}`;
 const originalInput = `  ${legacyStored}  `;
-const replacement = `  ${randomBytes(18).toString("base64url")}  `;
+const replacement = `  Gl0w!${randomBytes(16).toString("hex")}  `;
 
 // The old owner action trimmed this input before calling signUp. Create only
 // the resulting stored credential; every account and email stays local.
