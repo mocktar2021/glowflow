@@ -18,6 +18,43 @@ thresholds and prices, message allowances, and any overage policy still need
 product-owner approval. No code currently calls the contract, so it cannot
 activate billing.
 
+`lib/billing/starter-checkout-preflight.ts` is another inert server-only
+contract. It compares a future retrieved Stripe Price to the exact approved
+Starter amount and currency for the salon market, an explicitly configured
+Price ID, the expected sandbox/live mode, a one-month licensed recurring
+interval, and exclusive tax behavior. It rejects inactive, underpriced,
+inclusive-tax, wrong-mode, annual, or metered Prices. It also calculates the
+approved *local calendar date* one month after signup, clamping missing dates
+to month-end, including leap years. It deliberately does not turn that date
+into Stripe's UTC `trial_end`: the authoritative billing time zone has not yet
+been approved. Price evidence is not proof that a Product has the right tax
+code, that Stripe Tax is ready, or that a subscription may be created. No
+route calls this module, no Stripe Price is configured, and no hosted state
+changes from it.
+
+`lib/billing/owner-authorization.ts` is an uncalled, server-only authorization
+boundary for a future subscription Checkout or Portal route. It obtains the
+authenticated user from Supabase, verifies that user's `users` row has the
+`owner` role, and requires the same user to be the matching tenant's
+`owner_id`. It returns that tenant's operating country and currency, never a
+browser-supplied tenant, market, Price, or Stripe ID. Missing or inconsistent
+records and query failures fail closed. RLS is still required; this boundary
+does not establish a billing address, tax jurisdiction, seat count, or
+permission to create a Stripe session. No live route calls it.
+
+`lib/billing/platform-subscription-webhook.ts` is also uncalled. After
+verifying a dedicated platform signature and live/test mode, it classifies
+subscription lifecycle events and the `invoice.paid` and
+`invoice.payment_failed` events of subscription invoices. For current Stripe
+Invoice versions it requires the first-class ID at
+`parent.subscription_details.subscription`; it rejects one-off invoices,
+legacy or expanded references, and malformed records for operator retry. This
+classification does not grant access on `invoice.paid`, remove access on a
+failure, acknowledge delivery, or fetch Stripe objects. A future route must
+persist an idempotent event ledger and reconcile out-of-order events against
+the current Subscription before changing entitlements. Risk-side dispute,
+refund, and early-fraud-warning events still require reviewed handling.
+
 ## Owner-approved Starter offer
 
 - One month free, with a payment method collected at signup and automatic

@@ -348,7 +348,8 @@ test("real capability adapter signs browser and exact intent without requiring a
   try {
     process.env.VERCEL_ENV = "preview";
     process.env.GLOWFLOW_PUBLIC_BOOKING_QUOTA_HMAC_KEY = Buffer.alloc(32, 29).toString("base64url");
-    const { POST, calls, quotaCalls } = await harness(true, undefined, null, undefined,
+    const { POST, calls, quotaCalls } = await harness(true,
+      { data: { state: "not_committed", generation, intent_id: intentId }, error: null }, null, undefined,
       undefined, undefined, realAdapter);
     const { response } = await post(POST, { action: "commit", salonSlug: "browser-fixture", intentId });
     assert.equal(response.status, 200);
@@ -400,7 +401,12 @@ test("missing quota keys, RPC errors, and malformed responses fail closed", asyn
 });
 
 test("commit, cancel and acknowledge consume their own capability quota before action RPC", async () => {
-  const { POST, calls, quotaCalls, rpcOrder } = await harness();
+  const { POST, calls, quotaCalls, rpcOrder } = await harness(true, name => ({
+    data: name === "acknowledge_public_booking_intent"
+      ? { state: "none", generation }
+      : { state: "not_committed", generation, intent_id: intentId },
+    error: null,
+  }));
   for (const action of ["commit", "cancel", "acknowledge"]) {
     const { response } = await post(POST, { action, salonSlug: "browser-fixture", intentId });
     assert.equal(response.status, 200);
@@ -753,6 +759,34 @@ test("missing cookie configuration, mismatched IDs and malformed terminal result
       const { response, value } = await post(POST, { action: "cancel", salonSlug: "browser-fixture", intentId });
       assert.equal(response.status, 503);
       assert.equal(value.state, "unknown");
+    }
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
+  }
+});
+
+test("v2 rejects outcomes that belong to a different intent action", async () => {
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
+  try {
+    const cases = [
+      [prepare, { state: "none", generation }],
+      [{ action: "commit", salonSlug: "browser-fixture", intentId },
+        { state: "prepared", generation, intent_id: intentId }],
+      [{ action: "cancel", salonSlug: "browser-fixture", intentId },
+        { state: "prepared", generation, intent_id: intentId }],
+      [{ action: "acknowledge", salonSlug: "browser-fixture", intentId },
+        { state: "not_committed", generation, intent_id: intentId }],
+    ];
+    for (const [body, invalidResult] of cases) {
+      const { POST, calls } = await harness(true, { data: invalidResult, error: null });
+      const { response, value } = await post(POST, body);
+      assert.equal(response.status, 503, `${body.action} must reject ${invalidResult.state}`);
+      assert.deepEqual(value, { state: "unknown", error: "booking_unavailable" });
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.equal(response.headers.get("set-cookie"), null);
+      assert.deepEqual(calls.map(({ name }) => name), [`${body.action}_public_booking_intent`]);
     }
   } finally {
     if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;

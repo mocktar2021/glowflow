@@ -5,6 +5,7 @@ import type { StaffInvitationTransport } from "@/lib/staff-invitation-sender";
 const resendEndpoint = "https://api.resend.com/emails";
 const sendingDomain = "email.glowflow.mocktar.com";
 const emailPattern = /^[^\s@<>]+@[^\s@<>]+$/;
+const invitationKeyPattern = /^glowflow-staff-invite-[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i;
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -30,6 +31,16 @@ export function createResendStaffInvitationTransport(
       || !replyTo || !validEmail(replyTo)) return null;
 
   return async ({ to, subject, html, text, idempotencyKey, signal }) => {
+    // Keep the provider boundary safe even if a future caller bypasses the
+    // outbox sender's claim validation. Never issue a request without the
+    // invitation's stable key, a single valid recipient, and a live timeout.
+    if (typeof to !== "string" || !validEmail(to)
+        || typeof idempotencyKey !== "string"
+        || !invitationKeyPattern.test(idempotencyKey)
+        || !(signal instanceof AbortSignal) || signal.aborted) {
+      return { kind: "not_sent", retryable: false };
+    }
+
     // A rejected request is a definite non-send. A timeout, rate limit, server
     // error, or malformed acknowledgement may have been accepted, so the
     // queue must treat it as uncertain and never blindly retry.

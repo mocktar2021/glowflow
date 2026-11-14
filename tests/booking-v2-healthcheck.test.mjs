@@ -74,30 +74,23 @@ test("CLI failure diagnostics do not print the bearer URL", () => {
   assert.ok(!`${child.stdout}${child.stderr}`.includes(ping));
 });
 
-test("dormant shared-backend schedule has strict opt-in and correctly ordered signals", () => {
+test("dormant shared-backend schedule holds no database or ping secret", () => {
   const source = readFileSync(new URL("../.github/workflows/glow56-qa-cleanup.yml", import.meta.url), "utf8");
   assert.match(source, /cron: "17,47 \* \* \* \*"/);
   assert.doesNotMatch(source, /workflow_dispatch:|pull_request:|push:/);
   assert.match(source, /github\.repository == 'mocktar2021\/glowflow'/);
   assert.match(source, /github\.ref == 'refs\/heads\/master'/);
-  assert.match(source, /vars\.GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK == 'enable-glow56-qa-cleanup-20261105'/);
+  assert.match(source, /vars\.GLOWFLOW_QA_CLEANUP_SCHEDULE_ACK == 'enable-glow56-qa-oidc-cleanup-20261110'/);
   assert.match(source, /permissions:\n  contents: read/);
   assert.match(source, /cancel-in-progress: false/);
   assert.match(source, /timeout-minutes: 10/);
-  assert.match(source, /environment: glowflow-qa-booking-cleanup/);
+  assert.doesNotMatch(source, /^    environment:/m);
+  assert.match(source, /id-token: write/);
   assert.match(source, /checkout@11bd71901bbe5b1630ceea73d27597364c9af683/);
   assert.match(source, /setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020/);
   assert.match(source, /persist-credentials: false/);
-  assert.match(source, /GLOWFLOW_CLEANUP_PROJECT_REF: rfwhqutkiztxkagbhevp/);
-  assert.match(source, /GLOWFLOW_CLEANUP_SUPABASE_URL: https:\/\/rfwhqutkiztxkagbhevp\.supabase\.co/);
-  assert.match(source, /GLOWFLOW_CLEANUP_SERVICE_ROLE_KEY: \$\{\{ secrets\.GLOWFLOW_QA_CLEANUP_SERVICE_ROLE_KEY \}\}/);
-  assert.match(source, /GLOWFLOW_QA_HEALTHCHECKS_PING_URL: \$\{\{ secrets\.GLOWFLOW_QA_HEALTHCHECKS_PING_URL \}\}/);
-  const preflight = source.indexOf("node ops/booking-v2-healthcheck.mjs preflight");
-  const sweep = source.indexOf("node ops/booking-v2-cleanup.mjs");
-  const failure = source.indexOf("node ops/booking-v2-healthcheck.mjs fail");
-  const success = source.indexOf("node ops/booking-v2-healthcheck.mjs ping");
-  assert.ok(preflight >= 0 && preflight < sweep && sweep < failure && failure < success);
-  assert.match(source, /if: \$\{\{ failure\(\) && steps\.cleanup\.outcome == 'failure' \}\}/);
-  assert.match(source, /also backs the current live glowflow\.mocktar\.com site/);
+  assert.match(source, /node ops\/booking-v2-oidc-trigger\.mjs/);
+  assert.doesNotMatch(source, /secrets\.|GLOWFLOW_CLEANUP_SERVICE_ROLE_KEY|booking-v2-cleanup\.mjs/);
+  assert.match(source, /also backs glowflow\.mocktar\.com/);
   assert.doesNotMatch(source, /continue-on-error:|if: \$\{\{ always\(\) \}\}/);
 });

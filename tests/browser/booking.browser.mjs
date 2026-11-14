@@ -131,6 +131,41 @@ async function selectBookingTime(page, start = slot.slot_start) {
   await radio.locator("..").click();
   assert.equal(await radio.isChecked(), true);
 }
+test("empty preferred-staff date finds the next real date without booking", async t => {
+  const requestedDates = [];
+  let selectedDate;
+  const laterDate = (date, days) => {
+    const value = new Date(`${date}T12:00:00Z`);
+    value.setUTCDate(value.getUTCDate() + days);
+    return value.toISOString().slice(0, 10);
+  };
+  const { page, writes } = await pageFor(t, "fr", {
+    publicBooking: route => {
+      assert.equal(route.request().method(), "GET", "search must never submit a booking");
+      const date = new URL(route.request().url()).searchParams.get("date");
+      selectedDate ??= date;
+      requestedDates.push(date);
+      // Another professional is available first. Only the visitor's chosen
+      // professional has an opening on the second later salon-local date.
+      const staffId = date === laterDate(selectedDate, 2)
+        ? slot.staff_id : "66666666-6666-4666-8666-666666666666";
+      return route.fulfill({ json: { slots: [{ slot_start: `${date}T14:00:00Z`, staff_id: staffId }] } });
+    },
+  });
+  await page.goto(`${origin}/fr/book/browser-fixture`);
+  await page.getByRole("combobox", { name: "Professionnel" }).selectOption(slot.staff_id);
+  await page.getByText("Aucun créneau pour ce professionnel à cette date.").waitFor();
+  const beforeSearch = requestedDates.length;
+  await page.getByRole("button", { name: "Chercher la prochaine date disponible" }).click();
+  const suggestion = page.getByRole("button", { name: /Voir les créneaux du/ });
+  await suggestion.waitFor();
+  assert.deepEqual(requestedDates.slice(beforeSearch), [laterDate(selectedDate, 1), laterDate(selectedDate, 2)]);
+  await suggestion.click();
+  assert.equal(await page.locator('input[type="date"]').inputValue(), laterDate(selectedDate, 2));
+  await page.locator(`[name="bookingTime"][value="${laterDate(selectedDate, 2)}T14:00:00Z"]`).waitFor();
+  assert.equal(requestedDates.at(-1), laterDate(selectedDate, 2), "chosen date is rechecked");
+  assert.deepEqual(writes, [], "finding and viewing an opening never creates a booking");
+});
 for (const locale of ["fr", "en", "es"]) {
   test(`${locale} sandbox booking submits exact fixture and displays authoritative pending`, async t => {
     const { page, writes } = await pageFor(t, locale);

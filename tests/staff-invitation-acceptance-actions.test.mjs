@@ -16,7 +16,7 @@ const form = (fields = {}) => {
   return value;
 };
 
-function actions({ enabled = true, verified = true, rpcError = null, authError = null, session = true } = {}) {
+function actions({ enabled = true, verified = true, rpcError = null, authError = null, session = true, callbackOrigin = "https://glowflow.mocktar.com" } = {}) {
   const calls = [];
   const supabase = {
     auth: {
@@ -32,6 +32,7 @@ function actions({ enabled = true, verified = true, rpcError = null, authError =
   const dependencies = {
     "next/navigation": { redirect(location) { throw Object.assign(new Error("redirect"), { location }); } },
     "@/lib/auth": { safeLocale: value => ["fr", "en", "es"].includes(value) ? value : "fr" },
+    "@/lib/auth-callback-origin": { authCallbackOrigin: () => callbackOrigin },
     "@/lib/supabase/server": { async createClient() { calls.push("createClient"); return supabase; } },
     "@/lib/staff-invitations": {
       staffInvitationsEnabled: () => enabled,
@@ -100,6 +101,14 @@ test("new staff signup redirects only to inert completion and never stores token
   assert.ok(!JSON.stringify(signup).includes(token));
   assert.ok(!fixture.calls.some(call => Array.isArray(call) && call[0] === "rpc"));
 });
+
+for (const locale of ["fr", "en", "es"]) {
+  test(`${locale} staff signup refuses an unavailable callback before Supabase access`, async () => {
+    const fixture = actions({ callbackOrigin: null });
+    assert.deepEqual(await fixture.actions.signUpToAcceptInvitation(locale, {}, form()), { error: "unavailable" });
+    assert.deepEqual(fixture.calls, []);
+  });
+}
 
 test("new staff without email confirmation never accepts, even when Auth returns a session", async () => {
   const fixture = actions({ session: true, verified: false });
