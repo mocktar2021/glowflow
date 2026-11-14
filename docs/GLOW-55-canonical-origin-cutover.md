@@ -9,6 +9,37 @@ code guard, not permission to enable sending.
 Production Auth signup and password-reset callbacks also refuse a beauty or
 unknown App URL while the canonical origin remains on the current QA default.
 
+## Separate the deployment boundary before cutover
+
+Read-only Vercel metadata on 2026-11-14 identified team
+`team_ObLZOyZ2aT7LLu4cjxQGJPzJ`, project
+`prj_YZ96jIX5QEOOI70zUlbHSaIqQbsu` as the existing QA site with verified
+domain `glowflow.mocktar.com`. `glowflow.beauty` was not attached to this
+project. Its `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` variables each target Development,
+Preview, and Production together. A Production-scoped Resend API key exists in
+this QA project. Values and any separate beauty project were not inspected.
+
+Before attaching the beauty domain or changing origin variables, inventory a
+separately deployable beauty Vercel project, or document and review an
+equivalent with independent deployments, environment-variable scopes, and
+rollback. Record its exact team/project IDs, Git source, production branch,
+domain, and deployment target. Verify that its public Supabase URL and key,
+server secret, Auth configuration, Stripe credentials/webhooks, and Resend
+sender/key belong to the intended isolated production services. A URL or key
+that targets QA and beauty together does not satisfy this boundary. In
+particular, do not replace the existing three-target QA Supabase URL/key in
+place: that would also change Preview and Development. Keep the QA alias,
+backend, and sender configuration unchanged.
+
+Preflight rollback on both sides: record the current QA deployment and alias,
+the intended beauty deployment and alias, and the operator who can restore
+each independently. If beauty has no prior READY deployment, specify how to
+withdraw the beauty alias and stop paid flows without pointing it at QA or
+copying QA data. Verify the exact environment-variable values and alias state
+again after either cutover or rollback; a code rollback alone does not reverse
+provider or domain settings.
+
 At the beauty release window, the operator must verify the exact Vercel project,
 READY deployment, DNS/TLS, Auth redirect allowlist, and isolated production
 backend before setting `GLOWFLOW_CANONICAL_ORIGIN=https://glowflow.beauty` in
