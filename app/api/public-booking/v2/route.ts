@@ -228,6 +228,10 @@ function validResult(value: unknown, action: Action, expectedIntentId: string | 
   // RPC cannot produce must not become browser recovery evidence.
   if (!allowedResultStates[action].includes(state)) return null;
   if (state === "unknown") return { state: "unknown" };
+  // A clean session cannot also identify an outstanding intent or carry a
+  // confirmation. Contradictory RPC evidence must never unlock a new booking.
+  if (state === "none" && (raw.intent_id !== undefined || raw.confirmation !== undefined)) return null;
+  if ((state === "prepared" || state === "not_committed") && raw.confirmation !== undefined) return null;
   const generation = typeof raw.generation === "string" && uuid.safeParse(raw.generation).success ? raw.generation : undefined;
   if (raw.generation !== undefined && !generation) return null;
   if (!generation) return null;
