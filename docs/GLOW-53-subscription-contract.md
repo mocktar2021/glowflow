@@ -23,7 +23,8 @@ contract. It compares a future retrieved Stripe Price to the exact approved
 Starter amount and currency for the salon market, an explicitly configured
 Price ID, the expected sandbox/live mode, a one-month licensed recurring
 interval, and exclusive tax behavior. It rejects inactive, underpriced,
-inclusive-tax, wrong-mode, annual, or metered Prices. It also calculates the
+inclusive-tax, wrong-mode, annual, metered, quantity-transformed, custom-amount,
+or Price-level fixed-day-trial Prices. It also calculates the
 approved *local calendar date* one month after signup, clamping missing dates
 to month-end, including leap years. It deliberately does not turn that date
 into Stripe's UTC `trial_end`: the authoritative billing time zone has not yet
