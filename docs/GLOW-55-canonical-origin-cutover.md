@@ -11,7 +11,11 @@ At the beauty release window, the operator must verify the exact Vercel project,
 READY deployment, DNS/TLS, Auth redirect allowlist, and isolated production
 backend before setting `GLOWFLOW_CANONICAL_ORIGIN=https://glowflow.beauty` in
 Production. Set and verify `GLOWFLOW_APP_URL` to that same origin for Auth and
-invitation links in the same controlled release. Never copy production secrets
+invitation links in the same controlled release. The code now refuses to
+advertise `glowflow.beauty` unless `NEXT_PUBLIC_SUPABASE_URL` is a distinct,
+canonical Supabase project URL rather than the shared development project.
+This check proves separation from the known QA project, not ownership of the
+new project: verify its organization and identity before cutover. Never copy production secrets
 or customer data into Preview. An invalid configured canonical origin fails
 closed instead of advertising an arbitrary domain.
 

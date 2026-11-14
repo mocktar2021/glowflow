@@ -25,11 +25,12 @@ test("current QA Production and Preview callbacks stay unchanged before cutover"
 });
 
 test("explicit Production canonical requires an explicit matching Auth callback origin", () => {
-  const env = { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" };
+  const env = { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty", NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" };
   assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.beauty" }), "https://glowflow.beauty");
   assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.beauty/" }), "https://glowflow.beauty");
   assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), null);
   assert.equal(authCallbackOrigin(env), null);
+  assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: "https://glowflow.beauty", NEXT_PUBLIC_SUPABASE_URL: "https://rfwhqutkiztxkagbhevp.supabase.co" }), null);
   assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.mocktar.com", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), "https://glowflow.mocktar.com");
 });
 
@@ -40,7 +41,7 @@ test("invalid explicit Production canonical never falls back to a matching QA Ap
 });
 
 test("explicit Production canonical rejects malformed callback URLs", () => {
-  const env = { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" };
+  const env = { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty", NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" };
   for (const configured of ["", "http://glowflow.beauty", "https://glowflow.beauty.evil.example", "https://glowflow.beauty:444", "https://glowflow.beauty/path", "https://glowflow.beauty?x=1", "https://glowflow.beauty#fragment", " https://glowflow.beauty", "https://user@glowflow.beauty"]) {
     assert.equal(authCallbackOrigin({ ...env, GLOWFLOW_APP_URL: configured }), null, configured);
   }

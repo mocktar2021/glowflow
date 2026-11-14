@@ -1,5 +1,21 @@
 const currentProductionOrigin = "https://glowflow.mocktar.com";
+const beautyOrigin = "https://glowflow.beauty";
+const sharedDevelopmentSupabaseOrigin = "https://rfwhqutkiztxkagbhevp.supabase.co";
 const productionHosts = new Set(["glowflow.mocktar.com", "glowflow.beauty"]);
+
+function hasSeparateSupabaseProject(value: string | undefined): boolean {
+  try {
+    const url = new URL(value ?? "");
+    return url.protocol === "https:"
+      && /^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname)
+      && url.origin !== sharedDevelopmentSupabaseOrigin
+      && !url.username && !url.password && !url.port
+      && url.pathname === "/" && !url.search && !url.hash
+      && value === url.origin;
+  } catch {
+    return false;
+  }
+}
 
 /** Public SEO origin, independent of request headers and visitor-supplied hosts. */
 export function publicSiteOrigin(env: NodeJS.ProcessEnv = process.env): string {
@@ -14,7 +30,15 @@ export function publicSiteOrigin(env: NodeJS.ProcessEnv = process.env): string {
       if (url.protocol === "https:" && productionHosts.has(url.hostname)
           && !url.username && !url.password && !url.port && url.pathname === "/"
           && !url.search && !url.hash
-          && (configured === url.origin || configured === `${url.origin}/`)) return url.origin;
+          && (configured === url.origin || configured === `${url.origin}/`)) {
+        if (url.origin === beautyOrigin
+            && ((env.GLOWFLOW_APP_URL !== beautyOrigin
+                && env.GLOWFLOW_APP_URL !== `${beautyOrigin}/`)
+              || !hasSeparateSupabaseProject(env.NEXT_PUBLIC_SUPABASE_URL))) {
+          throw new Error("GlowFlow beauty origin requires separate production configuration");
+        }
+        return url.origin;
+      }
     } catch {
       // Invalid URLs follow the same fail-closed path as unapproved hosts.
     }
