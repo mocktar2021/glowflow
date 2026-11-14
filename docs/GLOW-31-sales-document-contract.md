@@ -1,6 +1,6 @@
 # GLOW-31 draft sales-document contract
 
-This is an implementation inventory, **not a receipt or invoice specification approved for use**. No document is issued, numbered, rendered, stored, or sent by this change. The dormant `inspectSalesDocumentEvidence` helper reports only gap codes and always includes `issuance_policy_unapproved`. Its empty-field checks do not validate identities, arithmetic, tax treatment, or legal compliance.
+This is an implementation inventory, **not a receipt or invoice specification approved for use**. No document is issued, numbered, rendered, stored, or sent by this change. The dormant `inspectSalesDocumentEvidence` helper reports only gap codes and always includes `issuance_policy_unapproved`. Its field and limited ledger-consistency checks do not validate identities, document totals, tax treatment, source records, or legal compliance.
 
 ## Current source-backed state
 
@@ -18,7 +18,7 @@ The schema snapshot is local repository evidence only; this change did not query
 
 Before issuance, a future server-side transaction must snapshot the seller and client identities required by the applicable policy; each service/add-on line and its trusted price; document currency; explicit discounts and tips; the tax amount **and its reviewed treatment/basis**; the immutable ledger entries or an explicit unpaid state; and reconciled totals. Language (`fr`, `en`, `es`) is a presentation preference and must not substitute for the seller's operating country, currency, tax jurisdiction, or legal rules. A document should remain tied to its tenant and authoritative payment/appointment records, never to untrusted browser values.
 
-The dormant evidence helper deliberately checks only whether minimal candidate fields are present and internally currency-shaped. It requires explicit nonnegative minor-unit discount and tip snapshots, including documented zeros, so absent adjustments cannot be mistaken for zero. It never accepts or produces an invoice number, calculates tax, reconciles line totals or ledger entries, marks a document as paid, or returns an issuance-ready/compliance flag. A documented zero tax amount still needs an explicit basis string, but that string is **not** verified as legally correct. No caller currently uses this helper.
+The dormant evidence helper checks whether minimal candidate fields are present and internally currency-shaped. It requires explicit nonnegative minor-unit discount and tip snapshots, including documented zeros, so absent adjustments cannot be mistaken for zero. It also rejects recorded payment evidence whose refunds exceed payments or whose payment or refund sum overflows a safe integer. An explicit unpaid state cannot carry payment entries. These checks only identify universal contradictions in supplied evidence; they do not establish that the amounts came from authoritative records or that tax, discounts, and tender were allowed. The helper never accepts or produces an invoice number, calculates tax, reconciles document totals, marks a document as paid, or returns an issuance-ready/compliance flag. A documented zero tax amount still needs an explicit basis string, but that string is **not** verified as legally correct. No caller currently uses this helper.
 
 ## Decisions required before any issuing code or migration
 

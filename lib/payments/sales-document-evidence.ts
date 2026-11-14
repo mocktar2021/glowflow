@@ -11,7 +11,8 @@ export type SalesDocumentEvidenceGap =
   | "currency_missing"
   | "payment_snapshot_missing"
   | "tax_evidence_missing"
-  | "total_missing";
+  | "total_missing"
+  | "payment_ledger_inconsistent";
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -28,6 +29,15 @@ function amount(value: unknown): boolean {
 
 function currency(value: unknown): value is string {
   return typeof value === "string" && /^[A-Z]{3}$/.test(value);
+}
+
+function safeSum(values: readonly number[]): number | null {
+  let total = 0;
+  for (const value of values) {
+    total += value;
+    if (!Number.isSafeInteger(total)) return null;
+  }
+  return total;
 }
 
 export function inspectSalesDocumentEvidence(input: unknown): {
@@ -62,7 +72,8 @@ export function inspectSalesDocumentEvidence(input: unknown): {
   }
 
   const entries = payment.entries;
-  const paymentDocumented = payment.status === "unpaid" ||
+  const paymentDocumented = (payment.status === "unpaid"
+    && (entries == null || (Array.isArray(entries) && entries.length === 0))) ||
     (payment.status === "recorded" && Array.isArray(entries) && entries.length > 0
       && entries.every((rawEntry: unknown) => {
         const entry = record(rawEntry);
@@ -77,5 +88,18 @@ export function inspectSalesDocumentEvidence(input: unknown): {
     || !currency(tax.currency) || tax.currency !== documentCurrency
     || !name(tax.basis)) gaps.push("tax_evidence_missing");
   if (!amount(candidate.totalMinor)) gaps.push("total_missing");
+
+  // Refunds cannot exceed collected payments, regardless of future tax,
+  // discount, tip, or change policy. This does not reconcile document totals.
+  if (paymentDocumented && payment.status === "recorded") {
+    const paymentEntries = entries as Record<string, unknown>[];
+    const paid = safeSum(paymentEntries.filter((entry) => entry.type === "payment")
+      .map((entry) => entry.amountMinor as number));
+    const refunded = safeSum(paymentEntries.filter((entry) => entry.type === "refund")
+      .map((entry) => entry.amountMinor as number));
+    if (paid === null || refunded === null || refunded > paid) {
+      gaps.push("payment_ledger_inconsistent");
+    }
+  }
   return { kind: "draft_evidence_gaps", gaps };
 }
