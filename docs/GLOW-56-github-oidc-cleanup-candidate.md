@@ -1,5 +1,11 @@
 # GLOW-56 no-key GitHub cleanup candidate (inactive)
 
+November 14 update: the owner-provided Vercel screenshot shows the existing
+team on Pro, not Hobby. GitHub's observed scheduled-run gaps make this
+candidate unsuitable for the two-hour freshness target. A separately gated,
+inactive [Vercel Pro adapter](GLOW-56-vercel-pro-cleanup-candidate.md) is now
+under review. Do not set this workflow's ACK while evaluating that adapter.
+
 This is a **code-only, inactive** alternative to the earlier GitHub
 service-role-key draft and the database-local `pg_cron`/`pg_net` proposal.
 Neither approach was activated on hosted GlowFlow. The existing bounded
@@ -64,7 +70,7 @@ Never upgrade or add paid capacity for this test.
 1. Recheck the exact GitHub default branch, repository variable state,
    confirm the legacy Environment remains unchanged and is not used by this
    new secretless workflow,
-   current Vercel alias/deployment and **Hobby** usage, Supabase organization,
+   current Vercel alias/deployment and **Pro** usage and remaining credit, Supabase organization,
    project, migration ledger, sweep definitions/grants, policy, cleanup
    backlog, and Vercel server-only credential availability without revealing
    credential values. Stop on any difference. Confirm no active legacy

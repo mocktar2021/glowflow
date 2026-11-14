@@ -121,7 +121,7 @@ test('privileged Supabase client remains limited to reviewed server operations',
     'lib/stripe-sandbox.ts',
     'lib/staff-invitation-delivery.ts',
     'lib/staff-invitation-sender.ts',
-    'lib/glow56-cleanup-handler.mjs', // Reviewed: server-only OIDC, exact QA host/project, off-by-default activation, bounded RPCs.
+    'lib/glow56-cleanup-runner.mjs', // Reviewed: server-only bounded RPCs; only authenticated adapters call this runner.
   ]);
   assertTrustedAdminClientUsage(sources, approved);
   for (const unreviewedSource of [
