@@ -76,7 +76,8 @@ export async function POST(request: Request) {
     if (reservation.tenant_id !== owner.tenant.id) throw new Error("sandbox_unavailable");
     if (reservation.status !== "reserved") return reply(safeSandboxReservation(reservation));
     stage = "checkout_merchant";
-    const account = await stripe.v2.core.accounts.retrieve(reservation.stripe_account_id, { include: ["configuration.merchant"] });
+    // Stripe omits fee and loss responsibilities unless defaults is included.
+    const account = await stripe.v2.core.accounts.retrieve(reservation.stripe_account_id, { include: ["configuration.merchant", "defaults"] });
     assertSandboxMerchant(account, reservation);
     stage = "checkout_parameters";
     const parameters = sandboxCheckoutParameters(reservation, config.origin, owner.tenant.slug);

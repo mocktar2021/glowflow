@@ -19,11 +19,14 @@ export function assertSandboxMerchant(account: {
   id: string;
   livemode: boolean;
   metadata?: Record<string, string> | null;
+  defaults?: { responsibilities?: { fees_collector?: string | null; losses_collector?: string | null } | null } | null;
   configuration?: { merchant?: { capabilities?: { card_payments?: { status?: string } | null } | null } | null } | null;
 }, reservation: Pick<SandboxReservation, "tenant_id" | "stripe_account_id">) {
   if (account.id !== reservation.stripe_account_id || account.livemode ||
       account.metadata?.tenant_id !== reservation.tenant_id ||
       account.metadata?.environment !== "sandbox" || account.metadata?.product !== "glowflow" ||
+      account.defaults?.responsibilities?.fees_collector !== "stripe" ||
+      account.defaults?.responsibilities?.losses_collector !== "stripe" ||
       account.configuration?.merchant?.capabilities?.card_payments?.status !== "active") {
     throw new Error("sandbox_unavailable");
   }

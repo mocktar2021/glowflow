@@ -37,10 +37,10 @@ test("stable trusted session parameters correlate both Session and PaymentIntent
 test("ambiguous old attempts, invalid amounts and terminal reservations cannot create checkout", () => {
   for (const patch of [{ amount: 0 }, { amount: 1.5 }, { currency: "eur" }, { status: "paid" }, { expires_at: "invalid" }, { expires_at: new Date(now + 30 * 60000).toISOString() }]) assert.throws(() => helpers.sandboxCheckoutParameters({ ...row, ...patch }, env.GLOWFLOW_APP_URL, "salon", now));
 });
-test("merchant identity and active v2 capability must all match", () => {
-  const account = { id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, product: "glowflow", environment: "sandbox" }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } };
+test("merchant identity, salon fee responsibility and active v2 capability must all match", () => {
+  const account = { id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, product: "glowflow", environment: "sandbox" }, defaults: { responsibilities: { fees_collector: "stripe", losses_collector: "stripe" } }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } };
   assert.doesNotThrow(() => helpers.assertSandboxMerchant(account, row));
-  for (const patch of [{ livemode: true }, { id: "acct_other" }, { metadata: { ...account.metadata, tenant_id: "other" } }, { metadata: { ...account.metadata, environment: "live" } }, { configuration: {} }]) assert.throws(() => helpers.assertSandboxMerchant({ ...account, ...patch }, row));
+  for (const patch of [{ livemode: true }, { id: "acct_other" }, { metadata: { ...account.metadata, tenant_id: "other" } }, { metadata: { ...account.metadata, environment: "live" } }, { defaults: null }, { defaults: { responsibilities: { fees_collector: "application", losses_collector: "stripe" } } }, { defaults: { responsibilities: { fees_collector: "stripe", losses_collector: "application" } } }, { configuration: {} }]) assert.throws(() => helpers.assertSandboxMerchant({ ...account, ...patch }, row));
 });
 test("safe result excludes client information and hides terminal checkout URL", () => {
   const pending = { ...row, status: "pending", checkout_url: "https://checkout.stripe.com/c/pay/test", full_name: "Private" };
@@ -58,7 +58,7 @@ async function routeHarness({ owner = true, tenantMatches = true, configEnabled 
   const route = await moduleAt("../app/api/checkout/route.ts", {
     "@/lib/supabase/server": { createClient: async () => client },
     "@/lib/supabase/admin": { createAdminClient: () => { calls.push("admin"); return { rpc: async (name, args) => { calls.push({ name, args }); return name.startsWith("reserve") ? { data: reserveRow } : attachError ? { error: attachError === true ? {} : attachError } : { data: { ...reserveRow, status: "pending", checkout_url: "https://checkout.stripe.com/c/pay/test" } }; } }; } },
-    "@/lib/stripe": { createStripeClient: () => { calls.push("stripe"); return { accounts: { retrieve: async () => ({ id: env.STRIPE_SANDBOX_ACCOUNT_ID }) }, v2: { core: { accounts: { retrieve: async () => ({ id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, environment: "sandbox", product: "glowflow" }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } }) } } }, checkout: { sessions: { create: async (params, options) => { calls.push({ params, options }); return { id: "cs_test_fixture", livemode: false, url: "https://checkout.stripe.com/c/pay/test", metadata: params.metadata, amount_total: row.amount, currency: "eur" }; } } } }; } },
+    "@/lib/stripe": { createStripeClient: () => { calls.push("stripe"); return { accounts: { retrieve: async () => ({ id: env.STRIPE_SANDBOX_ACCOUNT_ID }) }, v2: { core: { accounts: { retrieve: async (id, options) => { calls.push({ id, options }); return { id: row.stripe_account_id, livemode: false, metadata: { tenant_id: row.tenant_id, environment: "sandbox", product: "glowflow" }, defaults: { responsibilities: { fees_collector: "stripe", losses_collector: "stripe" } }, configuration: { merchant: { capabilities: { card_payments: { status: "active" } } } } }; } } } }, checkout: { sessions: { create: async (params, options) => { calls.push({ params, options }); return { id: "cs_test_fixture", livemode: false, url: "https://checkout.stripe.com/c/pay/test", metadata: params.metadata, amount_total: row.amount, currency: "eur" }; } } } }; } },
     "@/lib/stripe-deposits-config": { sandboxDepositConfiguration: () => configEnabled ? { origin: env.GLOWFLOW_APP_URL, platformAccountId: env.STRIPE_SANDBOX_ACCOUNT_ID } : null },
     "@/lib/stripe-deposits": helpers,
     "@/lib/payment-diagnostics": await moduleAt("../lib/payment-diagnostics.ts"),
@@ -80,6 +80,7 @@ test("checkout persists before Stripe, reuses reservation idempotency and scoped
   const response = await h.route.POST(request()); assert.equal(response.status, 200);
   const sessionIndex = h.calls.findIndex((call) => call.params);
   assert.ok(h.calls.findIndex((call) => call.name?.startsWith("reserve")) < sessionIndex);
+  assert.deepEqual(h.calls.find((call) => call.id === row.stripe_account_id).options.include, ["configuration.merchant", "defaults"]);
   assert.equal(h.calls[sessionIndex].options.stripeAccount, row.stripe_account_id);
   assert.equal(h.calls[sessionIndex].options.idempotencyKey, `glowflow-sandbox-deposit-${row.id}`);
   assert.equal((await response.json()).status, "pending");
