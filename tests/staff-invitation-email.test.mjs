@@ -86,8 +86,11 @@ test("production invitation origin must match the approved public origin", () =>
   environment.env.GLOWFLOW_APP_URL = "https://glowflow.mocktar.com";
   assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
 
+  environment.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
   environment.env.GLOWFLOW_APP_URL = "https://glowflow.beauty";
   assert.equal(loaded.exports.staffInvitationEmailOrigin(), "https://glowflow.beauty");
+  environment.env.NEXT_PUBLIC_SUPABASE_URL = "https://rfwhqutkiztxkagbhevp.supabase.co";
+  assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
 
   environment.env.GLOWFLOW_CANONICAL_ORIGIN = "https://unapproved.example";
   assert.equal(loaded.exports.staffInvitationEmailOrigin(), null);
