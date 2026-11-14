@@ -8,12 +8,15 @@ const { chromium } = await import(process.env.GLOWFLOW_PLAYWRIGHT_PATH
   ? pathToFileURL(process.env.GLOWFLOW_PLAYWRIGHT_PATH).href
   : "playwright");
 const worker = await readFile(new URL("../../public/sw.js", import.meta.url));
+const oldWorker = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", event => event.waitUntil(self.clients.claim()));`;
 const privateMarker = "fictional-private-client-marker";
 let server;
 let browser;
 let origin;
 let bookingPosts = 0;
 let networkDown = false;
+let serveOldWorker = false;
 
 before(async () => {
   server = createServer((request, response) => {
@@ -29,7 +32,7 @@ before(async () => {
         "cache-control": "no-store",
         "service-worker-allowed": "/",
       });
-      response.end(worker);
+      response.end(serveOldWorker ? oldWorker : worker);
       return;
     }
     if (request.method === "POST") bookingPosts++;
@@ -113,5 +116,94 @@ test("registered PWA worker recovers online without caching private pages or rep
   } finally {
     networkDown = false;
     await context.close();
+  }
+}, { timeout: 60000 });
+
+test("a service-worker upgrade receives the locale after its controller takes over", async () => {
+  const context = await browser.newContext({ serviceWorkers: "allow" });
+  serveOldWorker = true;
+  try {
+    const page = await context.newPage();
+    await page.goto(`${origin}/en/salons`);
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.ready;
+    });
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+
+    serveOldWorker = false;
+    const storedAfterUpgrade = await page.evaluate(async () => {
+      const serviceWorker = navigator.serviceWorker;
+      const stored = new Promise(resolve => {
+        serviceWorker.addEventListener("controllerchange", () => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = ({ data }) => resolve(data?.stored);
+          serviceWorker.controller?.postMessage(
+            { type: "glowflow-locale", locale: "en" }, [channel.port2],
+          );
+        }, { once: true });
+      });
+      const registration = await serviceWorker.getRegistration("/");
+      await registration.update();
+      return stored;
+    });
+    assert.equal(storedAfterUpgrade, true);
+    await page.close();
+
+    networkDown = true;
+    await context.setOffline(true);
+    const launched = await context.newPage();
+    const offline = await launched.goto(`${origin}/salons`);
+    assert.equal(offline.status(), 503);
+    assert.equal(offline.fromServiceWorker(), true);
+    assert.equal(await launched.locator("html").getAttribute("lang"), "en");
+    assert.deepEqual(await launched.evaluate(() => caches.keys()), []);
+    await launched.close();
+  } finally {
+    networkDown = false;
+    serveOldWorker = false;
+    await context.close();
+  }
+}, { timeout: 60000 });
+
+test("installed /salons cold offline launch uses only the saved visitor language", async () => {
+  for (const [locale, heading] of [
+    ["en", "GlowFlow is offline"],
+    ["es", "GlowFlow está sin conexión"],
+  ]) {
+    const context = await browser.newContext({ serviceWorkers: "allow" });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/${locale}/salons`);
+      await page.evaluate(async () => {
+        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        await navigator.serviceWorker.ready;
+      });
+      await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+      const stored = await page.evaluate(localeValue => new Promise(resolve => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = ({ data }) => resolve(data?.stored);
+        navigator.serviceWorker.controller.postMessage(
+          { type: "glowflow-locale", locale: localeValue }, [channel.port2],
+        );
+      }), locale);
+      assert.equal(stored, true);
+      await page.close();
+
+      networkDown = true;
+      await context.setOffline(true);
+      const launched = await context.newPage();
+      const offline = await launched.goto(`${origin}/salons`);
+      assert.equal(offline.status(), 503);
+      assert.equal(offline.fromServiceWorker(), true);
+      assert.equal(offline.headers()["cache-control"], "no-store");
+      assert.equal(await launched.locator("html").getAttribute("lang"), locale);
+      assert.equal(await launched.locator("h1").innerText(), heading);
+      assert.deepEqual(await launched.evaluate(() => caches.keys()), []);
+      await launched.close();
+    } finally {
+      networkDown = false;
+      await context.close();
+    }
   }
 }, { timeout: 60000 });

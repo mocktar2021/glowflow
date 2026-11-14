@@ -56,7 +56,7 @@ export default async function LocaleLayout({
     <html lang={locale}>
       <body className="min-h-screen antialiased">
         <GlowFlowIntlProvider locale={locale} messages={messages[locale]}>
-          <PwaRegistration />{children}<LegalFooter locale={locale} />
+          <PwaRegistration locale={locale} />{children}<LegalFooter locale={locale} />
         </GlowFlowIntlProvider>
       </body>
     </html>
