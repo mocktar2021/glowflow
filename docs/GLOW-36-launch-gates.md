@@ -12,6 +12,27 @@ site and `glowflow.beauty` as the future public production domain. Historical
 deployments below use Vercel's `production` target for the development site;
 that platform label is not evidence of a `glowflow.beauty` launch or QA isolation.
 
+## 2026-11-14 paid-launch gate status
+
+The owner has selected a **public paid launch at `glowflow.beauty`**. This is
+still a **No-go**. The current development Vercel project and shared Supabase
+project cannot be entered as the separate production identities. Live billing,
+deposits, and messaging remain inactive; a successful sandbox or public GET
+does not close their release gates. The selected historical database **and**
+Storage recovery point, measured RPO/RTO, exact production deployment and
+alias, legal review for each launch country, paid transaction/refund/webhook
+evidence, and final owner decision are not yet recorded as passed.
+
+A fresh read-only Supabase Security Advisor check at 2026-11-14 17:42 UTC on
+organization `goutxcrujaxjjssbjfsn`, project `rfwhqutkiztxkagbhevp`, still
+reported `auth_leaked_password_protection` disabled. The owner previously saw
+the UI setting remain ON after refresh, so the displayed setting and advisor
+result conflict. [GLOW-48](https://mocktarltd.atlassian.net/browse/GLOW-48)
+remains **unverified and blocked** until a fresh project-scoped advisor check
+and an approved Auth test resolve the discrepancy. No Auth setting is changed
+by this record. The RLS-with-no-policy and invitation-definer advisor notices
+require their separate scoped reviews; they do not close the password warning.
+
 ## Verified 2026-11-01 20:14-20:15 UTC production checkpoint, not launch approval
 
 GitHub `mocktar2021/glowflow` `master` was
@@ -202,8 +223,8 @@ approval, policy coverage, or that the Vercel alias points to the exact GitHub
 commit.
 Record the separate GitHub/Vercel identity and runtime-error evidence alongside
 its result; a pass is not a launch approval.
-This probe targets only the current development site; a future
-`glowflow.beauty` release needs its own exact-origin checks.
+The current development-domain result cannot stand in for the separate
+`glowflow.beauty` exact-origin result.
 
 ## Historical production snapshot, not current status or launch approval
 
@@ -322,6 +343,41 @@ The product owner signs a final **Go** or **No-go** only after reviewing every
 applicable row. Record any supervised-pilot exception with its owner, expiry,
 containment, and rollback trigger. Leave GLOW-36 In Progress while required
 evidence or the exact-release decision is missing.
+
+### Offline paid-launch record check
+
+`node ops/paid-launch-evidence.mjs /path/to/private-record.json` checks a
+separately assembled JSON release record **without network access**. It checks
+the exact `master` SHA across CI, database-security, browser, and Vercel
+evidence; requires a distinct `glowflow.beauty` Vercel project and Supabase
+project; and requires a named verifier and evidence reference for every
+paid-launch gate. It blocks the current `glowflow.mocktar.com` Vercel and
+Supabase identities. `migrationRecovery` can be marked `not-applicable` only
+when the included migration list is empty and the product owner has recorded
+a written reason and approval. The Auth password-protection gate is separate
+because of the unresolved GLOW-48 advisor result.
+
+The command returns `blocked` with missing gate names or
+`structurally-complete-for-owner-review`. The latter means **only** that the
+record has the required shape. It does not verify a linked artifact, validate
+a live provider, approve legal or tax treatment, or issue a Go decision. Keep
+the real record and restricted evidence outside the repository; never commit
+credentials, customer rows, payment details, or secret-bearing logs. The
+product owner and named operators must still inspect the evidence and sign
+the exact-release decision above.
+
+The record has these top-level fields: `releaseType` (`public-paid`), `asOfUtc`,
+`github`, `vercel`, `supabase`, `includedMigrations` (filenames or `[]`), and
+`gates`. `github` contains repository, branch, 40-character SHA and `ci`,
+`databaseSecurity`, `browser` checks. `vercel` contains team/project/deployment
+IDs, `production` target, `READY` state, matching Git SHA, alias
+`glowflow.beauty`, and evidence reference. `supabase` contains distinct
+organization/project identity, migration-ledger and schema SHA-256
+fingerprints, and evidence reference. Every passed gate contains `status`,
+`evidenceRef`, `checkedAtUtc`, and `verifier`. The exact required gate names
+are in `ops/paid-launch-evidence.mjs`; use the checklist above to assemble
+their underlying artifacts. All observation timestamps must be UTC and no
+later than `asOfUtc`.
 
 ## Recovery exercise evidence template
 
