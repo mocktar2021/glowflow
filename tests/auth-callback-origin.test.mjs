@@ -21,6 +21,10 @@ const { authCallbackOrigin } = loaded.exports;
 test("current QA Production and Preview callbacks stay unchanged before cutover", () => {
   assert.equal(authCallbackOrigin({ VERCEL_ENV: "production" }), "https://glowflow.mocktar.com");
   assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com" }), "https://glowflow.mocktar.com");
+  assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_APP_URL: "https://glowflow.mocktar.com/" }), "https://glowflow.mocktar.com");
+  for (const origin of ["https://glowflow.beauty", "https://evil.example", "http://glowflow.mocktar.com", "https://glowflow.mocktar.com/path"]) {
+    assert.equal(authCallbackOrigin({ VERCEL_ENV: "production", GLOWFLOW_APP_URL: origin }), null, origin);
+  }
   assert.equal(authCallbackOrigin({ VERCEL_ENV: "preview", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty", GLOWFLOW_APP_URL: "https://preview.vercel.app" }), "https://preview.vercel.app");
 });
 
