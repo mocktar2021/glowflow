@@ -32,6 +32,15 @@ code, that Stripe Tax is ready, or that a subscription may be created. No
 route calls this module, no Stripe Price is configured, and no hosted state
 changes from it.
 
+`lib/billing/starter-product-preflight.ts` adds an inactive check for the
+expanded Stripe Product on that reviewed Price. It requires the exact
+server-configured Product ID and display name, an active Product in the
+expected Stripe mode, and an exact reviewed tax code ID. An unexpanded Product,
+unrelated Product, missing tax code, or mismatch fails closed. The expected tax
+code is an input from future reviewed server configuration; this module does
+not select or approve one, confirm its legal classification, prove a tax
+registration, or create Checkout. It is not called by a route.
+
 `lib/billing/owner-authorization.ts` is an uncalled, server-only authorization
 boundary for a future subscription Checkout or Portal route. It obtains the
 authenticated user from Supabase, verifies that user's `users` row has the
