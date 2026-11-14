@@ -5,7 +5,10 @@ adapter at `/api/internal/glow56-vercel-cleanup`. It reuses the existing
 bounded database sweeps and Healthchecks signaling. This change does not
 register a Vercel Cron or Schedules job, set `CRON_SECRET`, set the new
 activation variable, invoke a Function, or change Supabase. The existing
-GitHub OIDC workflow remains separately dormant. **Never activate both.**
+GitHub OIDC workflow remains separately dormant. If both route activation
+values are set, both adapters reject before accessing the database key.
+Keep the GitHub workflow ACK unset; the code guard is a last-resort fence,
+not an activation or a substitute for the operator preflight.
 
 The owner-provided November 14 screenshots show Vercel Pro with $14.58 of
 the team's $20 included credit used in the October 23 to November 23 cycle,
