@@ -27,6 +27,7 @@ test("inactive, wrong-target, and unauthorized calls cannot touch cleanup or Hea
   };
   for (const [req, candidate] of [
     [request(), { ...env, GLOWFLOW_QA_OIDC_CLEANUP_ACTIVE: undefined }],
+    [request(), { ...env, GLOWFLOW_QA_VERCEL_CLEANUP_ACTIVE: "enable-glow56-qa-vercel-cleanup-20261114" }],
     [request(), { ...env, VERCEL_ENV: "preview" }],
     [request(), { ...env, NEXT_PUBLIC_SUPABASE_URL: "https://other.supabase.co" }],
     [request({ host: "evil.example" }), env],
