@@ -794,6 +794,63 @@ test("v2 rejects outcomes that belong to a different intent action", async () =>
   }
 });
 
+test("contradictory intent evidence cannot become an all-clear response", async () => {
+  const cases = [
+    [{ action: "reconcile", salonSlug: "browser-fixture" },
+      { state: "none", generation, intent_id: intentId }],
+    [{ action: "reconcile", salonSlug: "browser-fixture" },
+      { state: "none", generation, intent_id: null }],
+    [{ action: "reconcile", salonSlug: "browser-fixture" },
+      { state: "none", generation, confirmation: { appointment_id: otherIntentId } }],
+    [{ action: "acknowledge", salonSlug: "browser-fixture", intentId },
+      { state: "none", generation, intent_id: otherIntentId }],
+    [prepare, { state: "prepared", generation, intent_id: intentId,
+      confirmation: { appointment_id: otherIntentId } }],
+    [prepare, { state: "prepared", generation, intent_id: intentId, confirmation: null }],
+    [{ action: "cancel", salonSlug: "browser-fixture", intentId },
+      { state: "not_committed", generation, intent_id: intentId,
+        confirmation: { appointment_id: otherIntentId } }],
+    [{ action: "cancel", salonSlug: "browser-fixture", intentId },
+      { state: "not_committed", generation, intent_id: intentId, confirmation: null }],
+  ];
+  for (const [body, invalidResult] of cases) {
+    const { POST, calls } = await harness(true, { data: invalidResult, error: null });
+    const { response, value } = await post(POST, body);
+    assert.equal(response.status, 503, `${body.action} must reject contradictory ${invalidResult.state}`);
+    assert.deepEqual(value, { state: "unknown", error: "booking_unavailable" });
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.deepEqual(calls.map(({ name }) => name), [`${body.action}_public_booking_intent`]);
+  }
+});
+
+test("current SQL response shapes for none, prepared and not-committed remain valid", async () => {
+  const previous = process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+  process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
+  try {
+    const cases = [
+      [{ action: "reconcile", salonSlug: "browser-fixture" },
+        { state: "none", generation }],
+      [{ action: "acknowledge", salonSlug: "browser-fixture", intentId },
+        { state: "none", generation }],
+      [prepare, { state: "prepared", generation, intent_id: intentId }],
+      [{ action: "cancel", salonSlug: "browser-fixture", intentId },
+        { state: "not_committed", generation, intent_id: intentId, reason: "canceled" }],
+    ];
+    for (const [body, sqlResult] of cases) {
+      const { POST } = await harness(true, { data: sqlResult, error: null });
+      const { response, value } = await post(POST, body);
+      assert.equal(response.status, 200, `${body.action} must accept the SQL ${sqlResult.state} shape`);
+      assert.equal(value.state, sqlResult.state);
+      assert.equal(value.generation, generation);
+      assert.equal(value.intent_id, sqlResult.intent_id);
+      assert.equal(value.confirmation, undefined);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS;
+    else process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = previous;
+  }
+});
+
 test("a database policy error is unavailable and never falls back to the legacy booking RPC", async () => {
   process.env.GLOWFLOW_PUBLIC_BOOKING_V2_COOKIE_MAX_AGE_SECONDS = "3600";
   const { POST, calls } = await harness(true, { data: null, error: { code: "P0001", message: "booking_intent_policy_unconfigured" } });
