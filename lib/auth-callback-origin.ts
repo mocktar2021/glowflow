@@ -9,8 +9,13 @@ const currentQaOrigin = "https://glowflow.mocktar.com";
  */
 export function authCallbackOrigin(env: NodeJS.ProcessEnv = process.env): string | null {
   const configured = env.GLOWFLOW_APP_URL ?? currentQaOrigin;
-  if (env.VERCEL_ENV !== "production" || env.GLOWFLOW_CANONICAL_ORIGIN === undefined) {
-    return configured;
+  if (env.VERCEL_ENV !== "production") return configured;
+  // With no explicit cutover, only the current QA origin may receive Auth
+  // callbacks. An App URL change by itself must not silently start sending
+  // beauty links while public metadata still advertises QA.
+  if (env.GLOWFLOW_CANONICAL_ORIGIN === undefined) {
+    return configured === currentQaOrigin || configured === `${currentQaOrigin}/`
+      ? currentQaOrigin : null;
   }
 
   // Once a Production canonical origin is explicitly selected, Auth callbacks

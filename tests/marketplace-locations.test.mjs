@@ -79,7 +79,7 @@ test("beauty cutover changes location Open Graph and structured-data URLs togeth
     "@/lib/markets": markets,
     "@/lib/salon-time-zones": { publicSalonTimeZones: async () => ({}) },
     "@/lib/supabase/server": { createClient: async () => ({ rpc: async () => ({ data: [], error: null }) }) },
-  }, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: origin, NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
+  }, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: origin, GLOWFLOW_APP_URL: origin, NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "fixture" });
   const metadata = await generateMetadata({ params: Promise.resolve({ locale: "fr", country: "US" }), searchParams: Promise.resolve({}) });
   assert.equal(metadata.openGraph.url, `${origin}/fr/salons/locations/US`);
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ locale: "fr", country: "US" }), searchParams: Promise.resolve({}) }));

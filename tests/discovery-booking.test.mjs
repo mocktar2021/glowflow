@@ -103,7 +103,7 @@ test("published salon structured data follows the configured beauty origin", asy
     "@/lib/markets": markets,
     "@/lib/product-localization": { localizedProductText, productDefaultLocale },
     "@/lib/published-policy": { selectPublishedPolicy },
-    "@/lib/public-site-origin": { publicSiteUrl: path => publicSiteUrl(path, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" }) },
+    "@/lib/public-site-origin": { publicSiteUrl: path => publicSiteUrl(path, { VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty", GLOWFLOW_APP_URL: "https://glowflow.beauty", NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" }) },
   });
   const tree = await Page({ params: Promise.resolve({ locale: "en", slug: tenant.slug }) });
   const script = nodes(tree).find(node => node.type === "script" && node.props?.type === "application/ld+json");

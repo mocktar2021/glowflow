@@ -55,9 +55,12 @@ test("missing, inactive, mismatched, or underpriced Stripe evidence fails closed
     price({ unit_amount: 1999 }), price({ unit_amount: 0 }),
     price({ billing_scheme: "tiered" }), price({ type: "one_time" }),
     price({ tax_behavior: "inclusive" }), price({ tax_behavior: "unspecified" }),
+    price({ transform_quantity: { divide_by: 2, round: "up" } }),
+    price({ custom_unit_amount: { enabled: true } }),
     price({ recurring: null }), price({ recurring: { interval: "year", interval_count: 1, usage_type: "licensed" } }),
     price({ recurring: { interval: "month", interval_count: 2, usage_type: "licensed" } }),
-    price({ recurring: { interval: "month", interval_count: 1, usage_type: "metered" } })]) {
+    price({ recurring: { interval: "month", interval_count: 1, usage_type: "metered" } }),
+    price({ recurring: { interval: "month", interval_count: 1, usage_type: "licensed", trial_period_days: 30 } })]) {
     assert.equal(reviewStarterPriceEvidence("US", "price_fixtureStarter", false, observed), null);
   }
   assert.equal(reviewStarterPriceEvidence("US", "price_fixtureStarter", true, price()), null);

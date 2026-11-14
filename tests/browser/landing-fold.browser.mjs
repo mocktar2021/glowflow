@@ -66,6 +66,26 @@ test("FR, EN, and ES landing actions fit within the first desktop viewport", asy
   }
 }, { timeout: 120000 });
 
+test("repeated GlowFlow wordmarks keep SVG clipping local to each instance", async () => {
+  const page = await browser.newPage();
+  try {
+    const response = await page.goto(`${origin}/fr`);
+    assert.equal(response.status(), 200);
+    const wordmarks = await page.locator('svg[aria-label="GlowFlow"]').evaluateAll(logos => logos.map(logo => ({
+      ids: [...logo.querySelectorAll("clipPath[id]")].map(clip => clip.id),
+      references: [...logo.querySelectorAll("path[clip-path]")]
+        .map(glyph => glyph.getAttribute("clip-path")),
+    })));
+    assert.ok(wordmarks.length >= 2, "landing renders the wordmark in the header and closing section");
+    const allIds = wordmarks.flatMap(logo => logo.ids);
+    assert.equal(allIds.length, wordmarks.length * 2);
+    assert.equal(new Set(allIds).size, allIds.length, "clipPath IDs must be unique across wordmarks");
+    for (const logo of wordmarks) {
+      assert.deepEqual(logo.references, logo.ids.map(id => `url(#${id})`));
+    }
+  } finally { await page.close(); }
+}, { timeout: 30000 });
+
 test("FR, EN, and ES phone landing keeps navigation visible and respects reduced motion", async () => {
   for (const locale of ["fr", "en", "es"]) {
     for (const width of [360, 390]) {
