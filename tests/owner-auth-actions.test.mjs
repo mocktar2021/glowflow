@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
 }).outputText;
 
-function ownerActions({ signInError = null, signUpError = null, session = null, workspaceError = null, callbackOrigin = origin } = {}) {
+function ownerActions({ signInError = null, signUpError = null, session = null, workspaceError = null, callbackOrigin = origin, storedPassword } = {}) {
   const calls = [];
   const dependencies = {
     "next/navigation": { redirect(location) { throw Object.assign(new Error("redirect"), { location }); } },
@@ -30,7 +30,8 @@ function ownerActions({ signInError = null, signUpError = null, session = null, 
         return { auth: {
           async signInWithPassword(value) {
             calls.push({ method: "signInWithPassword", value });
-            return { error: signInError };
+            return { error: storedPassword !== undefined && value.password !== storedPassword
+              ? new Error("synthetic invalid password") : signInError };
           },
           async signUp(value) {
             calls.push({ method: "signUp", value });
@@ -90,7 +91,7 @@ for (const locale of ["fr", "en", "es"]) {
     assert.deepEqual(calls, []);
   });
 
-  test(`${locale} owner signup sends trimmed metadata and localized configured-origin callback`, async () => {
+  test(`${locale} owner signup sends trimmed metadata, exact password, and localized configured-origin callback`, async () => {
     const { actions, calls } = ownerActions();
     await expectRedirect(() => actions.signUp(locale, ownerForm()),
       `/${locale}/login?message=${encodeURIComponent(authCopy[locale].notices.checkEmail)}`);
@@ -148,6 +149,38 @@ for (const locale of ["fr", "en", "es"]) {
     const allowed = ownerActions();
     await expectRedirect(() => allowed.actions.signIn(locale, form), `/${locale}/dashboard`);
     assert.deepEqual(allowed.calls.map(call => call.method), ["createClient", "signInWithPassword", "ensureOwnerWorkspace"]);
+  });
+
+  test(`${locale} legacy trimmed credentials require the stored bytes without an alternate retry`, async () => {
+    // A pre-fix signup with surrounding spaces stored only the trimmed value.
+    const storedPassword = "synthetic-password-123";
+    const form = new FormData();
+    form.set("email", "  owner@example.invalid  ");
+    form.set("password", `  ${storedPassword}  `);
+    const legacy = ownerActions({ storedPassword });
+    const failure = `/${locale}/login?error=${encodeURIComponent(authCopy[locale].notices.invalidCredentials)}`;
+    await expectRedirect(() => legacy.actions.signIn(locale, form), failure);
+    assert.deepEqual(legacy.calls, [
+      { method: "createClient" },
+      { method: "signInWithPassword", value: {
+        email: "owner@example.invalid", password: `  ${storedPassword}  `,
+      } },
+    ]);
+    assert.ok(!failure.includes(storedPassword));
+
+    form.set("password", storedPassword);
+    const corrected = ownerActions({ storedPassword });
+    await expectRedirect(() => corrected.actions.signIn(locale, form), `/${locale}/dashboard`);
+    assert.deepEqual(corrected.calls.map(call => call.method), [
+      "createClient", "signInWithPassword", "ensureOwnerWorkspace",
+    ]);
+
+    form.set("password", `  ${storedPassword}  `);
+    const exact = ownerActions({ storedPassword: `  ${storedPassword}  ` });
+    await expectRedirect(() => exact.actions.signIn(locale, form), `/${locale}/dashboard`);
+    assert.deepEqual(exact.calls.map(call => call.method), [
+      "createClient", "signInWithPassword", "ensureOwnerWorkspace",
+    ]);
   });
 
   test(`${locale} sign-out uses only the mocked Auth client and returns to localized login`, async () => {
