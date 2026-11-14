@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "GlowFlow",
     description: "Découvrez des salons et réservez votre prochain rendez-vous beauté.",
     id: "/",
-    start_url: "/fr/salons",
+    start_url: "/salons",
     scope: "/",
     display: "standalone",
     background_color: "#faf6f1",

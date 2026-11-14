@@ -34,6 +34,21 @@ async function layoutMetadata(environment) {
   return loaded.exports.metadata;
 }
 
+async function installedSalonSearch(cookieValue) {
+  const source = await readFile(new URL("../app/(root)/salons/page.tsx", import.meta.url), "utf8");
+  const js = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
+  }).outputText;
+  const loaded = { exports: {} };
+  new Function("require", "exports", js)((name) => {
+    if (name === "next/headers") return { cookies: async () => ({ get: () => cookieValue === undefined ? undefined : { value: cookieValue } }) };
+    if (name === "next/navigation") return { redirect(path) { throw new Error(`redirect:${path}`); } };
+    if (name === "@/lib/i18n") return { isLocale: (value) => ["fr", "en", "es"].includes(value) };
+    throw new Error(`Unexpected installed-search dependency: ${name}`);
+  }, loaded.exports);
+  return loaded.exports.default();
+}
+
 test("favicon, Apple, app, and social PNG assets have their advertised dimensions", async () => {
   for (const [name, width, height] of [
     ["icon-32.png", 32, 32],
@@ -77,10 +92,19 @@ test("metadata and manifest advertise all icon and social previews", async () =>
 
   const webApp = manifest();
   assert.equal(webApp.id, "/");
-  assert.equal(webApp.start_url, "/fr/salons");
+  assert.equal(webApp.start_url, "/salons");
   assert.equal(webApp.scope, "/");
   assert.deepEqual(webApp.icons.map(({ src, sizes }) => [src, sizes]), [
     ["/icon-192.png", "192x192"],
     ["/icon-512.png", "512x512"],
   ]);
+});
+
+test("installed PWA reopens salon search in the visitor's chosen language", async () => {
+  for (const locale of ["fr", "en", "es"]) {
+    await assert.rejects(installedSalonSearch(locale), new RegExp(`redirect:/${locale}/salons`));
+  }
+  for (const invalid of [undefined, "de", "en/../dashboard", ""]) {
+    await assert.rejects(installedSalonSearch(invalid), /redirect:\/fr\/salons/);
+  }
 });
