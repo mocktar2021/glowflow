@@ -1,0 +1,57 @@
+name: GlowFlow disposable legacy Auth acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/g9-local-auth.yml"
+      - "app/**/auth-actions.ts"
+      - "tests/g9-local-auth-legacy.mjs"
+      - "tests/owner-auth-actions.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  local-auth:
+    if: github.repository == 'mocktar2021/glowflow'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: 3.0.0
+      - name: Start disposable local Auth and Mailpit
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          fixture_dir="${RUNNER_TEMP}/glow9-local-auth"
+          mkdir -p "$fixture_dir"
+          cd "$fixture_dir"
+          supabase start --help > /dev/null
+          supabase init > /dev/null
+          if ! supabase start --exclude realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "${RUNNER_TEMP}/glow9-start.log" 2>&1; then
+            echo "Disposable local Supabase Auth failed to start. No hosted project was targeted."
+            exit 1
+          fi
+          supabase status -o env > "${RUNNER_TEMP}/glow9-status.env"
+          chmod 600 "${RUNNER_TEMP}/glow9-status.env"
+      - name: Verify legacy password and recovery with local Auth
+        run: node tests/g9-local-auth-legacy.mjs "${RUNNER_TEMP}/glow9-status.env"
+      - name: Stop disposable local stack
+        if: always()
+        shell: bash
+        run: |
+          fixture_dir="${RUNNER_TEMP}/glow9-local-auth"
+          if command -v supabase > /dev/null && test -f "$fixture_dir/supabase/config.toml"; then
+            cd "$fixture_dir"
+            supabase stop --no-backup > /dev/null 2>&1 || true
+          fi
