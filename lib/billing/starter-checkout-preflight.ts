@@ -41,9 +41,12 @@ export function reviewStarterPriceEvidence(
     || stripePrice.billing_scheme !== "per_unit"
     || stripePrice.type !== "recurring"
     || stripePrice.tax_behavior !== "exclusive"
+    || stripePrice.transform_quantity != null
+    || stripePrice.custom_unit_amount != null
     || !isRecord(stripePrice.recurring)
     || stripePrice.recurring.interval !== "month"
     || stripePrice.recurring.interval_count !== 1
+    || stripePrice.recurring.trial_period_days != null
     || stripePrice.recurring.usage_type !== "licensed") return null;
 
   return Object.freeze({

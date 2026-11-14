@@ -66,7 +66,7 @@ test("owner-approved vector artwork uses the Porcelain and Mulberry palette with
 test("metadata and manifest advertise all icon and social previews", async () => {
   const production = await layoutMetadata({ VERCEL_ENV: "production", VERCEL_URL: "preview.vercel.app" });
   assert.equal(production.metadataBase.href, "https://glowflow.mocktar.com/");
-  const beauty = await layoutMetadata({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty" });
+  const beauty = await layoutMetadata({ VERCEL_ENV: "production", GLOWFLOW_CANONICAL_ORIGIN: "https://glowflow.beauty", GLOWFLOW_APP_URL: "https://glowflow.beauty", NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" });
   assert.equal(beauty.metadataBase.href, "https://glowflow.beauty/");
   assert.deepEqual(production.icons.icon.map(({ url }) => url), ["/favicon.svg", "/icon-32.png"]);
   assert.equal(production.icons.shortcut, "/favicon.ico");

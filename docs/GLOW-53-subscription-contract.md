@@ -23,7 +23,8 @@ contract. It compares a future retrieved Stripe Price to the exact approved
 Starter amount and currency for the salon market, an explicitly configured
 Price ID, the expected sandbox/live mode, a one-month licensed recurring
 interval, and exclusive tax behavior. It rejects inactive, underpriced,
-inclusive-tax, wrong-mode, annual, or metered Prices. It also calculates the
+inclusive-tax, wrong-mode, annual, metered, quantity-transformed, custom-amount,
+or Price-level fixed-day-trial Prices. It also calculates the
 approved *local calendar date* one month after signup, clamping missing dates
 to month-end, including leap years. It deliberately does not turn that date
 into Stripe's UTC `trial_end`: the authoritative billing time zone has not yet
@@ -31,6 +32,15 @@ been approved. Price evidence is not proof that a Product has the right tax
 code, that Stripe Tax is ready, or that a subscription may be created. No
 route calls this module, no Stripe Price is configured, and no hosted state
 changes from it.
+
+`lib/billing/starter-product-preflight.ts` adds an inactive check for the
+expanded Stripe Product on that reviewed Price. It requires the exact
+server-configured Product ID and display name, an active Product in the
+expected Stripe mode, and an exact reviewed tax code ID. An unexpanded Product,
+unrelated Product, missing tax code, or mismatch fails closed. The expected tax
+code is an input from future reviewed server configuration; this module does
+not select or approve one, confirm its legal classification, prove a tax
+registration, or create Checkout. It is not called by a route.
 
 `lib/billing/owner-authorization.ts` is an uncalled, server-only authorization
 boundary for a future subscription Checkout or Portal route. It obtains the
